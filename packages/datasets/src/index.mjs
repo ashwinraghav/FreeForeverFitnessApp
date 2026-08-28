@@ -16,6 +16,14 @@
  */
 
 export { FoodIndex, FoodIndexSet, attributionUrl } from './reader.mjs';
+export { gunzip } from './gunzip.mjs';
+/**
+ * Re-exported for convenience. ⚠ `openExerciseCatalogue()` loads 213 KB gzipped
+ * / 1.66 MB parsed — never call it at module scope. Prefer
+ * `await import('@freeforever/datasets/exercises')` so the reader itself stays
+ * out of the eager graph. See src/exercises.mjs.
+ */
+export { ExerciseCatalogue, CATALOGUE_SIZE, openExerciseCatalogue } from './exercises.mjs';
 export { MEDIA_BUDGET, MEDIA_VERSION, jsdelivrUrl, rawGithubUrl } from './media.mjs';
 export { fold, tokenise } from './text.mjs';
 export {
@@ -46,6 +54,7 @@ export async function openIndexFromUrls(urls, opts = {}) {
   const load = async (url) => {
     const res = await f(url, opts.signal ? { signal: opts.signal } : {});
     if (!res.ok) throw new Error(`index fetch failed: ${res.status} ${url}`);
+    const { gunzip } = await import('./gunzip.mjs');
     return gunzip(new Uint8Array(await res.arrayBuffer()));
   };
 
@@ -62,26 +71,3 @@ export async function openIndexFromUrls(urls, opts = {}) {
   });
 }
 
-/**
- * Decompress a gzip body.
- *
- * Uses `DecompressionStream` where available. A server may or may not have
- * already decompressed the body for us depending on how it set
- * `content-encoding`, so a non-gzip buffer is passed through rather than
- * treated as an error — the artefact's magic bytes are the real check, and
- * `readContainer` performs it.
- *
- * @param {Uint8Array} buf
- * @returns {Promise<Uint8Array>}
- */
-export async function gunzip(buf) {
-  const isGzip = buf[0] === 0x1f && buf[1] === 0x8b;
-  if (!isGzip) return buf;
-
-  if (typeof DecompressionStream === 'function') {
-    const stream = new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
-  }
-  const { gunzipSync } = await import('node:zlib');
-  return new Uint8Array(gunzipSync(buf));
-}

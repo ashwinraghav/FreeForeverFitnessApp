@@ -7,7 +7,9 @@
   "type": "module",
   "engines": { "node": ">=22" },
   "exports": {
-    ".": { "types": "./src/index.d.ts", "default": "./src/index.mjs" }
+    ".": { "types": "./src/index.d.ts", "default": "./src/index.mjs" },
+    "./exercises": { "types": "./src/exercises.d.ts", "default": "./src/exercises.mjs" },
+    "./package.json": "./package.json"
   },
   "files": ["src", "build", "NOTICE.md", "LICENSE", "docs"],
   "scripts": {

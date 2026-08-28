@@ -24,6 +24,7 @@ import { gzipSync } from 'node:zlib';
 import { SCHEMA_VERSION } from '../src/schema.mjs';
 import { fold } from '../src/text.mjs';
 import { coachingFor } from './lib/cues.mjs';
+import { ALL_MUSCLES, MUSCLE_GROUP, mapMuscles } from './lib/muscles.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -43,33 +44,28 @@ const UPSTREAM = {
 };
 
 /**
- * Canonical muscle vocabulary.
+ * How a set of this exercise is counted.
  *
- * free-exercise-db's list is close to what we want but splits the back into
- * "lats"/"middle back"/"lower back" and calls the quads "quadriceps". We keep
- * the distinctions (they matter for volume tracking) and only normalise the
- * spelling. NOTE for the domain-model team: if `packages/data` defines a muscle
- * enum, this map is the seam — change it here, not in the consumers.
+ * Not in free-exercise-db, and not derivable from `category` alone: "Plank" and
+ * "Push Up" are both `strength`, and one is held while the other is counted.
+ * Emitted here rather than left to each consumer because it takes name
+ * analysis, and analysis of the data belongs with the data.
+ *
+ * `loadKind` is deliberately NOT emitted: it follows from `equipment` with no
+ * analysis at all ("body only" is bodyweight, "bands" is elastic, everything
+ * else is external load), and a second field carrying the same fact is a second
+ * field that can disagree with the first.
  */
-const MUSCLE = {
-  abdominals: 'abdominals',
-  abductors: 'abductors',
-  adductors: 'adductors',
-  biceps: 'biceps',
-  calves: 'calves',
-  chest: 'chest',
-  forearms: 'forearms',
-  glutes: 'glutes',
-  hamstrings: 'hamstrings',
-  lats: 'lats',
-  'lower back': 'lower-back',
-  'middle back': 'mid-back',
-  neck: 'neck',
-  quadriceps: 'quads',
-  shoulders: 'shoulders',
-  traps: 'traps',
-  triceps: 'triceps',
-};
+const TIMED = /plank|\bhold\b|isometric|wall sit|dead hang|side bridge/i;
+const DISTANCE =
+  /\bcarry\b|farmer'?s walk|monster walk|sled (drag|push|pull|row)|(backward|forward) drag|prowler|yoke walk|duck walk|waiter walk|overhead walk|bear crawl/i;
+
+/** @param {string} name @param {string} category */
+function effortUnitFor(name, category) {
+  if (DISTANCE.test(name)) return 'distance';
+  if (category === 'stretching' || TIMED.test(name)) return 'time';
+  return 'reps';
+}
 
 /**
  * Gym shorthand, which is what people actually type into a search box mid-set.
@@ -107,6 +103,18 @@ const raw = JSON.parse(await readFile(resolve(inputDir, 'free-exercise-db.json')
 const exercises = [];
 /** @type {Record<string, number>} */
 const patternCoverage = {};
+const deltoidBasis = {
+  /** @type {Record<string, number>} */ primary: {},
+  /** @type {Record<string, number>} */ secondary: {},
+};
+/** @param {Record<string, number>} into @param {string} key */
+const bump = (into, key) => {
+  into[key] = (into[key] ?? 0) + 1;
+};
+/** @type {Set<string>} */
+const unknownMuscles = new Set();
+/** @type {Record<string, number>} */
+const effortUnits = {};
 let withoutCues = 0;
 
 for (const src of raw) {
@@ -115,8 +123,16 @@ for (const src of raw) {
   if (!name || !id) continue;
 
   const equipment = normaliseEquipment(src.equipment);
-  const primary = (src.primaryMuscles ?? []).map(muscle).filter(Boolean);
-  const secondary = (src.secondaryMuscles ?? []).map(muscle).filter(Boolean);
+
+  const p = mapMuscles(src.primaryMuscles ?? [], name, true);
+  const sec = mapMuscles(src.secondaryMuscles ?? [], name, false);
+  const primary = p.muscles;
+  // A head that is a primary mover is not also a secondary one.
+  const secondary = sec.muscles.filter((m) => !primary.includes(m));
+
+  for (const u of [...p.unknown, ...sec.unknown]) unknownMuscles.add(u);
+  if (p.basis) bump(deltoidBasis.primary, p.basis);
+  if (sec.basis) bump(deltoidBasis.secondary, sec.basis);
 
   const ctx = {
     name: fold(name),
@@ -144,6 +160,14 @@ for (const src of raw) {
     equipment,
     primaryMuscles: primary,
     secondaryMuscles: secondary,
+    /**
+     * How the deltoid split was determined for this exercise, or null if it has
+     * no deltoid involvement. `unspecified` means the generic `shoulders` was
+     * kept because neither the name nor the movement was conclusive — an honest
+     * "don't know", not a default.
+     */
+    deltoidBasis: p.basis ?? sec.basis ?? null,
+    effortUnit: effortUnitFor(name, ctx.category),
     instructions: (src.instructions ?? []).map((/** @type {string} */ s) => s.trim()).filter(Boolean),
     formCues: coaching.cues,
     commonMistakes: coaching.mistakes,
@@ -160,14 +184,49 @@ for (const src of raw) {
   });
 }
 
+for (const e of exercises) effortUnits[e.effortUnit] = (effortUnits[e.effortUnit] ?? 0) + 1;
+
+// An unrecognised upstream muscle name means free-exercise-db has been rebuilt
+// with a vocabulary we do not know. Failing here is the point: the alternative
+// is shipping exercises with silently empty muscle lists.
+if (unknownMuscles.size > 0) {
+  console.error(
+    `\nunknown muscle name(s) from upstream: ${[...unknownMuscles].join(', ')}\n` +
+      'Add them to MUSCLE in pipeline/lib/muscles.mjs before rebuilding.',
+  );
+  process.exit(1);
+}
+
 exercises.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
 const catalogue = {
   schemaVersion: SCHEMA_VERSION,
   builtAt: new Date().toISOString(),
   count: exercises.length,
-  muscles: [...new Set(Object.values(MUSCLE))].sort(),
+  /**
+   * Every muscle name that can appear in this catalogue. Published so a
+   * consumer can assert its own map covers all of them and fail CI the day
+   * upstream adds one, rather than silently shipping an empty muscle split.
+   */
+  muscles: ALL_MUSCLES,
+  /** Rolls a specific deltoid head up to `shoulders` for consumers that total by group. */
+  muscleGroups: MUSCLE_GROUP,
   equipment: [...new Set(exercises.map((e) => e.equipment))].sort(),
+  effortUnits,
+  deltoids: {
+    basis: deltoidBasis,
+    note:
+      'Upstream has one muscle, `shoulders`. Heads are split by movement name; ' +
+      '`unspecified` records keep the generic `shoulders` because neither the name ' +
+      'nor the movement class was conclusive.',
+  },
+  contributions: {
+    model: 'binary',
+    note:
+      'free-exercise-db distinguishes primary from secondary and nothing finer. Any ' +
+      'fractional volume model (1.0/0.5 or otherwise) is the consumer\'s choice, not ' +
+      'a fact from the data, and this pipeline will not invent one.',
+  },
   source: UPSTREAM,
   coaching: {
     generator: 'pipeline/lib/cues.mjs',
@@ -201,11 +260,16 @@ console.log(
 );
 const thin = Object.entries(patternCoverage).sort((a, b) => b[1] - a[1]);
 console.log(`patterns   ${thin.map(([k, v]) => `${k}:${v}`).join(' ')}`);
-
-/** @param {string} m */
-function muscle(m) {
-  return MUSCLE[/** @type {keyof typeof MUSCLE} */ (String(m).toLowerCase())] ?? null;
+for (const role of /** @type {const} */ (['primary', 'secondary'])) {
+  const b = deltoidBasis[role];
+  const total = Object.values(b).reduce((n, v) => n + v, 0);
+  const resolved = total - (b.unspecified ?? 0);
+  console.log(
+    `deltoid ${role.padEnd(9)} ${resolved}/${total} heads resolved  ` +
+      `(${Object.entries(b).map(([k, v]) => `${k}:${v}`).join(' ')})`,
+  );
 }
+console.log(`effort     ${Object.entries(effortUnits).map(([k, v]) => `${k}:${v}`).join(' ')}`);
 
 /** @param {unknown} e */
 function normaliseEquipment(e) {

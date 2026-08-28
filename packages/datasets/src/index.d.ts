@@ -172,8 +172,36 @@ export interface Exercise {
   level: 'beginner' | 'intermediate' | 'expert' | null;
   category: string;
   equipment: string;
+  /**
+   * Specific muscles, deltoids split into `front-delts` / `side-delts` /
+   * `rear-delts`. A plain `shoulders` here means the head could not be
+   * determined — see `deltoidBasis`. Use `ExerciseCatalogue.muscleGroups` to
+   * roll heads back up to a group.
+   */
   primaryMuscles: string[];
+  /** Never overlaps `primaryMuscles`. */
   secondaryMuscles: string[];
+  /**
+   * How the deltoid split was determined, or null when the exercise has no
+   * deltoid involvement.
+   *   `name`        — the movement name was conclusive (a lateral raise)
+   *   `movement`    — inferred from the movement class for a secondary muscle
+   *                   (a bench press works the front delts)
+   *   `unspecified` — neither was conclusive, so the generic `shoulders` was
+   *                   kept. An honest "don't know", not a default.
+   */
+  deltoidBasis: 'name' | 'movement' | 'unspecified' | null;
+  /**
+   * How a set is counted. Not in free-exercise-db; derived from the movement
+   * name and category, because "Plank" and "Push Up" are both `strength` and
+   * one is held while the other is counted.
+   *
+   * There is no `loadKind` companion: load follows from `equipment` with no
+   * analysis ("body only" is bodyweight, "bands" is elastic, everything else is
+   * external), and a second field carrying the same fact is one that can
+   * disagree with the first.
+   */
+  effortUnit: 'reps' | 'time' | 'distance';
   instructions: string[];
   formCues: string[];
   commonMistakes: string[];

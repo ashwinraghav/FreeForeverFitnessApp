@@ -17,6 +17,7 @@ decisions below exist to satisfy it rather than for engineering reasons.
 | [`docs/food-index-format.md`](./docs/food-index-format.md) | **The output contract. The nutrition team codes against this.** |
 | [`docs/search-index-design.md`](./docs/search-index-design.md) | Index structure, with the measurements that chose it |
 | [`docs/normalisation.md`](./docs/normalisation.md) | Per-100 g rules, validation, dedupe, ranking |
+| [`docs/exercise-catalogue.md`](./docs/exercise-catalogue.md) | **Exercise contract — read the load-cost warning before importing** |
 | [`docs/long-tail-contract.md`](./docs/long-tail-contract.md) | Cloud Run endpoint contract (specified, not built) |
 | [`docs/media-budget.md`](./docs/media-budget.md) | Exercise media budget, format, CDN layout |
 | [`docs/contribution-loop.md`](./docs/contribution-loop.md) | How improvements flow back to Open Food Facts |
@@ -33,7 +34,7 @@ Node 22+ as it sits.
 ```sh
 cd packages/datasets
 
-node --test "pipeline/test/*.test.mjs"   # 38 tests, ~60 ms
+node --test "pipeline/test/*.test.mjs"   # 55 tests, ~150 ms
 node pipeline/build-food-index.mjs       # builds from fixtures/
 node pipeline/build-exercise-catalogue.mjs
 node pipeline/verify-index.mjs           # integrity + licence compliance
@@ -58,6 +59,30 @@ is installed, and the reader runs identically in Node, a browser tab, and a
 service worker. `src/index.d.ts` gives consumers the same strict types they
 would get from compiled source; treat a change to it as a change to a published
 API.
+
+## ⚠ The exercise catalogue is 213 KB gzipped / 1.66 MB parsed — lazy-load it
+
+The workout feature chunk is ~17 KB gzipped. This catalogue is twelve times that
+compressed and roughly a hundred times parsed. It must never sit in an eager
+import path.
+
+```js
+// Correct: reader and data both load on first exercise-picker open.
+const { openExerciseCatalogue } = await import('@freeforever/datasets/exercises');
+const catalogue = await openExerciseCatalogue({ url: '/data/exercises.json.gz' });
+
+// Wrong: pulls the reader into the eager graph.
+import { openExerciseCatalogue } from '@freeforever/datasets';
+```
+
+`openExerciseCatalogue()` is async and resolves its data at call time rather than
+through a static import, so no bundler pulls the artefact in on its own. Keeping
+the *call* off the startup path is the caller's job. Ship a small synchronous
+starter set and lazy-load these 873 behind it. Full contract:
+[`docs/exercise-catalogue.md`](./docs/exercise-catalogue.md).
+
+The food index has the same property and the same rule — `openIndexFromUrls()`
+is async for the same reason.
 
 ## Refreshing the samples
 
