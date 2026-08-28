@@ -33,6 +33,8 @@ New decision: `pnpm adr "Short title"`.
 | [0025](./0025-conflict-resolution-per-data-class.md) | Conflict resolution is decided per data class | Accepted |
 | [0026](./0026-licence-boundary-forbids-core-importing-data.md) | The licence split is a dependency constraint, not just a file header | Accepted |
 | [0027](./0027-calorie-safety-floors.md) | Calorie targets have hard, explained safety floors | Accepted |
+| [0028](./0028-account-link-merges-rather-than-refuses.md) | Account linking merges rather than refuses, and leaves orphans alone | Accepted |
+| [0029](./0029-hard-deletes-under-delta-sync.md) | The domain soft-deletes; hard deletes are best-effort | Accepted |
 
 ## Reading order for newcomers
 
