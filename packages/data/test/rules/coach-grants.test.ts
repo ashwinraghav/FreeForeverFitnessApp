@@ -339,6 +339,51 @@ describe('revocation', () => {
     await assertFails(getDoc(doc(coachDb(), `users/${OWNER}/workouts/w1`)));
   });
 
+  it('is stamped by the server, not by the client', async () => {
+    await seedGrant({ scopes: ['training'] });
+    await assertFails(
+      updateDoc(doc(ownerDb(), `coachGrants/${GRANT_ID}`), {
+        status: 'revoked',
+        revokedAt: Timestamp.fromMillis(1_700_000_000_000),
+        updatedAt: serverTimestamp(),
+      }),
+    );
+  });
+
+  it('and the stamp survives a later edit to the dead grant', async () => {
+    await seedGrant({ scopes: ['training'] });
+    const grantRef = doc(ownerDb(), `coachGrants/${GRANT_ID}`);
+    await assertSucceeds(
+      updateDoc(grantRef, {
+        status: 'revoked',
+        revokedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }),
+    );
+    const stamped = await assertSucceeds(getDoc(grantRef));
+    await assertSucceeds(updateDoc(grantRef, { note: 'ended the block', updatedAt: serverTimestamp() }));
+    const after = await assertSucceeds(getDoc(grantRef));
+    expect(after.data()?.['revokedAt']).toEqual(stamped.data()?.['revokedAt']);
+  });
+
+  it('cannot be backdated by rewriting it on a later edit', async () => {
+    await seedGrant({ scopes: ['training'] });
+    const grantRef = doc(ownerDb(), `coachGrants/${GRANT_ID}`);
+    await assertSucceeds(
+      updateDoc(grantRef, {
+        status: 'revoked',
+        revokedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }),
+    );
+    await assertFails(
+      updateDoc(grantRef, {
+        revokedAt: Timestamp.fromMillis(1_700_000_000_000),
+        updatedAt: serverTimestamp(),
+      }),
+    );
+  });
+
   it('a revoked grant must say when it was revoked', async () => {
     await seedGrant({ scopes: ['training'] });
     await assertFails(

@@ -18,6 +18,8 @@ import { serverTimestamp, Timestamp } from 'firebase/firestore';
 const here = dirname(fileURLToPath(import.meta.url));
 export const RULES_PATH = resolve(here, '../../../../firestore.rules');
 export const RULES_SOURCE = readFileSync(RULES_PATH, 'utf8');
+export const STORAGE_RULES_PATH = resolve(here, '../../../../storage.rules');
+export const STORAGE_RULES_SOURCE = readFileSync(STORAGE_RULES_PATH, 'utf8');
 
 export const PROJECT_ID = 'freeforever-rules-test';
 
@@ -26,17 +28,53 @@ export const OWNER = 'ownerUidAAAAAAAAAAAAAAAAAAAA';
 export const OTHER = 'otherUidBBBBBBBBBBBBBBBBBBBB';
 export const COACH = 'coachUidCCCCCCCCCCCCCCCCCCCC';
 
+function emulatorAddress(variable: string, fallbackPort: number): { host: string; port: number } {
+  const value = process.env[variable] ?? `127.0.0.1:${fallbackPort}`;
+  const [host, port] = value.split(':');
+  return { host: host ?? '127.0.0.1', port: Number(port ?? fallbackPort) };
+}
+
 export async function createTestEnvironment(): Promise<RulesTestEnvironment> {
-  const host = process.env['FIRESTORE_EMULATOR_HOST'] ?? '127.0.0.1:8080';
-  const [hostname, port] = host.split(':');
+  const firestore = emulatorAddress('FIRESTORE_EMULATOR_HOST', 8080);
   return initializeTestEnvironment({
     projectId: PROJECT_ID,
-    firestore: {
-      rules: RULES_SOURCE,
-      host: hostname ?? '127.0.0.1',
-      port: Number(port ?? 8080),
-    },
+    firestore: { rules: RULES_SOURCE, ...firestore },
   });
+}
+
+/**
+ * The storage suite needs BOTH emulators and both rulesets: `storage.rules` itself
+ * consults nothing else, but the suite records the deliberate asymmetry between
+ * photo metadata (Firestore, coach-readable under the `photos` scope) and photo
+ * bytes (Storage, owner-only while coach access is deferred). Run it under:
+ *
+ *   firebase emulators:exec --only firestore,storage "pnpm test:rules"
+ *
+ * With only the Firestore emulator up, this environment fails to connect rather
+ * than quietly passing, which is the behaviour we want from a suite whose job is
+ * to prove a control exists.
+ */
+export async function createStorageTestEnvironment(): Promise<RulesTestEnvironment> {
+  const firestore = emulatorAddress('FIRESTORE_EMULATOR_HOST', 8080);
+  const storage = emulatorAddress('FIREBASE_STORAGE_EMULATOR_HOST', 9199);
+  return initializeTestEnvironment({
+    projectId: PROJECT_ID,
+    firestore: { rules: RULES_SOURCE, ...firestore },
+    storage: { rules: STORAGE_RULES_SOURCE, ...storage },
+  });
+}
+
+/** Where a user's progress photos live. Mirrored in both rulesets. */
+export function photoPath(uid: string, fileName = 'p1.jpg'): string {
+  return `users/${uid}/photos/${fileName}`;
+}
+
+/** A few bytes standing in for an image. Rules judge the declared type, not content. */
+export const IMAGE_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+
+/** Just over the 10 MiB ceiling the rules enforce. */
+export function oversizedBytes(): Uint8Array {
+  return new Uint8Array(10 * 1024 * 1024 + 1);
 }
 
 /**

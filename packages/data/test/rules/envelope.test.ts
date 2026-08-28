@@ -429,6 +429,11 @@ describe('progress photo storage paths', () => {
     for (const storagePath of [
       `users/${OWNER}`,
       `users/${OWNER}/`,
+      `users/${OWNER}/photos`,
+      `users/${OWNER}/photos/`,
+      // Outside the prefix storage.rules serves, so the metadata may not claim it.
+      `users/${OWNER}/exports/p1.jpg`,
+      `users/${OWNER}/p1.jpg`,
       `users/${OWNER}x/photos/p1.jpg`,
       `../users/${OWNER}/photos/p1.jpg`,
       'https://example.test/p1.jpg',

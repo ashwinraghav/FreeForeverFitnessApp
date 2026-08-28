@@ -277,31 +277,123 @@ makes progress look like regression on the one movement beginners use most.
 Free-forever rule 2 applies to bytes as well as to requests, so every unbounded
 collection has a bound:
 
-| Collection | Bound |
-|---|---|
-| `workouts` | 40 exercises, 50 sets per exercise, 400 sets per session; enforced in rules |
-| `nutritionDays` | 12 meals, 150 entries per day; enforced in rules |
-| `habitDays` | 30 entries; enforced in rules |
-| `routines` | 14 days, 52 weeks; enforced in rules |
-| `personalRecords` | 100 history entries per exercise; older records live in the aggregate |
-| `aggregates` | per-aggregate retention in weeks, see `AGGREGATE_RETENTION_WEEKS` |
-| `progressPhotos` | metadata only; image bytes are a Cloud Storage quota, not this one |
+The column that matters is the last one. Security rules cannot iterate a list, so
+anything *nested* — sets inside an exercise, entries inside a meal — is bounded by Zod
+at the write boundary and, in the last resort, by Firestore's 1 MiB document limit.
+Rules bound the top-level arrays and the denormalised counters, and a counter is
+self-reported: a client can understate `entryCount` while the array underneath it is
+longer. That is a data-quality problem for the writer's own document, not a way to
+reach anyone else's.
+
+| Collection | Bound | Enforced by |
+|---|---|---|
+| `workouts` | 40 exercises per session | rules (`exercises` list length) |
+| `workouts` | `totals.setCount` ≤ 400 | rules (counter value only) |
+| `workouts` | 50 sets per exercise, 400 sets per session in fact | Zod; then the 1 MiB document limit |
+| `nutritionDays` | 12 meals per day | rules (`meals` list length) |
+| `nutritionDays` | `entryCount` ≤ 150 | rules (counter value only) |
+| `nutritionDays` | 50 entries per meal, 150 per day in fact | Zod; then the 1 MiB document limit |
+| `habitDays` | 30 entries per day | rules (`entries` list length) |
+| `routines` | 14 days, 52 weeks | rules (list lengths) |
+| `routines` | 40 exercises per day, 50 sets per exercise | Zod; then the 1 MiB document limit |
+| `personalRecords` | 100 history entries per exercise | Zod; older records live in the aggregate |
+| `aggregates` | per-aggregate retention in weeks | `AGGREGATE_RETENTION_WEEKS`, in the reducer |
+| `progressPhotos` | metadata only | rules; the bytes are a Cloud Storage bound, below |
 
 One document per day per user, across nutrition, body metrics and habits, is roughly
 1,100 documents a year — small, bounded, and predictable, which is the point.
+
+What is still missing at both layers is a bound on a user's *total* footprint. Rules
+can bound one document or one object; they cannot sum a collection or a bucket prefix.
+A per-user storage quota sweep is owed before Phase 4, and is called out again below.
+
+## Cloud Storage
+
+Progress-photo **bytes** live in Cloud Storage under a single prefix, governed by
+`storage.rules` at the repository root:
+
+```
+users/{uid}/photos/{fileName}
+```
+
+`{fileName}` is one path segment, so a nested name does not match and falls through to
+the default deny. The prefix is the same one `firestore.rules` enforces on the
+metadata document's `storagePath`, so the two rulesets cannot disagree about where the
+bytes are.
+
+Uploads are validated rather than trusted: content type against an image allowlist
+(`image/svg+xml` is excluded — an SVG is a document that can carry script, and served
+from the bucket's own origin that is stored XSS), a 10 MiB ceiling per object, a
+bounded object name, and bounded custom metadata. The ceiling is mirrored by the
+metadata document's `byteSize` field, so a document cannot claim a size the bucket
+would refuse.
+
+Listing is the owner's alone; the Firestore metadata collection is the authoritative
+index of what exists, and it is already scope-checked.
+
+**A `photos`-scoped coach currently sees the metadata but not the bytes.** That
+asymmetry is deliberate and temporary: coach access to the file is deferred to Phase 4.
+`storage.rules` carries the full record; the summary:
+
+The case for granting the bytes still stands. The scope exists so a coach can review
+physique progress, and a scope that delivers a pose name, a date and a pixel count
+delivers nothing — the user who deliberately ticked that box would then send the photos
+over WhatsApp instead, which is strictly worse for them than a grant they can revoke in
+one tap. The metadata already carries a `blurhash`, a low-fidelity but genuinely visual
+approximation, so serving that while withholding the file is a half-measure. And
+symmetry would mean one revocation path rather than two.
+
+It is deferred anyway, on two independent blockers:
+
+1. **It would be an untestable control.** The obvious implementation is a
+   cross-service `firestore.get()` against the grant, and under firebase-js-sdk issue
+   #6803 the grant document a rules test writes is not reliably the one that lookup
+   reads. ADR-0015 exists to stop us shipping a rule that works by not being tested,
+   and this one would guard photographs of people's bodies in a public repository.
+2. **Cross-service Storage rules allow at most two Firestore lookups per
+   evaluation** — far tighter than the 10/20 Firestore allows itself. A single-path
+   grant check fits with no headroom, so any later refinement (a per-photo grant, a
+   team of coaches) would exceed the ceiling and fail at runtime, not at deploy.
+
+The alternative to evaluate at Phase 4 has neither problem: a Cloud Function that
+checks the grant and mints a short-lived signed URL. It is ordinary testable code, it
+has no lookup ceiling, and it puts the expiry on the access itself.
+
+Until then Storage is owner-only. No account reads another account's bytes, and
+`storage.rules` consults no other service — a unit test asserts that, so the deferral
+cannot quietly stop being true.
+
+Two bounds Storage rules cannot express, stated so nobody assumes otherwise:
+
+- **Total bytes per user.** Rules see one object at a time. A hundred 10 MiB photos is
+  a gigabyte, and nothing here stops it. Needs the same quota sweep as Firestore.
+- **That the bytes are actually an image.** The rules check the declared content type,
+  which the uploading client chooses. Anything downstream that processes these files
+  must sniff the real format rather than trust the header.
 
 ## Testing
 
 `test/rules/*.test.ts` runs against the emulator and blocks CI (ADR-0015). It asserts
 both directions for every rule: the permitted access succeeds and the forbidden access
-fails. It reads the repository's real `firestore.rules`, not a copy.
+fails. It reads the repository's real `firestore.rules` and `storage.rules`, not a copy.
+
+The suite needs **both** emulators, because the Storage rules read grants out of
+Firestore:
+
+```
+firebase emulators:exec --only firestore,storage "pnpm test:rules"
+```
+
+With only Firestore running, the storage environment fails to connect rather than
+quietly passing — which is the behaviour you want from a suite whose job is to prove a
+control exists.
 
 The suite is mutation-checked: weakening the owner check, the uid match, the server
 timestamp requirement, the unknown-field rejection, the grant status check, the grant
 write authority or the scope check each makes it fail. A rules test that passes
 against broken rules is not a control.
 
-Two things the rules cannot check, stated so nobody assumes otherwise:
+Three things the Firestore rules cannot check, stated so nobody assumes otherwise:
 
 - **Set-level validation.** No iteration in the rules language, so `exercises[].sets[]`
   is Zod's responsibility. The rules bound the arrays and validate every top-level
@@ -310,6 +402,9 @@ Two things the rules cannot check, stated so nobody assumes otherwise:
   day ranges, so `9999-99-99` is rejected — but it cannot know February has 28 days,
   so `2026-02-30` reaches Zod. That residue affects only how a user's own days are
   filed, never who can read them.
+- **The truth of a denormalised counter.** `totals.setCount` and `entryCount` are
+  bounded but self-reported; the arrays they describe are Zod's job. See the growth
+  table above.
 
 `test/unit/rules-mirror.test.ts` checks that the enumerations hand-copied into the
 rules file still match the ones in this package. A rules file cannot import

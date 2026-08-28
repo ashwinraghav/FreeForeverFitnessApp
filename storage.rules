@@ -1,0 +1,170 @@
+rules_version = '2';
+
+// =============================================================================
+// TheFreeForeverFitnessApp — Cloud Storage security rules
+//
+// These rules are PUBLIC, on the same terms as firestore.rules (ADR-0015), and
+// every rule below is covered in both directions by
+// packages/data/test/rules/storage.test.ts.
+//
+// This bucket holds progress photos. That makes it the most sensitive store in
+// the product: a body-image-adjacent app holding pictures of people's bodies.
+// Under ADR-0009 every visitor is anonymously signed in within seconds of
+// opening the app, so `request.auth != null` is not an authorisation check here
+// — it is barely a speed bump. Ownership is the check.
+//
+// The posture mirrors firestore.rules deliberately, because two rulesets that
+// disagree about who may see what are a bug waiting for someone to find the
+// looser one:
+//
+//   1. Default deny at the bottom, and no catch-all in between. A prefix that
+//      is not named below is inaccessible, so adding one is a rules change with
+//      tests.
+//   2. Owner-only. No account reads another account's bytes — see the deferred
+//      coach-access block below, which is the one place that could change.
+//   3. Anonymous and linked accounts have identical rights (ADR-0009). Nothing
+//      below inspects the sign-in provider.
+//   4. Validate rather than trust: content type, size and object name are
+//      checked on the way in, not assumed from the client that sent them.
+//
+// Layout — one prefix, matching the `storagePath` that firestore.rules enforces
+// on the progress-photo metadata document:
+//
+//   users/{uid}/photos/{fileName}
+//
+// `{fileName}` is a single path segment, so a nested name cannot match this
+// block and falls through to the default deny.
+// =============================================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // -------------------------------------------------------------------------
+    // Identity
+    // -------------------------------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // -------------------------------------------------------------------------
+    // Coach access to photo BYTES: deferred to Phase 4. Not implemented here.
+    //
+    // A `photos`-scoped coach can already read a progress photo's *metadata*
+    // through firestore.rules. They cannot read the file. That asymmetry is
+    // deliberate and temporary, and this block is the record of why, so that
+    // nobody "fixes" it in either direction without knowing what was weighed.
+    //
+    // The case FOR granting bytes, which still stands:
+    //
+    //   - The `photos` scope exists so a coach can review physique progress. A
+    //     scope that delivers a pose name, a date and a pixel count delivers
+    //     nothing, and the user who deliberately ticked that box would then send
+    //     the photos over WhatsApp instead — strictly worse for them than a
+    //     scoped grant they can revoke in one tap. Withholding the bytes does not
+    //     protect that user; it routes them around the protection.
+    //   - The metadata already carries a `blurhash`: a low-fidelity but genuinely
+    //     visual approximation of the image. Serving that while withholding the
+    //     file is a half-measure, not a control.
+    //   - Symmetry means one revocation path rather than two. Revoking the grant,
+    //     dropping the `photos` scope, or letting it expire would kill the
+    //     metadata and the bytes in the same write. An asymmetric design needs two
+    //     services kept in step by hand, and they drift.
+    //
+    // Why it is deferred anyway. Two blockers, either of which is sufficient:
+    //
+    //   1. It would be an UNTESTABLE security control. The obvious implementation
+    //      is a cross-service `firestore.get()` against the coach grant. Under
+    //      firebase-js-sdk issue #6803, the grant document a rules test writes is
+    //      not reliably the one that lookup reads, so CI cannot be trusted to
+    //      exercise the rule. ADR-0015 exists precisely to stop us shipping a rule
+    //      that works by not being tested — and this one would guard photographs
+    //      of people's bodies, in a public repository where the rule is readable
+    //      and any gap in it is inferable.
+    //   2. Cross-service Storage rules permit at most TWO Firestore document
+    //      lookups per evaluation — far tighter than the 10/20 Firestore allows
+    //      itself. A single-path grant check fits, with no headroom at all. Any
+    //      later refinement — a per-photo grant, a team of coaches, a second
+    //      document to consult — exceeds the ceiling and fails at runtime rather
+    //      than at deploy.
+    //
+    // The alternative to evaluate at Phase 4, which has neither problem: a Cloud
+    // Function that checks the grant and mints a short-lived signed URL. It is
+    // ordinary testable code, it has no lookup ceiling, and it puts an expiry on
+    // the access itself rather than on a rule evaluated afresh each read.
+    //
+    // Until then: owner only.
+    // -------------------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // Upload validation
+    // -------------------------------------------------------------------------
+
+    // A phone photo is 2–5 MB. Ten leaves room for a high-resolution original
+    // without letting the bucket become general-purpose file hosting — storage is
+    // billed per GB-month, and free-forever rule 2 applies to bytes as much as to
+    // requests. Mirrored as `byteSize` in firestore.rules.
+    function maxPhotoBytes() {
+      return 10 * 1024 * 1024;
+    }
+
+    // Content type is asserted, not inferred from the extension, because the
+    // extension is part of a name the client chose. HEIC and HEIF are here for the
+    // Capacitor shell (ADR-0008), which gets them straight from the iOS camera.
+    function isImage() {
+      return request.resource.contentType is string
+        && request.resource.contentType.matches('^image/(jpeg|png|webp|heic|heif|avif)$');
+    }
+
+    function isWithinSizeLimit() {
+      return request.resource.size > 0 && request.resource.size <= maxPhotoBytes();
+    }
+
+    // Custom object metadata is a place to smuggle a payload into a store that is
+    // billed by the byte, so it gets a bound like every other free-text field.
+    function hasBoundedMetadata() {
+      return request.resource.metadata == null || request.resource.metadata.size() <= 8;
+    }
+
+    function isBoundedName(fileName) {
+      return fileName.size() > 0 && fileName.size() <= 128;
+    }
+
+    // -------------------------------------------------------------------------
+    // Progress photos — users/{uid}/photos/{fileName}
+    // -------------------------------------------------------------------------
+
+    match /users/{uid}/photos/{fileName} {
+
+      allow get: if isOwner(uid);
+      allow list: if isOwner(uid);
+
+      allow create, update: if isOwner(uid)
+        && isBoundedName(fileName)
+        && isImage()
+        && isWithinSizeLimit()
+        && hasBoundedMetadata();
+
+      // No `request.resource` exists on a delete, so this cannot share the
+      // predicates above and is stated separately.
+      allow delete: if isOwner(uid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Default deny.
+    //
+    // Allow rules are additive, so this takes nothing away — it states the
+    // posture, and anything not matched above is already inaccessible. There is
+    // no catch-all under `users/{uid}`: a second prefix cannot ship without a
+    // rule and a test for it.
+    // -------------------------------------------------------------------------
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -37,7 +37,14 @@ export const COACH_SCOPES = [
   'nutrition',
   /** Bodyweight and measurements. */
   'body',
-  /** Progress photos. Never implied; always a separate, deliberate tick. */
+  /**
+   * Progress photos. Never implied; always a separate, deliberate tick.
+   *
+   * Today this opens the photo **metadata** in Firestore and not the image bytes
+   * in Cloud Storage — coach access to the file is deferred to Phase 4, for the
+   * reasons recorded in `storage.rules` and SCHEMA.md. Read the scope as "may see
+   * that a photo exists, and when", not "may see the photo", until that lands.
+   */
   'photos',
 ] as const;
 

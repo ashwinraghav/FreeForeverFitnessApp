@@ -22,6 +22,7 @@ import { SCHEMA_VERSION } from '../../src/common/envelope.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const RULES = readFileSync(resolve(here, '../../../../firestore.rules'), 'utf8');
+const STORAGE_RULES = readFileSync(resolve(here, '../../../../storage.rules'), 'utf8');
 
 function rulesList(functionName: string): string[] {
   const match = RULES.match(
@@ -79,5 +80,46 @@ describe('firestore.rules mirrors the schema version', () => {
     const match = RULES.match(/function\s+maxSchemaVersion\(\)\s*\{\s*return\s+(\d+)\s*;/);
     expect(match?.[1]).toBeDefined();
     expect(Number(match?.[1])).toBe(SCHEMA_VERSION);
+  });
+});
+
+
+/**
+ * The two rulesets govern the same photo. They agree about where it lives and how big
+ * it may be, or one of them is enforcing something the other does not — and whichever
+ * is looser is the one an attacker uses. These checks need no emulator, so they run in
+ * the plain unit job as well.
+ */
+describe('firestore.rules and storage.rules agree about progress photos', () => {
+  it('use the same prefix', () => {
+    expect(RULES).toContain("return 'users/' + uid + '/photos/';");
+    expect(STORAGE_RULES).toContain('match /users/{uid}/photos/{fileName} {');
+  });
+
+  it('use the same size ceiling', () => {
+    const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+    expect(STORAGE_RULES).toMatch(
+      /function maxPhotoBytes\(\)\s*\{\s*return 10 \* 1024 \* 1024;\s*\}/,
+    );
+    expect(RULES).toContain(`isCount(data().byteSize, ${MAX_PHOTO_BYTES})`);
+  });
+
+  it('record that coach access to the bytes is deferred, not forgotten', () => {
+    // The `photos` scope still exists and still opens the metadata in Firestore.
+    // storage.rules must say, in the file itself, why it does not open the bytes —
+    // otherwise the asymmetry reads as an oversight and gets "fixed" blind.
+    expect(COACH_SCOPES).toContain('photos');
+    expect(RULES).toContain("coachGrants/$(ownerUid + '__' + request.auth.uid)");
+    expect(STORAGE_RULES).toContain('deferred to Phase 4');
+    expect(STORAGE_RULES).toContain('#6803');
+  });
+
+  it('and storage.rules consults no other service while it is deferred', () => {
+    expect(STORAGE_RULES).not.toMatch(/^\s*[^/]*firestore\.(get|exists)\(/m);
+  });
+
+  it('both end in an explicit default deny with no catch-all under a user', () => {
+    expect(STORAGE_RULES).toMatch(/match \/\{allPaths=\*\*\} \{\s*allow read, write: if false;/);
+    expect(STORAGE_RULES).not.toMatch(/match \/users\/\{uid\}\/\{[a-zA-Z]+=\*\*\}/);
   });
 });
