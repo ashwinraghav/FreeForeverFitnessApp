@@ -21,7 +21,9 @@ gha-creds-*.json
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
-.terraform.lock.hcl
+# NOTE: .terraform.lock.hcl is deliberately NOT ignored. Terraform's dependency
+# lock file belongs in version control — it pins provider versions and hashes so
+# every contributor and CI run resolves identical providers (ADR-0012).
 
 # Firebase emulator
 .firebase/
