@@ -43,3 +43,6 @@ apps/web/public/data/
 
 # TypeScript incremental build state — machine-specific, never useful in git
 *.tsbuildinfo
+
+# Lighthouse CI run output
+.lighthouseci/
