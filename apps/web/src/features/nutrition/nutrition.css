@@ -1,0 +1,469 @@
+/*
+ * Nutrition feature styles.
+ *
+ * Tokens only — no hex colours, no raw px, no raw durations (ADR-0021). Where a
+ * hairline is needed the CSS keyword `thin` is used rather than a literal, so
+ * the rule has nothing to catch and the intent is clearer than a magic number.
+ *
+ * Layout follows the physical situation (ADR-0013): the primary actions sit at
+ * the bottom of the screen in the reachable third, hit targets are 48px with
+ * 56px for anything tapped one-handed, and every state that carries meaning
+ * also carries a glyph or a shape so it survives greyscale and a sun-washed
+ * screen.
+ */
+
+.ffn {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100%;
+  padding-block-end: var(--ff-space-24);
+}
+
+.ffn-pad {
+  padding-inline: var(--ff-space-16);
+}
+
+.ffn-section {
+  padding-block: var(--ff-space-16);
+}
+
+.ffn-section + .ffn-section {
+  border-block-start: thin solid var(--ff-color-hairline);
+}
+
+.ffn-h1 {
+  margin: 0;
+  font-size: var(--ff-text-title);
+  font-weight: var(--ff-weight-title);
+  line-height: var(--ff-leading-title);
+  letter-spacing: var(--ff-tracking-title);
+}
+
+.ffn-h2 {
+  margin: 0 0 var(--ff-space-8);
+  font-size: var(--ff-text-label);
+  font-weight: var(--ff-weight-label);
+  line-height: var(--ff-leading-label);
+  letter-spacing: var(--ff-tracking-label);
+  text-transform: uppercase;
+  color: var(--ff-color-fg-secondary);
+}
+
+.ffn-muted {
+  color: var(--ff-color-fg-muted);
+  font-size: var(--ff-text-body-sm);
+  line-height: var(--ff-leading-body-sm);
+}
+
+.ffn-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ff-space-12);
+}
+
+.ffn-row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ff-space-12);
+}
+
+.ffn-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-12);
+}
+
+.ffn-stack-tight {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-8);
+}
+
+.ffn-grow {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+/* ── Day header ──────────────────────────────────────────────────────────── */
+
+.ffn-daybar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--ff-space-8);
+  padding: var(--ff-space-8) var(--ff-space-16);
+  border-block-end: thin solid var(--ff-color-hairline);
+  background: var(--ff-color-surface);
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+}
+
+.ffn-daybar-label {
+  text-align: center;
+  font-size: var(--ff-text-heading);
+  font-weight: var(--ff-weight-heading);
+}
+
+/* ── The ring ────────────────────────────────────────────────────────────── */
+
+.ffn-ring-wrap {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--ff-space-20);
+}
+
+.ffn-ring {
+  inline-size: var(--ff-space-64);
+  block-size: var(--ff-space-64);
+  /* The ring is the one number read at arm's length; give it room. */
+  min-inline-size: calc(var(--ff-space-64) * 2);
+  min-block-size: calc(var(--ff-space-64) * 2);
+}
+
+.ffn-ring-track {
+  fill: none;
+  stroke: var(--ff-color-sunken);
+}
+
+.ffn-ring-fill {
+  fill: none;
+  stroke: var(--ff-color-accent);
+  stroke-linecap: round;
+  transition: stroke-dashoffset var(--ff-duration-slow) var(--ff-ease-standard);
+}
+
+.ffn-ring-over {
+  fill: none;
+  stroke: var(--ff-color-attention);
+  stroke-linecap: round;
+}
+
+.ffn-ring-floor {
+  stroke: var(--ff-color-line-strong);
+  stroke-dasharray: 2 2;
+}
+
+.ffn-ring-value {
+  font-size: var(--ff-text-display-lg);
+  font-weight: var(--ff-weight-display-lg);
+  line-height: var(--ff-leading-display-lg);
+  letter-spacing: var(--ff-tracking-display-lg);
+}
+
+.ffn-ring-unit {
+  font-size: var(--ff-text-label);
+  color: var(--ff-color-fg-secondary);
+}
+
+/* ── Macro rows ──────────────────────────────────────────────────────────── */
+
+.ffn-macros {
+  display: grid;
+  gap: var(--ff-space-12);
+}
+
+.ffn-macro {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--ff-space-4) var(--ff-space-12);
+  align-items: baseline;
+}
+
+.ffn-macro-meter {
+  grid-column: 1 / -1;
+}
+
+.ffn-macro-name {
+  font-size: var(--ff-text-body-sm);
+  color: var(--ff-color-fg-secondary);
+}
+
+.ffn-macro-value {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--ff-text-body-sm);
+}
+
+.ffn-over {
+  color: var(--ff-color-attention);
+  font-weight: var(--ff-weight-body-sm);
+}
+
+/* ── Quick actions: the reachable third ──────────────────────────────────── */
+
+.ffn-actions {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: var(--ff-space-8);
+  padding: var(--ff-space-12) var(--ff-space-16);
+  position: sticky;
+  inset-block-end: 0;
+  background: var(--ff-color-surface);
+  border-block-start: thin solid var(--ff-color-hairline);
+  z-index: 2;
+}
+
+/* ── Repeat strip: the two-tap path ──────────────────────────────────────── */
+
+.ffn-repeat {
+  display: flex;
+  gap: var(--ff-space-8);
+  overflow-x: auto;
+  padding-inline: var(--ff-space-16);
+  padding-block: var(--ff-space-4);
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ffn-repeat-item {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  display: grid;
+  gap: var(--ff-space-4);
+  inline-size: calc(var(--ff-space-64) * 2.2);
+  min-block-size: var(--ff-hit-mid-set);
+  padding: var(--ff-space-8) var(--ff-space-12);
+  text-align: start;
+  background: var(--ff-color-raised);
+  border: thin solid var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-lg);
+  color: var(--ff-color-fg-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ffn-repeat-item:hover {
+  background: var(--ff-color-sunken);
+}
+
+.ffn-repeat-name {
+  font-size: var(--ff-text-body-sm);
+  font-weight: var(--ff-weight-body-sm);
+  /* Two lines, then ellipsis: a branded food name is often very long. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ffn-repeat-meta {
+  font-size: var(--ff-text-caption);
+  color: var(--ff-color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Food rows ───────────────────────────────────────────────────────────── */
+
+.ffn-food {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--ff-space-4) var(--ff-space-12);
+  align-items: center;
+  inline-size: 100%;
+}
+
+.ffn-food-name {
+  font-size: var(--ff-text-body);
+  overflow-wrap: anywhere;
+}
+
+.ffn-food-meta {
+  grid-column: 1;
+  font-size: var(--ff-text-body-sm);
+  color: var(--ff-color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ffn-food-energy {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--ff-text-body);
+  text-align: end;
+  white-space: nowrap;
+}
+
+.ffn-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ff-space-4);
+  grid-column: 1 / -1;
+}
+
+/* ── Search ──────────────────────────────────────────────────────────────── */
+
+.ffn-searchbar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  padding: var(--ff-space-12) var(--ff-space-16);
+  background: var(--ff-color-surface);
+  border-block-end: thin solid var(--ff-color-hairline);
+  display: grid;
+  gap: var(--ff-space-8);
+}
+
+.ffn-scope {
+  display: flex;
+  gap: var(--ff-space-8);
+  overflow-x: auto;
+}
+
+/* ── Scanner ─────────────────────────────────────────────────────────────── */
+
+.ffn-scan {
+  display: grid;
+  gap: var(--ff-space-16);
+  padding: var(--ff-space-16);
+}
+
+.ffn-viewfinder {
+  position: relative;
+  inline-size: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--ff-color-sunken);
+  border-radius: var(--ff-radius-lg);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.ffn-viewfinder video {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+/*
+ * The reticle is a shape, not a colour: it has to read as "aim here" on a
+ * sun-washed screen and in greyscale.
+ */
+.ffn-reticle {
+  position: absolute;
+  inset-inline: 12%;
+  inset-block: 30%;
+  border: var(--ff-space-4) solid var(--ff-color-accent);
+  border-radius: var(--ff-radius-md);
+  /* Only the corners, so the barcode itself is never obscured. */
+  clip-path: polygon(
+    0 0, 25% 0, 25% 4%, 4% 4%, 4% 25%, 0 25%,
+    0 75%, 4% 75%, 4% 96%, 25% 96%, 25% 100%, 0 100%,
+    100% 100%, 75% 100%, 75% 96%, 96% 96%, 96% 75%, 100% 75%,
+    100% 25%, 96% 25%, 96% 4%, 75% 4%, 75% 0, 100% 0
+  );
+  pointer-events: none;
+}
+
+.ffn-scan-status {
+  display: flex;
+  align-items: center;
+  gap: var(--ff-space-8);
+  min-block-size: var(--ff-hit-min);
+  font-size: var(--ff-text-body-sm);
+  color: var(--ff-color-fg-secondary);
+}
+
+/* ── Forms and sheets ────────────────────────────────────────────────────── */
+
+.ffn-fields {
+  display: grid;
+  gap: var(--ff-space-16);
+}
+
+.ffn-fields-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--ff-space-64) * 2), 1fr));
+  gap: var(--ff-space-12);
+}
+
+.ffn-sheet-actions {
+  display: flex;
+  gap: var(--ff-space-8);
+  justify-content: flex-end;
+}
+
+.ffn-portion-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--ff-space-8);
+  padding: var(--ff-space-12);
+  background: var(--ff-color-sunken);
+  border-radius: var(--ff-radius-md);
+  text-align: center;
+}
+
+.ffn-portion-figure {
+  display: grid;
+  gap: var(--ff-space-4);
+}
+
+.ffn-portion-figure b {
+  font-size: var(--ff-text-heading);
+  font-weight: var(--ff-weight-heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.ffn-portion-figure span {
+  font-size: var(--ff-text-caption);
+  color: var(--ff-color-fg-secondary);
+}
+
+/* ── Micronutrients ──────────────────────────────────────────────────────── */
+
+.ffn-micros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--ff-space-64) * 1.8), 1fr));
+  gap: var(--ff-space-8);
+}
+
+.ffn-micro {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--ff-space-8);
+  padding: var(--ff-space-8);
+  background: var(--ff-color-sunken);
+  border-radius: var(--ff-radius-sm);
+  font-size: var(--ff-text-body-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.ffn-micro span:first-child {
+  color: var(--ff-color-fg-secondary);
+}
+
+/* ── Notices ─────────────────────────────────────────────────────────────── */
+
+.ffn-notice {
+  display: flex;
+  gap: var(--ff-space-8);
+  padding: var(--ff-space-12);
+  border-radius: var(--ff-radius-md);
+  background: var(--ff-color-sunken);
+  border-inline-start: var(--ff-space-4) solid var(--ff-color-attention);
+  font-size: var(--ff-text-body-sm);
+  color: var(--ff-color-fg-secondary);
+}
+
+.ffn-attribution {
+  font-size: var(--ff-text-caption);
+  color: var(--ff-color-fg-muted);
+}
+
+.ffn-attribution a {
+  color: var(--ff-color-info);
+  min-block-size: var(--ff-hit-compact);
+  display: inline-flex;
+  align-items: center;
+}
+
+.ffn-toasts {
+  position: fixed;
+  inset-inline: var(--ff-space-16);
+  /* Above the app's own tab bar, which is 56px plus the safe area. */
+  inset-block-end: calc(var(--ff-hit-mid-set) + var(--ff-space-16) + env(safe-area-inset-bottom));
+  z-index: 10;
+}

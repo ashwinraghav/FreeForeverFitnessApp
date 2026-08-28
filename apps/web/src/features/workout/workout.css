@@ -1,0 +1,516 @@
+/*
+ * Workout feature styles. Tokens only — no hex colours, no raw px, no raw
+ * durations (ADR-0021). Every value below resolves to a custom property from
+ * @freeforever/design-system.
+ *
+ * Border widths go through `--ff-border` / `--ff-border-thick`, which
+ * primitives.css publishes on `:root`. Its comment calls them implementation
+ * details rather than shared vocabulary, and it is right that they are not in
+ * tokens.json — but a feature stylesheet needs *some* hairline width, and
+ * referencing the one the primitives use beats inventing a second. Reported to
+ * the design-system team as a small gap in the public scale.
+ *
+ * The layout brief is one sentence: one hand is on a barbell. So the frequent
+ * targets live in the bottom third, everything tapped mid-set is 56px
+ * (--ff-hit-mid-set), and there is exactly one number per glance.
+ */
+
+/* ------------------------------------------------------------------- screen */
+
+.ffw-screen {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100%;
+  /* Clear the rest bar and the action bar, both of which are fixed to the bottom.
+     Without this the last exercise's "add set" sits underneath them. */
+  padding-block-end: calc(var(--ff-hit-mid-set) * 2 + var(--ff-space-32));
+}
+
+.ffw-screen__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ff-space-12);
+  padding: var(--ff-space-16) var(--ff-space-16) var(--ff-space-8);
+}
+
+.ffw-screen__title {
+  margin: 0;
+  font-size: var(--ff-text-title);
+  line-height: var(--ff-leading-title);
+  font-weight: var(--ff-weight-title);
+  letter-spacing: var(--ff-tracking-title);
+}
+
+.ffw-elapsed {
+  font-size: var(--ff-text-body);
+  color: var(--ff-color-fg-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ffw-summary {
+  display: flex;
+  gap: var(--ff-space-20);
+  padding: 0 var(--ff-space-16) var(--ff-space-12);
+  color: var(--ff-color-fg-secondary);
+  font-size: var(--ff-text-body-sm);
+}
+
+.ffw-summary__value {
+  color: var(--ff-color-fg-primary);
+  font-weight: var(--ff-weight-heading);
+}
+
+/* ------------------------------------------------------------ exercise card */
+
+.ffw-card {
+  background: var(--ff-color-surface);
+  border-block: var(--ff-border, 1px) solid var(--ff-color-hairline);
+  margin-block-end: var(--ff-space-12);
+}
+
+.ffw-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--ff-space-8);
+  padding: var(--ff-space-12) var(--ff-space-8) var(--ff-space-12) var(--ff-space-16);
+}
+
+.ffw-card__name {
+  flex: 1;
+  margin: 0;
+  min-inline-size: 0;
+  font-size: var(--ff-text-heading);
+  line-height: var(--ff-leading-heading);
+  font-weight: var(--ff-weight-heading);
+}
+
+.ffw-card__meta {
+  display: block;
+  font-size: var(--ff-text-caption);
+  font-weight: var(--ff-weight-caption);
+  color: var(--ff-color-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--ff-tracking-caption);
+}
+
+.ffw-card__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ff-space-8);
+  padding: 0 var(--ff-space-16) var(--ff-space-12);
+}
+
+/* ---------------------------------------------------------------- set table */
+
+.ffw-sets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ffw-sets__legend {
+  display: grid;
+  grid-template-columns: var(--ffw-cols);
+  gap: var(--ff-space-8);
+  padding: 0 var(--ff-space-16) var(--ff-space-4);
+  font-size: var(--ff-text-caption);
+  line-height: var(--ff-leading-caption);
+  color: var(--ff-color-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--ff-tracking-caption);
+}
+
+.ffw-row {
+  display: grid;
+  /* index | last time | weight | reps | log. The log button is the widest thing
+     in the row on purpose: it is the one target hit forty times a session. */
+  grid-template-columns: var(--ffw-cols);
+  gap: var(--ff-space-8);
+  align-items: center;
+  padding: var(--ff-space-4) var(--ff-space-16);
+}
+
+.ffw-sets {
+  --ffw-cols: var(--ff-space-32) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr) var(--ff-hit-mid-set);
+}
+
+.ffw-row[data-ff-state='completed'] {
+  background: color-mix(in srgb, var(--ff-color-success) 10%, transparent);
+}
+
+.ffw-row[data-ff-state='failed'] {
+  background: color-mix(in srgb, var(--ff-color-danger) 10%, transparent);
+}
+
+.ffw-row__index {
+  display: grid;
+  place-items: center;
+  min-block-size: var(--ff-hit-mid-set);
+  font-size: var(--ff-text-body-sm);
+  font-weight: var(--ff-weight-heading);
+  color: var(--ff-color-fg-secondary);
+}
+
+/* Warmups read as subordinate to the working sets at a glance, and carry a
+   letter rather than a number so it is never colour or weight alone. */
+.ffw-row__index[data-ff-warmup='true'] {
+  color: var(--ff-color-fg-muted);
+  font-weight: var(--ff-weight-caption);
+}
+
+.ffw-row__last {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ff-text-body-sm);
+  color: var(--ff-color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------- value cell */
+
+.ffw-cell {
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--ff-space-4);
+  inline-size: 100%;
+  /* 56px, because this is tapped mid-set with one hand. */
+  min-block-size: var(--ff-hit-mid-set);
+  padding-inline: var(--ff-space-8);
+  background: var(--ff-color-sunken);
+  border: var(--ff-border, 1px) solid var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-md);
+  color: var(--ff-color-fg-primary);
+  font-family: var(--ff-font-numeric);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--ff-text-title);
+  line-height: var(--ff-leading-title);
+  font-weight: var(--ff-weight-title);
+  cursor: pointer;
+  transition: border-color var(--ff-duration-fast) var(--ff-ease-standard);
+}
+
+.ffw-cell__unit {
+  font-size: var(--ff-text-caption);
+  font-weight: var(--ff-weight-caption);
+  color: var(--ff-color-fg-muted);
+}
+
+/*
+ * A ghost is muted, lighter, and dashed-underlined — three signals, so the
+ * difference between "60kg last week" and "60kg today" survives bad light,
+ * greyscale and any colour-vision deficiency. Never colour alone (ADR-0013).
+ */
+.ffw-cell[data-ff-source='ghost'] {
+  color: var(--ff-color-fg-muted);
+  font-weight: var(--ff-weight-body);
+}
+
+.ffw-cell[data-ff-source='ghost'] .ffw-cell__number {
+  text-decoration: underline dashed;
+  text-underline-offset: var(--ff-space-4);
+}
+
+.ffw-cell[data-ff-source='empty'] {
+  color: var(--ff-color-fg-muted);
+}
+
+.ffw-cell[data-ff-open='true'] {
+  border-color: var(--ff-color-accent);
+}
+
+/* ---------------------------------------------------------------- log button */
+
+.ffw-log {
+  -webkit-tap-highlight-color: transparent;
+  display: grid;
+  place-items: center;
+  inline-size: var(--ff-hit-mid-set);
+  block-size: var(--ff-hit-mid-set);
+  padding: 0;
+  border: var(--ff-border-thick, 2px) solid var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-md);
+  background: var(--ff-color-sunken);
+  color: var(--ff-color-fg-secondary);
+  font-size: var(--ff-text-heading);
+  cursor: pointer;
+  transition:
+    background-color var(--ff-duration-fast) var(--ff-ease-standard),
+    border-color var(--ff-duration-fast) var(--ff-ease-standard);
+}
+
+.ffw-log[data-ff-state='completed'] {
+  background: var(--ff-color-success);
+  border-color: var(--ff-color-success);
+  color: var(--ff-color-on-success);
+}
+
+.ffw-log[data-ff-state='failed'] {
+  background: var(--ff-color-danger);
+  border-color: var(--ff-color-danger);
+  color: var(--ff-color-on-danger);
+}
+
+.ffw-log:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ------------------------------------------------------------ inline editor */
+
+/*
+ * The editor is a row in the list, not a sheet and never a dialog. No modals
+ * during a workout (CLAUDE.md): a dismissed overlay that takes entered sets
+ * with it is the worst failure mode in this category.
+ */
+.ffw-editor {
+  display: grid;
+  gap: var(--ff-space-12);
+  padding: var(--ff-space-12) var(--ff-space-16) var(--ff-space-16);
+  background: var(--ff-color-raised);
+  border-block: var(--ff-border, 1px) solid var(--ff-color-hairline);
+}
+
+.ffw-editor__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ff-space-8);
+}
+
+.ffw-plates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ff-space-4);
+  font-size: var(--ff-text-body-sm);
+  color: var(--ff-color-fg-secondary);
+}
+
+.ffw-plate {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: var(--ff-space-40);
+  padding: var(--ff-space-4) var(--ff-space-8);
+  /* Always outlined: the 5kg white and the 1.25kg grey do not separate from a
+     light surface on their own. */
+  border: var(--ff-border, 1px) solid var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-sm);
+  font-size: var(--ff-text-caption);
+  font-weight: var(--ff-weight-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.ffw-plates__note {
+  color: var(--ff-color-fg-muted);
+  font-size: var(--ff-text-caption);
+}
+
+/* --------------------------------------------------------------- history strip */
+
+.ffw-history {
+  display: grid;
+  gap: var(--ff-space-4);
+  padding: 0 var(--ff-space-16) var(--ff-space-12);
+}
+
+.ffw-history__row {
+  display: grid;
+  grid-template-columns: minmax(0, 5rem) minmax(0, 1fr) auto;
+  gap: var(--ff-space-8);
+  align-items: baseline;
+  font-size: var(--ff-text-body-sm);
+  color: var(--ff-color-fg-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ffw-history__date {
+  color: var(--ff-color-fg-muted);
+  font-size: var(--ff-text-caption);
+}
+
+.ffw-history__sets {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ff-color-fg-primary);
+}
+
+.ffw-history__volume {
+  color: var(--ff-color-fg-muted);
+  font-size: var(--ff-text-caption);
+}
+
+.ffw-history__empty {
+  color: var(--ff-color-fg-muted);
+  font-size: var(--ff-text-body-sm);
+}
+
+/* ---------------------------------------------------------------- rest bar */
+
+/*
+ * Ambient, not a screen. It sits above the tab bar, is always the same height
+ * so nothing below it jumps, and never takes the session away from the lifter.
+ */
+.ffw-restbar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 20;
+  display: grid;
+  gap: var(--ff-space-8);
+  padding: var(--ff-space-8) var(--ff-space-12);
+  padding-bottom: calc(var(--ff-space-8) + env(safe-area-inset-bottom));
+  background: var(--ff-color-raised);
+  border-top: var(--ff-border, 1px) solid var(--ff-color-line-strong);
+}
+
+.ffw-restbar__body {
+  display: flex;
+  align-items: center;
+  gap: var(--ff-space-8);
+}
+
+.ffw-restbar__clock {
+  min-inline-size: 4.5rem;
+  font-family: var(--ff-font-numeric);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--ff-text-display-lg);
+  line-height: var(--ff-leading-display-lg);
+  font-weight: var(--ff-weight-display-lg);
+}
+
+/* Overtime is a colour AND a minus sign AND a changed label. Never colour alone. */
+.ffw-restbar[data-ff-done='true'] .ffw-restbar__clock {
+  color: var(--ff-color-attention);
+}
+
+.ffw-restbar__for {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ff-text-body-sm);
+  color: var(--ff-color-fg-secondary);
+}
+
+.ffw-restbar__track {
+  block-size: var(--ff-space-4);
+  background: var(--ff-color-sunken);
+  border-radius: var(--ff-radius-full);
+  overflow: hidden;
+}
+
+.ffw-restbar__fill {
+  block-size: 100%;
+  background: var(--ff-color-accent);
+  transition: inline-size var(--ff-duration-fast) linear;
+}
+
+.ffw-restbar[data-ff-done='true'] .ffw-restbar__fill {
+  background: var(--ff-color-attention);
+}
+
+/* ------------------------------------------------------------- action bar */
+
+.ffw-actions {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  gap: var(--ff-space-8);
+  padding: var(--ff-space-8) var(--ff-space-12);
+  padding-bottom: calc(var(--ff-space-8) + env(safe-area-inset-bottom));
+  background: var(--ff-color-surface);
+  border-top: var(--ff-border, 1px) solid var(--ff-color-hairline);
+}
+
+.ffw-actions--stacked {
+  bottom: calc(var(--ff-hit-mid-set) + var(--ff-space-24));
+}
+
+.ffw-actions > * {
+  flex: 1;
+}
+
+/* ------------------------------------------------------------------ picker */
+
+.ffw-picker {
+  display: grid;
+  gap: var(--ff-space-12);
+  padding: var(--ff-space-4) var(--ff-space-16) var(--ff-space-16);
+}
+
+.ffw-picker__filters {
+  display: flex;
+  gap: var(--ff-space-8);
+  overflow-x: auto;
+  padding-block-end: var(--ff-space-4);
+}
+
+.ffw-picker__results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-block-size: 50vh;
+  overflow-y: auto;
+}
+
+.ffw-picker__result {
+  inline-size: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ff-space-12);
+  min-block-size: var(--ff-hit-mid-set);
+  padding: var(--ff-space-8) var(--ff-space-4);
+  background: none;
+  border: 0;
+  border-bottom: var(--ff-border, 1px) solid var(--ff-color-hairline);
+  color: var(--ff-color-fg-primary);
+  font-size: var(--ff-text-body);
+  text-align: start;
+  cursor: pointer;
+}
+
+.ffw-picker__equipment {
+  flex: none;
+  font-size: var(--ff-text-caption);
+  color: var(--ff-color-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--ff-tracking-caption);
+}
+
+.ffw-picker__recent {
+  flex: none;
+  font-size: var(--ff-text-caption);
+  color: var(--ff-color-accent);
+}
+
+/* ------------------------------------------------------------------- misc */
+
+.ffw-note {
+  padding: 0 var(--ff-space-16) var(--ff-space-12);
+  color: var(--ff-color-fg-muted);
+  font-size: var(--ff-text-body-sm);
+}
+
+.ffw-pr {
+  color: var(--ff-color-accent);
+  font-size: var(--ff-text-caption);
+  font-weight: var(--ff-weight-label);
+}
+
+.ffw-editor__spacer {
+  flex: 1;
+}
+
+/* A chevron pointing the other way. Half a turn, no second glyph to keep in sync. */
+.ffw-flip {
+  transform: rotate(0.5turn);
+}

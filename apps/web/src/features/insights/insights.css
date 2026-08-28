@@ -1,0 +1,467 @@
+/*
+ * Insights feature styles. Tokens only — no hex, no raw px, no raw durations
+ * (ADR-0021). Every colour below is a custom property or a `color-mix` of two.
+ */
+
+/* --------------------------------------------------------------------------
+ * The heat ramp lives in `charts/palette.ts`, not here.
+ *
+ * Four ordinal steps mixed from the single accent signal toward `sunken`, and
+ * the four mix percentages are validated against the data-viz ordinal checks in
+ * both themes. They are emitted onto this element as `--ff-in-heat-0..4` by
+ * `heatVariables()`, from one constant, so there is no second copy in this file
+ * to drift out of step with the one the tests pin.
+ * ------------------------------------------------------------------------ */
+.ff-insights {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-16);
+  padding: var(--ff-space-16);
+  /* Clear the bottom tab bar so the last card is not half-swallowed. */
+  padding-bottom: var(--ff-space-32);
+}
+
+.ff-insights__nav {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--ff-color-ground);
+  padding-block: var(--ff-space-8);
+}
+
+/*
+ * Section tabs. 48px minimum target, and the selected tab is signalled by fill AND
+ * by weight AND by `aria-current`, never by colour alone.
+ */
+.ff-in-tab {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--ff-hit-min);
+  padding-inline: var(--ff-space-16);
+  border-radius: var(--ff-radius-full);
+  border: 1px solid var(--ff-color-line-strong);
+  background: transparent;
+  color: var(--ff-color-fg-secondary);
+  font-size: var(--ff-text-body-sm);
+  text-decoration: none;
+}
+
+.ff-in-tab.active {
+  background: var(--ff-color-accent);
+  border-color: var(--ff-color-accent);
+  color: var(--ff-color-on-accent);
+  font-weight: var(--ff-weight-heading);
+}
+
+/* One filter row above everything it scopes — never a filter inside a chart card. */
+.ff-in-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ff-space-8);
+}
+
+/* -- Card ---------------------------------------------------------------- */
+.ff-in-card {
+  background: var(--ff-color-surface);
+  border: 1px solid var(--ff-color-hairline);
+  border-radius: var(--ff-radius-lg);
+  padding: var(--ff-space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-12);
+}
+
+.ff-in-cardhead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ff-space-12);
+}
+
+.ff-in-cardtitle {
+  margin: 0;
+  font-size: var(--ff-text-heading);
+  line-height: var(--ff-leading-heading);
+  font-weight: var(--ff-weight-heading);
+  color: var(--ff-color-fg-primary);
+}
+
+.ff-in-cardsub {
+  margin: var(--ff-space-4) 0 0;
+  font-size: var(--ff-text-body-sm);
+  line-height: var(--ff-leading-body-sm);
+  color: var(--ff-color-fg-secondary);
+}
+
+.ff-in-cardfoot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.ff-in-plot {
+  transition: opacity var(--ff-duration-base) var(--ff-ease-standard);
+}
+
+/* A rebuild holds the previous render at reduced opacity. Never a skeleton flash. */
+.ff-in-plot--stale { opacity: 0.55; }
+
+.ff-in-canvas {
+  position: relative;
+  inline-size: 100%;
+  touch-action: pan-y;
+}
+
+/*
+ * The selection rule. A 1px line in the accent, spanning the plot only — the mark it
+ * points at is already the accent colour, so this is a pointer, not a second series.
+ */
+.ff-in-cursor {
+  position: absolute;
+  inline-size: 1px;
+  background: var(--ff-color-accent);
+  pointer-events: none;
+}
+
+/*
+ * The readout sits in a fixed line under the chart rather than in a floating tooltip:
+ * a box that follows a thumb is a box under a thumb, and this is read one-handed.
+ * Reserved height, so selecting a point never reflows the card.
+ */
+.ff-in-readout {
+  margin: var(--ff-space-8) 0 0;
+  min-block-size: var(--ff-space-20);
+  font-size: var(--ff-text-body-sm);
+  color: var(--ff-color-fg-secondary);
+}
+
+/* -- Stat tiles ---------------------------------------------------------- */
+.ff-in-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--ff-space-64), 1fr));
+  gap: var(--ff-space-12);
+}
+
+.ff-in-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-4);
+  background: var(--ff-color-surface);
+  border: 1px solid var(--ff-color-hairline);
+  border-radius: var(--ff-radius-lg);
+  padding: var(--ff-space-12);
+}
+
+.ff-in-tile__label {
+  font-size: var(--ff-text-label);
+  letter-spacing: var(--ff-tracking-label);
+  font-weight: var(--ff-weight-label);
+  color: var(--ff-color-fg-secondary);
+}
+
+.ff-in-tile__value {
+  font-size: var(--ff-text-display-lg);
+  line-height: var(--ff-leading-display-lg);
+  font-weight: var(--ff-weight-display-lg);
+  color: var(--ff-color-fg-primary);
+  /* Proportional figures: tabular digits make a display-size number look loose. */
+  font-variant-numeric: proportional-nums;
+}
+
+.ff-in-tile__delta,
+.ff-in-tile__detail {
+  font-size: var(--ff-text-body-sm);
+  color: var(--ff-color-fg-muted);
+}
+
+/* -- Bar list ------------------------------------------------------------ */
+.ff-in-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-8);
+}
+
+.ff-in-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 7rem) 1fr auto;
+  align-items: center;
+  gap: var(--ff-space-8);
+  min-block-size: var(--ff-space-24);
+}
+
+.ff-in-bar__label {
+  font-size: var(--ff-text-body-sm);
+  color: var(--ff-color-fg-secondary);
+  overflow-wrap: anywhere;
+}
+
+.ff-in-bar__track {
+  block-size: var(--ff-space-12);
+  background: var(--ff-color-sunken);
+  border-radius: var(--ff-radius-sm);
+  overflow: hidden;
+}
+
+.ff-in-bar__fill {
+  display: block;
+  block-size: 100%;
+  background: var(--ff-color-accent);
+  /* Rounded at the data end, square at the baseline. */
+  border-start-end-radius: var(--ff-radius-md);
+  border-end-end-radius: var(--ff-radius-md);
+}
+
+.ff-in-bar__value {
+  font-size: var(--ff-text-body-sm);
+  font-weight: var(--ff-weight-heading);
+  color: var(--ff-color-fg-primary);
+  white-space: nowrap;
+}
+
+.ff-in-bar__detail {
+  font-weight: var(--ff-weight-body);
+  color: var(--ff-color-fg-muted);
+}
+
+/* -- Body map ------------------------------------------------------------ */
+.ff-in-map { margin: 0; }
+
+.ff-in-map__svg {
+  inline-size: 100%;
+  block-size: auto;
+  max-block-size: 60vh;
+}
+
+.ff-in-map__caption {
+  display: flex;
+  justify-content: space-around;
+  font-size: var(--ff-text-label);
+  letter-spacing: var(--ff-tracking-label);
+  color: var(--ff-color-fg-muted);
+}
+
+.ff-in-silhouette {
+  fill: var(--ff-color-sunken);
+  stroke: var(--ff-color-hairline);
+  stroke-width: 1;
+}
+
+/*
+ * Every region carries a line-strong outline, held to 3:1 against all four
+ * surfaces, so the anatomy survives greyscale, a sun-washed screen and any
+ * colour-vision deficiency. Fill is magnitude; outline is identity.
+ */
+.ff-in-region > * {
+  stroke: var(--ff-color-line-strong);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.ff-in-region--0 > * { fill: var(--ff-in-heat-0); }
+.ff-in-region--1 > * { fill: var(--ff-in-heat-1); }
+.ff-in-region--2 > * { fill: var(--ff-in-heat-2); }
+.ff-in-region--3 > * { fill: var(--ff-in-heat-3); }
+.ff-in-region--4 > * { fill: var(--ff-in-heat-4); }
+
+.ff-in-legend {
+  list-style: none;
+  margin: var(--ff-space-8) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ff-space-12);
+  font-size: var(--ff-text-label);
+  color: var(--ff-color-fg-secondary);
+}
+
+.ff-in-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ff-space-4);
+}
+
+.ff-in-swatch {
+  inline-size: var(--ff-space-16);
+  block-size: var(--ff-space-12);
+  border-radius: var(--ff-radius-sm);
+  border: 1px solid var(--ff-color-line-strong);
+}
+
+.ff-in-swatch--0 { background: var(--ff-in-heat-0); }
+.ff-in-swatch--1 { background: var(--ff-in-heat-1); }
+.ff-in-swatch--2 { background: var(--ff-in-heat-2); }
+.ff-in-swatch--3 { background: var(--ff-in-heat-3); }
+.ff-in-swatch--4 { background: var(--ff-in-heat-4); }
+
+/* -- Calendar ------------------------------------------------------------ */
+.ff-in-calendar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-4);
+}
+
+.ff-in-calendar__row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr) auto;
+  align-items: center;
+  gap: var(--ff-space-4);
+}
+
+.ff-in-day {
+  aspect-ratio: 1;
+  max-inline-size: var(--ff-space-24);
+  border-radius: var(--ff-radius-full);
+  justify-self: center;
+}
+
+/*
+ * A day with no session is an empty ring, not a mark of failure. There is no
+ * "missed" state in this stylesheet and no red anywhere in it — a missed day is
+ * information (constitution rule 6).
+ */
+.ff-in-day--trained { background: var(--ff-color-accent); }
+
+.ff-in-day--untrained {
+  background: transparent;
+  border: 1px solid var(--ff-color-line-strong);
+}
+
+.ff-in-day--future,
+.ff-in-day--before-history {
+  background: transparent;
+  border: 1px dashed var(--ff-color-hairline);
+}
+
+.ff-in-calendar__count {
+  font-size: var(--ff-text-caption);
+  color: var(--ff-color-fg-muted);
+  padding-inline-start: var(--ff-space-8);
+  white-space: nowrap;
+}
+
+/* -- PR list ------------------------------------------------------------- */
+.ff-in-pr {
+  display: flex;
+  align-items: center;
+  gap: var(--ff-space-12);
+  min-block-size: var(--ff-hit-min);
+}
+
+/*
+ * The record glyph. A diamond, filled, in the accent — a shape first and a colour
+ * second, so it survives greyscale. No animation, no burst, no sound: a record is
+ * worth something because it is rare and true, not because the app made a noise.
+ */
+.ff-in-pr__glyph {
+  flex: none;
+  inline-size: var(--ff-space-16);
+  block-size: var(--ff-space-16);
+  color: var(--ff-color-accent);
+}
+
+.ff-in-pr__body { flex: 1 1 auto; min-inline-size: 0; }
+
+.ff-in-pr__name {
+  display: block;
+  font-size: var(--ff-text-body);
+  color: var(--ff-color-fg-primary);
+}
+
+.ff-in-pr__meta {
+  display: block;
+  font-size: var(--ff-text-body-sm);
+  color: var(--ff-color-fg-muted);
+}
+
+.ff-in-pr__value {
+  font-size: var(--ff-text-heading);
+  font-weight: var(--ff-weight-heading);
+  color: var(--ff-color-fg-primary);
+  white-space: nowrap;
+}
+
+/* -- Table twin ---------------------------------------------------------- */
+.ff-in-tablewrap {
+  overflow-x: auto;
+  max-block-size: 60vh;
+  overflow-y: auto;
+}
+
+.ff-in-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--ff-text-body-sm);
+}
+
+.ff-in-table th,
+.ff-in-table td {
+  text-align: start;
+  padding: var(--ff-space-8);
+  border-bottom: 1px solid var(--ff-color-hairline);
+  color: var(--ff-color-fg-primary);
+}
+
+.ff-in-table th {
+  position: sticky;
+  top: 0;
+  background: var(--ff-color-surface);
+  color: var(--ff-color-fg-secondary);
+  font-size: var(--ff-text-label);
+  letter-spacing: var(--ff-tracking-label);
+}
+
+.ff-in-table .ff-in-num { text-align: end; }
+
+/* -- Photos -------------------------------------------------------------- */
+.ff-in-photos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--ff-space-64), 1fr));
+  gap: var(--ff-space-8);
+}
+
+.ff-in-photo {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--ff-radius-md);
+  border: 1px solid var(--ff-color-hairline);
+  background: var(--ff-color-sunken);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.ff-in-photo img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.ff-in-photo__meta {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline: 0;
+  padding: var(--ff-space-4);
+  font-size: var(--ff-text-caption);
+  color: var(--ff-color-fg-primary);
+  background: var(--ff-color-overlay);
+}
+
+.ff-in-photo__absent {
+  font-size: var(--ff-text-caption);
+  color: var(--ff-color-fg-muted);
+  padding: var(--ff-space-8);
+  text-align: center;
+}
+
+.ff-in-note {
+  margin: 0;
+  font-size: var(--ff-text-body-sm);
+  line-height: var(--ff-leading-body-sm);
+  color: var(--ff-color-fg-secondary);
+}
