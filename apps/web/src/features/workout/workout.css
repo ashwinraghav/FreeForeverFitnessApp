@@ -64,6 +64,11 @@
 /* ------------------------------------------------------------ exercise card */
 
 .ffw-card {
+  /* The set grid's track list. Declared on the card, not on `.ffw-sets`, because the
+     legend is a *sibling* of the set list — scoping it to the list left the legend
+     with an undefined value, which silently collapsed four headers into a single
+     column and cost 93px of vertical space at the top of every exercise. */
+  --ffw-cols: var(--ff-space-32) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr) var(--ff-hit-mid-set);
   background: var(--ff-color-surface);
   border-block: var(--ff-border, 1px) solid var(--ff-color-hairline);
   margin-block-end: var(--ff-space-12);
@@ -73,7 +78,7 @@
   display: flex;
   align-items: center;
   gap: var(--ff-space-8);
-  padding: var(--ff-space-12) var(--ff-space-8) var(--ff-space-12) var(--ff-space-16);
+  padding: var(--ff-space-8) var(--ff-space-8) var(--ff-space-4) var(--ff-space-16);
 }
 
 .ffw-card__name {
@@ -83,15 +88,6 @@
   font-size: var(--ff-text-heading);
   line-height: var(--ff-leading-heading);
   font-weight: var(--ff-weight-heading);
-}
-
-.ffw-card__meta {
-  display: block;
-  font-size: var(--ff-text-caption);
-  font-weight: var(--ff-weight-caption);
-  color: var(--ff-color-fg-muted);
-  text-transform: uppercase;
-  letter-spacing: var(--ff-tracking-caption);
 }
 
 .ffw-card__tools {
@@ -131,9 +127,6 @@
   padding: var(--ff-space-4) var(--ff-space-16);
 }
 
-.ffw-sets {
-  --ffw-cols: var(--ff-space-32) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr) var(--ff-hit-mid-set);
-}
 
 .ffw-row[data-ff-state='completed'] {
   background: color-mix(in srgb, var(--ff-color-success) 10%, transparent);
@@ -313,8 +306,7 @@
 
 .ffw-history {
   display: grid;
-  gap: var(--ff-space-4);
-  padding: 0 var(--ff-space-16) var(--ff-space-12);
+  padding: 0 var(--ff-space-16) var(--ff-space-8);
 }
 
 .ffw-history__row {
@@ -372,6 +364,13 @@
   display: flex;
   align-items: center;
   gap: var(--ff-space-8);
+  /*
+   * A grid item defaults to `min-width: auto`, which refuses to shrink below its
+   * min-content width. This row's min-content is ~490px, so on any real phone the
+   * bar overflowed the viewport and put "Done" — the button that ends the rest —
+   * off the right edge. Measured at 390px: 490px wide, 100px of it off-screen.
+   */
+  min-inline-size: 0;
 }
 
 .ffw-restbar__clock {
@@ -388,14 +387,23 @@
   color: var(--ff-color-attention);
 }
 
+/*
+ * On its own line under the clock rather than beside it. Sharing the row left it
+ * 28px wide once the clock and three controls had taken their fixed widths — the one
+ * piece of context the bar carries, squeezed to nothing on the device it is for.
+ */
 .ffw-restbar__for {
-  flex: 1;
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--ff-text-body-sm);
   color: var(--ff-color-fg-secondary);
+}
+
+.ffw-restbar__spacer {
+  flex: 1;
+  min-inline-size: 0;
 }
 
 .ffw-restbar__track {
@@ -495,7 +503,7 @@
 /* ------------------------------------------------------------------- misc */
 
 .ffw-note {
-  padding: 0 var(--ff-space-16) var(--ff-space-12);
+  padding: 0 var(--ff-space-16) var(--ff-space-8);
   color: var(--ff-color-fg-muted);
   font-size: var(--ff-text-body-sm);
 }
@@ -513,4 +521,18 @@
 /* A chevron pointing the other way. Half a turn, no second glyph to keep in sync. */
 .ffw-flip {
   transform: rotate(0.5turn);
+}
+
+/* One PR badge, plus a quiet count of any others. See ExerciseCard for why. */
+.ffw-card__pr {
+  display: flex;
+  align-items: center;
+  gap: var(--ff-space-8);
+  margin: 0;
+  padding: 0 var(--ff-space-16) var(--ff-space-8);
+}
+
+.ffw-card__pr-more {
+  font-size: var(--ff-text-caption);
+  color: var(--ff-color-fg-muted);
 }

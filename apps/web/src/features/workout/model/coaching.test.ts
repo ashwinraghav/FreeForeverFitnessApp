@@ -6,6 +6,8 @@ import { toExerciseRef } from '../catalogue/types.js';
 import {
   bestsFor,
   defaultSchemeFor,
+  deriveSchemeFor,
+  FALLBACK_REP_RANGE,
   progressionHistory,
   recordsThisSession,
   suggestionFor,
@@ -106,7 +108,16 @@ describe('the suggestion', () => {
   });
 
   it('adds weight at the top of the range', () => {
-    const suggestion = suggestionFor(bench, [session(NOW - DAY, [set(0, 60, 12), set(1, 60, 12)])], 2.5);
+    // The range is derived, so reaching the top means reaching two above the lifter's
+    // usual: sets of 8 progressed to 10.
+    const history = [
+      session(NOW - 3 * DAY, [set(0, 60, 8), set(1, 60, 8)]),
+      session(NOW - 2 * DAY, [set(0, 60, 8), set(1, 60, 8)]),
+      session(NOW - DAY, [set(0, 60, 10), set(1, 60, 10)]),
+    ];
+    // Usual is 8, so the range is 8-10 and last session's tens are the top of it.
+    expect(deriveSchemeFor(bench, history, 2.5)).toMatchObject({ repRange: { min: 8, max: 10 } });
+    const suggestion = suggestionFor(bench, history, 2.5);
     expect(suggestion.action).toBe('add_load');
     expect(suggestionLine(suggestion)).toContain('62.5kg');
   });
@@ -128,8 +139,12 @@ describe('the suggestion', () => {
   });
 
   it('rounds onto the gym’s increment', () => {
-    const suggestion = suggestionFor(bench, [session(NOW - DAY, [set(0, 60, 12)])], 1.25);
-    expect(suggestion.loadKg).toBe(61.25);
+    const history = [
+      session(NOW - 3 * DAY, [set(0, 60, 8)]),
+      session(NOW - 2 * DAY, [set(0, 60, 8)]),
+      session(NOW - DAY, [set(0, 60, 10)]),
+    ];
+    expect(suggestionFor(bench, history, 1.25).loadKg).toBe(61.25);
   });
 
   it('is one short line, never a paragraph', () => {
@@ -185,5 +200,53 @@ describe('records set in the current session', () => {
     const history = [session(NOW - 7 * DAY, [set(0, 100, 5)])];
     const live = exercise([set(0, 200, 1, 'failed')]);
     expect(recordsThisSession(live, workout([live]), history)).toEqual([]);
+  });
+});
+
+describe('the rep range is the lifter’s, not a constant', () => {
+  const rangeOf = (sessions: CompletedSession[]) => {
+    const scheme = deriveSchemeFor(bench, sessions, 2.5);
+    return scheme.kind === 'double' ? scheme.repRange : null;
+  };
+
+  it('reads the range off the reps the lifter actually does', () => {
+    // Straight fives get 5-7, not 8-12.
+    expect(rangeOf([session(NOW - DAY, [set(0, 100, 5), set(1, 100, 5)])])).toEqual({
+      min: 5,
+      max: 7,
+    });
+  });
+
+  it('follows a higher-rep lifter up', () => {
+    expect(rangeOf([session(NOW - DAY, [set(0, 30, 12), set(1, 30, 12)])])).toEqual({
+      min: 12,
+      max: 14,
+    });
+  });
+
+  it('falls back only when there is nothing to read', () => {
+    expect(rangeOf([])).toEqual(FALLBACK_REP_RANGE);
+    expect(defaultSchemeFor(bench, 2.5)).toMatchObject({ repRange: FALLBACK_REP_RANGE });
+  });
+
+  it('ignores failed and warmup sets when reading the usual rep count', () => {
+    const sessions = [
+      session(NOW - DAY, [set(0, 100, 5), set(1, 100, 5), set(2, 100, 3, 'failed')]),
+    ];
+    expect(rangeOf(sessions)).toEqual({ min: 5, max: 7 });
+  });
+
+  it('never tells a lifter running fives to chase eight', () => {
+    // The bug this exists for, seen in the browser: a 3x5 bench with one missed set
+    // per session was told "Next: 90kg x8 — 3 misses — cut 10%", because a blanket
+    // 8-12 range read every five-rep session as a failure to reach twelve.
+    const threeByFive = [
+      session(NOW - 3 * DAY, [set(0, 100, 5), set(1, 100, 5), set(2, 100, 4, 'failed')]),
+      session(NOW - 2 * DAY, [set(0, 100, 5), set(1, 100, 5), set(2, 100, 4, 'failed')]),
+      session(NOW - DAY, [set(0, 100, 5), set(1, 100, 5), set(2, 100, 4, 'failed')]),
+    ];
+    const line = suggestionLine(suggestionFor(bench, threeByFive, 2.5));
+    expect(line).not.toContain('x8');
+    expect(rangeOf(threeByFive)).toEqual({ min: 5, max: 7 });
   });
 });

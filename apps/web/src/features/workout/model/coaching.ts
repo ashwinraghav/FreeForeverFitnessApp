@@ -24,14 +24,28 @@ import type { DraftExercise, DraftWorkout } from './types.js';
  * sees between sets costs nothing to produce, which is the whole point.
  */
 
+/** Where a rep range starts when the lifter has no history to read. */
+export const FALLBACK_REP_RANGE = { min: 8, max: 12 } as const;
+
+/**
+ * How far above the lifter's usual rep count the range reaches before load goes up.
+ * Two: enough to be a real target, few enough to be reached in a session or two.
+ */
+export const REP_RANGE_HEADROOM = 2;
+
 /**
  * The default scheme for an exercise the lifter has not configured.
  *
  * Double progression on a rep range, because it is the scheme that fails most safely:
  * it adds a rep before it adds weight, so a bad day costs one rep rather than a missed
- * set, and it works for accessories and main lifts alike. A programme that prescribes
- * something else overrides this; the point of a default is that the app has an opinion
- * on session one rather than waiting to be configured.
+ * set, and it works for accessories and main lifts alike.
+ *
+ * The **range** is not a constant, and that matters more than the scheme. A blanket
+ * 8-12 told a lifter running 3x5 to "go for 8" — a rep count they have never trained
+ * at — and then read every session as a miss because five is not twelve, until it
+ * recommended a 10% deload off the back of a session that set a personal record. A
+ * default that has never seen the lift should defer to what the lifter actually does.
+ * {@link deriveSchemeFor} reads it off their own history; this is the no-history case.
  */
 export function defaultSchemeFor(ref: ExerciseRef, incrementKg: number): ProgressionScheme {
   if (ref.effortKind === 'duration') {
@@ -42,7 +56,50 @@ export function defaultSchemeFor(ref: ExerciseRef, incrementKg: number): Progres
     // are three different goals and the app cannot guess which. Hold, and say so.
     return { kind: 'rpe', targetRpe: 8, reps: 1, incrementKg };
   }
-  return { kind: 'double', repRange: { min: 8, max: 12 }, incrementKg };
+  return { kind: 'double', repRange: { ...FALLBACK_REP_RANGE }, incrementKg };
+}
+
+/**
+ * The default scheme, with its rep range taken from the lifter's own recent sets.
+ *
+ * The modal completed rep count is the bottom of the range and it reaches
+ * {@link REP_RANGE_HEADROOM} above: a lifter doing straight fives is progressed
+ * 5 -> 6 -> 7, then load goes up and it resets to 5. Someone doing sets of twelve gets
+ * 12 -> 14. Neither is told to chase a number they have never trained at.
+ */
+export function deriveSchemeFor(
+  ref: ExerciseRef,
+  sessions: readonly CompletedSession[],
+  incrementKg: number,
+): ProgressionScheme {
+  const base = defaultSchemeFor(ref, incrementKg);
+  if (base.kind !== 'double') return base;
+
+  const counts = new Map<number, number>();
+  for (const session of progressionHistory(ref, sessions)) {
+    for (const set of session.sets) {
+      if (set.state !== 'completed' || set.type === 'warmup') continue;
+      const reps = set.effort.kind === 'reps' || set.effort.kind === 'reps_and_duration'
+        ? set.effort.reps
+        : null;
+      if (reps === null || reps <= 0) continue;
+      counts.set(reps, (counts.get(reps) ?? 0) + 1);
+    }
+  }
+  if (counts.size === 0) return base;
+
+  // Most frequent rep count; ties go to the heavier end, which is the one the lifter
+  // is more likely to be working toward.
+  let usual = 0;
+  let best = -1;
+  for (const [reps, seen] of counts) {
+    if (seen > best || (seen === best && reps > usual)) {
+      usual = reps;
+      best = seen;
+    }
+  }
+
+  return { ...base, repRange: { min: usual, max: usual + REP_RANGE_HEADROOM } };
 }
 
 /** Past outings of this exercise, in the shape the progression rules read. */
@@ -77,9 +134,12 @@ export function suggestionFor(
   ref: ExerciseRef,
   sessions: readonly CompletedSession[],
   incrementKg: number,
-  scheme: ProgressionScheme = defaultSchemeFor(ref, incrementKg),
+  scheme?: ProgressionScheme,
 ): Prescription {
-  return nextPrescription(progressionHistory(ref, sessions), scheme);
+  return nextPrescription(
+    progressionHistory(ref, sessions),
+    scheme ?? deriveSchemeFor(ref, sessions, incrementKg),
+  );
 }
 
 /**

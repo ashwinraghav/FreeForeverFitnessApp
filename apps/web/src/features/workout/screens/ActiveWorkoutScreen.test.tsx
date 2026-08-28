@@ -498,12 +498,18 @@ describe('the running total', () => {
     expect(summary).toContain('500 kg');
   });
 
-  it('does not count a missed set toward volume', () => {
+  it('counts a missed set toward volume but not toward completed sets', () => {
+    // domain-model's ruling: a set that ground out reps moved the bar, so it is
+    // volume. The set *count* still reports only what was made, so a lifter can see
+    // both facts — the work done and the prescription missed — without either hiding
+    // the other.
     const repository = repositoryWithActiveSession();
     const view = mountScreen(repository);
     fireEvent.click(nextLogButton());
     fireEvent.click(button(/^Mark as missed: Bench Press, set 1/));
-    expect(view.container.querySelector('.ffw-summary')?.textContent).toContain('0 sets');
+    const summary = view.container.querySelector('.ffw-summary')?.textContent;
+    expect(summary).toContain('0 sets');
+    expect(summary).toContain('500 kg');
   });
 });
 

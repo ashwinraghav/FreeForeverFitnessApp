@@ -13,13 +13,13 @@ import type { CatalogueEntry } from './types.js';
  * humans; `@freeforever/data`'s enums were built so a volume chart adds up. Three
  * places where that matters, all handled below and all lossy in a way worth stating:
  *
- *   1. **`shoulders` is one muscle upstream and three here.** `MUSCLE_GROUPS` splits
- *      front, side and rear delts because they are trained by different movements and
- *      a lifter tracking delt volume needs them apart. The dataset cannot tell them
- *      apart, so this infers from `force`: a push is front delts, a pull is rear
- *      delts, anything else is side delts. That is right for the overwhelming
- *      majority (press → front, row/face-pull → rear) and wrong for a handful of
- *      lateral raises the dataset marks `push`. Marked as an inference, not a fact.
+ *   1. **`shoulders` is sometimes one muscle upstream and three here.** `MUSCLE_GROUPS`
+ *      splits front, side and rear delts because they are trained by different
+ *      movements and a lifter tracking delt volume needs them apart. The dataset now
+ *      names all three explicitly for most rows and maps straight through; where it
+ *      still says only `shoulders`, this infers from `force` — a push is front delts,
+ *      a pull is rear delts, anything else is side delts. Marked as an inference, not
+ *      a fact, and now a fallback rather than the common path.
  *   2. **Contributions are a two-value scale, not real fractions.** Upstream has
  *      `primaryMuscles` and `secondaryMuscles` and no weighting, so this assigns 1.0
  *      and 0.5. The hand-written starter catalogue has better numbers because a human
@@ -72,7 +72,8 @@ export const SECONDARY_FRACTION = 0.5;
  * Upstream muscle names to `MUSCLE_GROUPS`.
  *
  * `shoulders` is absent on purpose — it is resolved from `force`, see
- * {@link shoulderGroupFor}.
+ * {@link shoulderGroupFor}. The dataset now names the three delts explicitly for most
+ * rows, so that inference is a fallback for the residue rather than the common path.
  */
 const MUSCLE_BY_NAME: Readonly<Record<string, MuscleGroup>> = {
   abdominals: 'abs',
@@ -82,6 +83,7 @@ const MUSCLE_BY_NAME: Readonly<Record<string, MuscleGroup>> = {
   calves: 'calves',
   chest: 'chest',
   forearms: 'forearms',
+  'front-delts': 'front_delts',
   glutes: 'glutes',
   hamstrings: 'hamstrings',
   lats: 'lats',
@@ -89,6 +91,8 @@ const MUSCLE_BY_NAME: Readonly<Record<string, MuscleGroup>> = {
   'mid-back': 'upper_back',
   neck: 'neck',
   quads: 'quads',
+  'rear-delts': 'rear_delts',
+  'side-delts': 'side_delts',
   traps: 'traps',
   triceps: 'triceps',
 };

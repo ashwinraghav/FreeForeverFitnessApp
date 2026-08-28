@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { ExerciseShape, PerformedSet, SetKind, SetState } from './types.js';
+import { isRecordEligible } from './types.js';
 import {
   hardSetCount,
   hardSetsByMuscle,
+  isVolumeEligible,
   sessionTotals,
   setVolumeKg,
   tonnageKg,
@@ -184,22 +186,28 @@ describe('session totals — the shape written onto the document', () => {
     expect(totals.failedSetCount).toBe(1);
   });
 
-  it('sums volume over completed working sets only', () => {
-    // Following `workoutTotalsSchema.volumeKg` to the letter: the warmup is out and so
-    // is the failed set. `tonnageKg` is where failed work is counted; the two numbers
-    // answer different questions and the discrepancy is flagged in the module docs.
+  it('sums volume over every attempted working set, made or missed', () => {
+    // A set that ground out three of a prescribed five moved the bar three times.
+    // Dropping it would make the hardest week read as the lightest.
+    const sets = [set(60, 10, 'completed', 'warmup'), set(100, 5, 'completed'), set(100, 3, 'failed')];
+    const totals = sessionTotals([{ exercise: bench, sets }]);
+    expect(totals.volumeKg).toBe(800);
+    // The warmup is still out, and the two functions now agree by default.
+    expect(tonnageKg(sets)).toBe(800);
+  });
+
+  it('keeps made and missed apart in the counts, even though volume merges them', () => {
     const totals = sessionTotals([
-      {
-        exercise: bench,
-        sets: [
-          set(60, 10, 'completed', 'warmup'),
-          set(100, 5, 'completed'),
-          set(100, 3, 'failed'),
-        ],
-      },
+      { exercise: bench, sets: [set(100, 5, 'completed'), set(100, 3, 'failed')] },
     ]);
-    expect(totals.volumeKg).toBe(500);
-    expect(tonnageKg([set(60, 10, 'completed', 'warmup'), set(100, 5), set(100, 3, 'failed')])).toBe(800);
+    expect(totals.volumeKg).toBe(800);
+    expect(totals.completedSetCount).toBe(1);
+    expect(totals.failedSetCount).toBe(1);
+  });
+
+  it('splits failed work across muscles too', () => {
+    const totals = sessionTotals([{ exercise: bench, sets: [set(100, 3, 'failed')] }]);
+    expect(totals.volumeKgByMuscle['chest']).toBe(300);
   });
 
   it('merges muscle volume across exercises', () => {
@@ -260,5 +268,23 @@ describe('session totals — the shape written onto the document', () => {
     ]);
     expect(totals.completedSetCount).toBe(2);
     expect(totals.volumeKg).toBe(500);
+  });
+});
+
+describe('the volume predicate', () => {
+  it('counts attempted working sets and nothing else', () => {
+    expect(isVolumeEligible({ type: 'working', state: 'completed' })).toBe(true);
+    expect(isVolumeEligible({ type: 'working', state: 'failed' })).toBe(true);
+    expect(isVolumeEligible({ type: 'working', state: 'pending' })).toBe(false);
+    expect(isVolumeEligible({ type: 'warmup', state: 'completed' })).toBe(false);
+    expect(isVolumeEligible({ type: 'warmup', state: 'failed' })).toBe(false);
+  });
+
+  it('is a different question from record eligibility', () => {
+    // "Did the body do work?" and "did this prove a capability?" diverge on exactly
+    // one case, and it is the important one.
+    const missed = { type: 'working', state: 'failed' } as const;
+    expect(isVolumeEligible(missed)).toBe(true);
+    expect(isRecordEligible(missed)).toBe(false);
   });
 });

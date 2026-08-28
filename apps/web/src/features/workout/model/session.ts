@@ -109,6 +109,12 @@ export type WorkoutAction =
       readonly exerciseId: WorkoutExerciseId;
       /** Insert directly after this set. Defaults to the end of the exercise. */
       readonly after?: SetId | undefined;
+      /**
+       * Insert at the very top instead. What "add a warmup" means: a warmup appended
+       * below three working sets is in the wrong place, and reordering it by hand
+       * mid-session is exactly the fiddling this screen exists to avoid.
+       */
+      readonly atStart?: boolean;
       readonly setType?: SetType;
       readonly now?: number;
     }
@@ -328,15 +334,20 @@ function addSet(
 
   return mapExercise(state, action.exerciseId, (exercise) => {
     const ordered = orderedSets(exercise);
-    const afterIndex =
-      action.after === undefined
-        ? ordered.length - 1
-        : ordered.findIndex((candidate) => candidate.id === action.after);
-    const index = afterIndex === -1 ? ordered.length : afterIndex + 1;
+    let index: number;
+    if (action.atStart === true) {
+      index = 0;
+    } else {
+      const afterIndex =
+        action.after === undefined
+          ? ordered.length - 1
+          : ordered.findIndex((candidate) => candidate.id === action.after);
+      index = afterIndex === -1 ? ordered.length : afterIndex + 1;
+    }
 
     // A new set inherits the type of the one it follows, so "add another" after a
     // warmup gives another warmup rather than silently starting the working sets.
-    const template = ordered[Math.max(0, index - 1)];
+    const template = index === 0 ? undefined : ordered[index - 1];
     const setType = action.setType ?? template?.type ?? 'working';
 
     const created = emptySet(exercise.exercise, keyAt(ordered, index), setType, now);

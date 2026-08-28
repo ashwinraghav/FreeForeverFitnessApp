@@ -1,13 +1,9 @@
-import { cleanup, fireEvent, render, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
 import { STARTER_CATALOGUE } from '../catalogue/starter.js';
 import type { CatalogueEntry } from '../catalogue/types.js';
 import { ExercisePicker } from './ExercisePicker.js';
-
-// `test/setup.ts` does not enable vitest globals, so Testing Library cannot register
-// its own auto-cleanup.
-afterEach(cleanup);
 
 function setup(options: { recentIds?: readonly string[]; open?: boolean } = {}) {
   const onPick = vi.fn<(entry: CatalogueEntry) => void>();

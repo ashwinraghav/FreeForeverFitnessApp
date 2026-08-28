@@ -5,6 +5,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import NutritionRoutes from '../NutritionRoutes.js';
+import { DATASETS_BUILD_DIR } from '../test/fixturePath.js';
 
 /**
  * The scanner's degradation ladder, end to end through the real screen.
@@ -18,14 +19,7 @@ import NutritionRoutes from '../NutritionRoutes.js';
  * decode, not a mock that agrees with me.
  */
 
-/**
- * Resolved from the working directory, not from `import.meta.url`: under the
- * jsdom project Vite rewrites module URLs with a `/@fs` prefix, and a path
- * built from it silently misses every file. That failure is invisible — the
- * fetch stub returns 404, the index comes up empty, and the test "passes" by
- * asserting a food is absent when in truth nothing ever loaded.
- */
-const BUILD = `${process.cwd()}/../../packages/datasets/build/`;
+const BUILD = DATASETS_BUILD_DIR;
 
 /**
  * Serves the real artefacts from disk, the way a server with content-encoding

@@ -1,6 +1,6 @@
 import { effectiveLoadKg, round4 } from './load.js';
 import type { ExerciseShape, LoadContext, PerformedSet } from './types.js';
-import { isRecordEligible, isWorking, repsOf } from './types.js';
+import { isWorking, repsOf } from './types.js';
 
 /**
  * Volume, hard sets, and the session totals that get denormalised onto the workout
@@ -11,18 +11,36 @@ import { isRecordEligible, isWorking, repsOf } from './types.js';
  * that pre-sum, and this module is what produces it. The sets remain the truth; these
  * numbers are a cache, and the aggregate reducer recomputes them if they drift.
  *
- * ## The one judgement call in here, stated openly
+ * ## Failed sets count. One predicate decides it.
  *
- * `setEntrySchema`'s comment says a failed set "is real work and counts toward volume
- * and fatigue". `workoutTotalsSchema.volumeKg` says "Sum of load x reps over
- * **completed** working sets". Those two cannot both be implemented by one number.
+ * `workoutTotalsSchema.volumeKg` and `setEntrySchema` once disagreed about whether a
+ * failed set contributes volume. domain-model resolved it in favour of counting them,
+ * and the reasoning is the part worth keeping: a set that ground out four of a
+ * prescribed five moved the bar four times, and `effort` records those reps whatever
+ * the state. Dropping them makes a week the lifter pushed to failure read as *lighter*
+ * than an easy one — inverting the signal exactly when it matters most. The case the
+ * exclusion was imagined for costs nothing either way, because a set abandoned before
+ * a single rep records zero reps and contributes zero.
  *
- * `sessionTotals` follows the field's own documentation, because that field is a
- * contract with the aggregate reducer and with every chart downstream of it — the
- * cost of disagreeing with it silently is two clients that compute different weekly
- * volumes for the same week. `hardSetCount` and `tonnageKg` are where failed work is
- * counted, and both are separate functions with `includeFailed` on by default. This
- * discrepancy has been reported to the domain-model team rather than resolved here.
+ * So there are two predicates, and they answer different questions:
+ *
+ *   {@link isVolumeEligible}  did the body do work?          attempted, not a warmup
+ *   `isRecordEligible`        did this prove a capability?   completed, not a warmup
+ *
+ * ### Why this one is redeclared rather than imported
+ *
+ * `@freeforever/data` exports the canonical `isVolumeEligible`, and importing it would
+ * be the obvious way to guarantee one definition. It is not available to this package:
+ * `packages/core` is **Apache-2.0** and `packages/data` is **AGPL-3.0-or-later**, split
+ * that way deliberately by ADR-0003 so the reusable maths stays reusable. An Apache
+ * package taking an AGPL dependency would put core's distribution under the AGPL and
+ * destroy the reuse the split exists to enable — a licensing change dressed up as an
+ * import.
+ *
+ * The guarantee is provided mechanically instead, one layer up: `apps/web` depends on
+ * both packages legitimately, and `model/volumePredicate.test.ts` there asserts this
+ * function and `@freeforever/data`'s agree across every state and type combination. If
+ * either drifts, that test fails.
  */
 
 export interface VolumeOptions extends LoadContext {
@@ -51,6 +69,17 @@ export function setVolumeKg(
   const load = effectiveLoadKg(set.load, context);
   if (load === null) return null;
   return round4(load * reps);
+}
+
+/**
+ * Did the body do work? Attempted, and not a warmup.
+ *
+ * Structurally identical to `@freeforever/data`'s `isVolumeEligible`; see the module
+ * comment for why it is redeclared rather than imported, and for where the two are
+ * pinned together by a test.
+ */
+export function isVolumeEligible(set: Pick<PerformedSet, 'type' | 'state'>): boolean {
+  return set.state !== 'pending' && isWorking(set);
 }
 
 /** Whether a set should be counted at all, under the given options. */
@@ -165,9 +194,9 @@ export interface SessionTotals {
 /**
  * Fold a session into the totals denormalised onto its document.
  *
- * Follows `workoutTotalsSchema` exactly, including its "completed working sets" rule
- * for `volumeKg` — see the module comment for why that is not the same choice
- * `tonnageKg` makes.
+ * `volumeKg` follows `workoutTotalsSchema`: every working set that was attempted,
+ * completed or failed. `completedSetCount` and `failedSetCount` keep the two apart for
+ * anything that needs the distinction.
  */
 export function sessionTotals(
   exercises: readonly SessionExercise[],
@@ -187,7 +216,8 @@ export function sessionTotals(
       if (isWorking(set)) workingSetCount += 1;
       if (set.state === 'completed') completedSetCount += 1;
       if (set.state === 'failed') failedSetCount += 1;
-      if (!isRecordEligible(set)) continue;
+      // Attempted work counts, made or missed. See the module comment.
+      if (!isVolumeEligible(set)) continue;
 
       const setVolume = setVolumeKg(set, merged) ?? 0;
       if (setVolume === 0) continue;

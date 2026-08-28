@@ -52,12 +52,11 @@ export function RestBar({ rest, now, forLabel, onAdjust, onSkip }: RestBarProps)
           {done ? `Rest over for ${forLabel}` : ''}
         </span>
 
-        <span className="ffw-restbar__for">
-          <span className="ff-visually-hidden">
-            {done ? 'Rest over' : 'Resting'}, {announceClock(remaining)},{' '}
-          </span>
-          {done ? 'Rest over' : 'Rest'} · {forLabel}
+        <span className="ff-visually-hidden">
+          {done ? 'Rest over' : 'Resting'}, {announceClock(remaining)}, {forLabel}
         </span>
+
+        <span className="ffw-restbar__spacer" />
 
         <IconButton
           icon={<MinusGlyph />}
@@ -77,6 +76,12 @@ export function RestBar({ rest, now, forLabel, onAdjust, onSkip }: RestBarProps)
           {done ? 'Done' : 'Skip'}
         </Button>
       </div>
+
+      {/* Under the clock, not beside it: on a 390px screen the clock and three
+          controls take every pixel of the first row. */}
+      <span className="ffw-restbar__for" aria-hidden="true">
+        {done ? 'Rest over' : 'Rest'} · {forLabel}
+      </span>
 
       <div
         className="ffw-restbar__track"

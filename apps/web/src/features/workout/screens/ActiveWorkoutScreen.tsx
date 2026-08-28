@@ -227,9 +227,19 @@ export function ActiveWorkoutScreen({
             ghosts={ghostsForExercise(exercise, history)}
             history={historyFor(exercise.exercise, history)}
             today={today}
-            suggestion={suggestionLine(
-              suggestionFor(exercise.exercise, history, loadStepKg),
-            )}
+            /*
+             * Advice for *before* the exercise starts, and only then. It is computed
+             * from previous sessions, so once the lifter has logged a set today it is
+             * commenting on a session it cannot see — which is how "cut 10%" came to
+             * be rendered directly beneath a personal-record badge earned two minutes
+             * earlier. Once they are underway, the sets on screen are the better
+             * guide and this is noise.
+             */
+            suggestion={
+              exercise.sets.some((set) => set.state !== 'pending' && set.type !== 'warmup')
+                ? null
+                : suggestionLine(suggestionFor(exercise.exercise, history, loadStepKg))
+            }
             records={recordsThisSession(exercise, state.workout, history).map(
               (record) => record.type,
             )}
@@ -245,7 +255,14 @@ export function ActiveWorkoutScreen({
             }
             onRemoveSet={(setId) => removeSet(exercise.id, setId)}
             onAddSet={(kind) =>
-              dispatch({ type: 'add_set', exerciseId: exercise.id, setType: kind, now: now() })
+              dispatch({
+                type: 'add_set',
+                exerciseId: exercise.id,
+                setType: kind,
+                // A warmup goes above the working sets, which is where warmups happen.
+                ...(kind === 'warmup' ? { atStart: true } : {}),
+                now: now(),
+              })
             }
             onRemoveExercise={removeExercise}
             onMoveExercise={(exerciseId, toIndex) =>

@@ -40,6 +40,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Explicit even though `test/setup.ts` cleans up centrally: this file runs on fake
+  // timers, and unmounting has to happen while they are still installed. The central
+  // hook would otherwise run after `useRealTimers` and tear down components whose
+  // intervals belong to a clock that no longer exists.
   cleanup();
   vi.useRealTimers();
 });

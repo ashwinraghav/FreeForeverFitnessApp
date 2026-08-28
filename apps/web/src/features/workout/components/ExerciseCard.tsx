@@ -19,16 +19,32 @@ import { SetRow, type EditableField } from './SetRow.js';
  * point on the screen to reach and the easiest to hit by accident.
  */
 
-/** Human names for the record types, short enough to fit a badge. */
-const PR_LABEL: Record<string, string> = {
-  heaviest_weight: 'Heaviest',
-  best_e1rm: 'Best est. 1RM',
-  most_reps: 'Most reps',
-  best_set_volume: 'Best set',
-  best_session_volume: 'Best session',
-  best_duration: 'Longest hold',
-  best_distance: 'Furthest',
-};
+/**
+ * Human names for the record types, short enough to fit a badge.
+ *
+ * Ordered most-worth-saying first, and **only the first one is shown**. One good set
+ * against a stale history sets four records at once — heaviest, best estimated max,
+ * best set volume and best session volume are all functions of the same lift — so
+ * rendering them all produced four badges across two rows for a single tap. That is
+ * noise where the brief asks for one number per glance, and a badge that appears four
+ * at a time stops meaning anything.
+ */
+const PR_LABELS: readonly (readonly [string, string])[] = [
+  ['heaviest_weight', 'Heaviest'],
+  ['best_e1rm', 'Best est. 1RM'],
+  ['most_reps', 'Most reps'],
+  ['best_duration', 'Longest hold'],
+  ['best_distance', 'Furthest'],
+  ['best_set_volume', 'Best set'],
+  ['best_session_volume', 'Best session'],
+];
+
+/** The single record worth putting on screen, or `null` when none were set. */
+function headlineRecord(types: readonly string[]): string | null {
+  if (types.length === 0) return null;
+  const found = PR_LABELS.find(([type]) => types.includes(type));
+  return found === undefined ? null : found[1];
+}
 
 export interface ExerciseCardProps {
   readonly exercise: DraftExercise;
@@ -64,6 +80,8 @@ export function ExerciseCard(props: ExerciseCardProps) {
 
   // A barbell lift gets a plate breakdown in its editor. Everything else does not:
   // there is nothing to solve for a cable stack or a fixed dumbbell.
+  const headline = headlineRecord(props.records);
+
   const barbellSetup =
     exercise.exercise.loadKind === 'external'
       ? { barKg: OLYMPIC_BAR_KG, plates: METRIC_PLATE_STOCK }
@@ -78,12 +96,14 @@ export function ExerciseCard(props: ExerciseCardProps) {
   return (
     <section className="ffw-card" aria-label={exercise.exercise.name}>
       <header className="ffw-card__head">
-        <h3 className="ffw-card__name">
-          {exercise.exercise.name}
-          <span className="ffw-card__meta">
-            {lastTime === null ? 'First time' : `Last: ${summariseSets(lastTime.sets)}`}
-          </span>
-        </h3>
+        {/*
+          * No "Last: ..." line under the name. It repeated the first row of the
+          * history strip verbatim, and `text-transform: uppercase` turned it into
+          * "LAST: 100X5 X2, 100X4✕" — where the rep multiplier, the set count and the
+          * failure marker all render as the same glyph. The strip below says it once,
+          * dated, in lower case.
+          */}
+        <h3 className="ffw-card__name">{exercise.exercise.name}</h3>
         <IconButton
           icon={<ChevronDownGlyph className="ffw-flip" />}
           aria-label={`Move ${exercise.exercise.name} up`}
@@ -100,14 +120,15 @@ export function ExerciseCard(props: ExerciseCardProps) {
         />
       </header>
 
-      {props.records.length === 0 ? null : (
-        <div className="ffw-card__tools" aria-label={`${exercise.exercise.name} records`}>
-          {props.records.map((type) => (
-            <Badge key={type} tone="success">
-              {PR_LABEL[type] ?? type} PR
-            </Badge>
-          ))}
-        </div>
+      {headline === null ? null : (
+        <p className="ffw-card__pr">
+          <Badge tone="success">{headline} PR</Badge>
+          {props.records.length > 1 ? (
+            <span className="ffw-card__pr-more">
+              +{props.records.length - 1} more
+            </span>
+          ) : null}
+        </p>
       )}
 
       {props.suggestion === null ? null : <p className="ffw-note">{props.suggestion}</p>}
@@ -169,9 +190,11 @@ export function ExerciseCard(props: ExerciseCardProps) {
         >
           Warmup
         </Button>
+        {/* `danger`, not `ghost`: this sat next to "Warmup" looking identical to it,
+            one thumb-width from the controls a lifter uses between sets. */}
         <Button
           size="lg"
-          variant="ghost"
+          variant="danger"
           onClick={() => props.onRemoveExercise(exercise.id)}
         >
           Remove

@@ -1,15 +1,10 @@
 import type { SetId, SetState, SortKey } from '@freeforever/data';
-import { cleanup, fireEvent, render, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { GhostValues } from '../model/ghosts.js';
 import type { DraftSet } from '../model/types.js';
 import { SetRow, type EditableField } from './SetRow.js';
-
-// `test/setup.ts` does not enable vitest globals, so Testing Library cannot register
-// its own auto-cleanup. Without this every render stacks up in the body and the
-// second `getByRole` in a file finds two of everything.
-afterEach(cleanup);
 
 function draftSet(overrides: Partial<DraftSet> = {}): DraftSet {
   return {

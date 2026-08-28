@@ -1,10 +1,9 @@
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { FoodIndex, FoodIndexSet, fold, tokenise, type Food, type SearchHit } from '@freeforever/datasets';
 import { describe, expect, it } from 'vitest';
 import { classifyQuery, OVERFETCH_LIMIT, searchFoods } from './rank.js';
+import { DATASETS_BUILD_DIR } from '../test/fixturePath.js';
 
 /**
  * Recall, measured against the real committed index rather than a fixture of
@@ -20,13 +19,11 @@ import { classifyQuery, OVERFETCH_LIMIT, searchFoods } from './rank.js';
  * artefact can be inspected without running the pipeline.
  */
 
-const here = dirname(fileURLToPath(import.meta.url));
-const BUILD = join(here, '../../../../../../packages/datasets/build');
 const VERSION = '2026.08.1';
 
 function openShard(shard: 'core' | 'off'): FoodIndex {
   const read = (role: string) =>
-    gunzipSync(readFileSync(join(BUILD, `food-${shard}-${role}-${VERSION}.bin.gz`)));
+    gunzipSync(readFileSync(`${DATASETS_BUILD_DIR}food-${shard}-${role}-${VERSION}.bin.gz`));
   return new FoodIndex({ records: read('records'), search: read('search'), barcodes: read('barcodes') });
 }
 

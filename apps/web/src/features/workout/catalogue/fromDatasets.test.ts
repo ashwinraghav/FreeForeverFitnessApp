@@ -145,8 +145,9 @@ describe('the shoulders inference, stated as an inference', () => {
     expect(shoulderGroupFor(null)).toBe('side_delts');
   });
 
-  it('splits the upstream single shoulder across all three delts in practice', () => {
-    // If every `shoulders` collapsed to one group the split would be worthless.
+  it('ends up using all three delts across the catalogue', () => {
+    // Whether named upstream or inferred from `force`, a catalogue that collapsed
+    // every shoulder movement into one group would make delt volume meaningless.
     const delts = new Set(
       adapted.flatMap((entry) =>
         entry.muscles.map((share) => share.muscle).filter((m) => m.endsWith('_delts')),
@@ -204,7 +205,8 @@ describe('a known row, converted end to end', () => {
     const bench = adapted.find((entry) => entry.id === 'Barbell_Bench_Press_-_Medium_Grip');
     expect(bench?.muscles).toEqual([
       { muscle: 'chest', fraction: 1 },
-      // `shoulders` + force `push` becomes the front delt, at the secondary weight.
+      // Upstream now names the delt explicitly, so this maps through rather than
+      // being inferred from `force`.
       { muscle: 'front_delts', fraction: 0.5 },
       { muscle: 'triceps', fraction: 0.5 },
     ]);

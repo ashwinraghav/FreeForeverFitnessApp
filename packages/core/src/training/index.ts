@@ -87,6 +87,7 @@ export type {
 export {
   hardSetCount,
   hardSetsByMuscle,
+  isVolumeEligible,
   sessionTotals,
   setVolumeKg,
   tonnageKg,

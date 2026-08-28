@@ -31,6 +31,7 @@ New decision: `pnpm adr "Short title"`.
 | [0023](./0023-storage-rules-are-security-surface.md) | Cloud Storage rules are part of the security surface | Accepted |
 | [0024](./0024-coach-photo-access-deferred.md) | Coach access to progress-photo bytes is deferred to Phase 4 | Accepted |
 | [0025](./0025-conflict-resolution-per-data-class.md) | Conflict resolution is decided per data class | Accepted |
+| [0026](./0026-licence-boundary-forbids-core-importing-data.md) | The licence split is a dependency constraint, not just a file header | Accepted |
 
 ## Reading order for newcomers
 
