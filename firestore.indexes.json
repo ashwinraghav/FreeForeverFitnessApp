@@ -1,1 +1,195 @@
-{ "indexes": [], "fieldOverrides": [] }
+{
+  "indexes": [],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "workouts",
+      "fieldPath": "exercises",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "workouts",
+      "fieldPath": "totals",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "workouts",
+      "fieldPath": "title",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "workouts",
+      "fieldPath": "note",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "workouts",
+      "fieldPath": "programRef",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "routines",
+      "fieldPath": "days",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "routines",
+      "fieldPath": "weeks",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "routines",
+      "fieldPath": "description",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "personalRecords",
+      "fieldPath": "history",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "personalRecords",
+      "fieldPath": "current",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "personalRecords",
+      "fieldPath": "repMaxKgByReps",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "personalRecords",
+      "fieldPath": "exercise",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "nutritionDays",
+      "fieldPath": "meals",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "nutritionDays",
+      "fieldPath": "totals",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "nutritionDays",
+      "fieldPath": "targetSnapshot",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "nutritionDays",
+      "fieldPath": "note",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "recipes",
+      "fieldPath": "ingredients",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "recipes",
+      "fieldPath": "nutrientsPerServing",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "recipes",
+      "fieldPath": "nutrientsPer100g",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "recipes",
+      "fieldPath": "method",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "foods",
+      "fieldPath": "nutrientsPer100g",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "foods",
+      "fieldPath": "servings",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "exercises",
+      "fieldPath": "muscles",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "exercises",
+      "fieldPath": "notes",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "bodyMetrics",
+      "fieldPath": "measurements",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "bodyMetrics",
+      "fieldPath": "note",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "progressPhotos",
+      "fieldPath": "blurhash",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "progressPhotos",
+      "fieldPath": "storagePath",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "habitDays",
+      "fieldPath": "entries",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "macroTargets",
+      "fieldPath": "values",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "macroTargets",
+      "fieldPath": "basis",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "aggregates",
+      "fieldPath": "state",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "aggregates",
+      "fieldPath": "sequenceByKind",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "users",
+      "fieldPath": "units",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "users",
+      "fieldPath": "auth",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "users",
+      "fieldPath": "consent",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "coachGrants",
+      "fieldPath": "scopes",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "coachGrants",
+      "fieldPath": "note",
+      "indexes": []
+    }
+  ]
+}

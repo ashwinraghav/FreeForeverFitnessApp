@@ -1,14 +1,45 @@
 rules_version = '2';
 
-// These rules are PUBLIC — anyone can read them in this repository.
-// That is deliberate (ADR-0015). It means they must actually be correct,
-// not merely unread. Every rule below is covered by a test in
-// packages/data/test/rules/*.test.ts, and those tests block CI.
+// =============================================================================
+// TheFreeForeverFitnessApp — Firestore security rules
 //
-// STATUS: skeleton. Team "domain-model" owns the real implementation.
+// These rules are PUBLIC. Anyone can read them in this repository, and that is
+// deliberate (ADR-0015): a rule that works by being unread is already broken.
+// Every rule below is covered in both directions — the permitted access succeeds
+// and the forbidden access fails — by packages/data/test/rules/*.test.ts, which
+// blocks CI.
+//
+// The four properties these rules exist to guarantee:
+//
+//   1. A user reads and writes their own data, and nobody else's. There is no
+//      public read anywhere, no directory, no discovery (ADR-0017).
+//   2. An anonymous user has exactly the same rights over their own data as a
+//      linked one (ADR-0009). Nothing below inspects the sign-in provider. An
+//      account that upgrades in place keeps its uid and therefore its access,
+//      and loses nothing at the moment of linking.
+//   3. A write cannot lie: it cannot claim another uid, cannot set its own
+//      server timestamps, cannot carry fields this schema does not define, and
+//      cannot put a value outside an enum into an enum field.
+//   4. A coach reads a client's data only while an explicit, scoped, revocable
+//      grant document exists — and never writes it (Phase 4).
+//
+// Deployment order is not optional: `maxSchemaVersion()` below gates writes, so
+// these rules deploy BEFORE any client that writes a newer schema version.
+//
+// Structural note: there is no `{document=**}` catch-all under /users. A
+// collection that is not named here is denied. Adding one is a rules change with
+// tests, on purpose.
+// =============================================================================
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // -------------------------------------------------------------------------
+    // Identity
+    //
+    // Authorisation derives only from request.auth.uid and from grant documents
+    // the requester cannot forge. It never reads a field the requester wrote.
+    // -------------------------------------------------------------------------
 
     function isSignedIn() {
       return request.auth != null;
@@ -18,13 +49,758 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // A user's own training and nutrition data. Nobody else may read it —
-    // including a coach, until an explicit grant exists (Phase 4).
-    match /users/{uid}/{document=**} {
-      allow read, write: if isOwner(uid);
+    // -------------------------------------------------------------------------
+    // Coach grants
+    //
+    // The grant's document id is derived — `${ownerUid}__${coachUid}` — so this
+    // resolves with one get() on a known path. Rules cannot run queries, so a
+    // random id here would make scoped delegation impossible.
+    //
+    // Every read below is written as `isOwner(uid) || hasGrant(...)`. That order
+    // matters for cost as well as clarity: `||` short-circuits, so an owner's
+    // read never performs the get() and never pays for it. Only the rare coach
+    // read does.
+    // -------------------------------------------------------------------------
+
+    function grantPath(ownerUid) {
+      return /databases/$(database)/documents/coachGrants/$(ownerUid + '__' + request.auth.uid);
     }
 
-    // Default deny. Anything not matched above is inaccessible.
+    function grant(ownerUid) {
+      return get(grantPath(ownerUid)).data;
+    }
+
+    function hasGrant(ownerUid, scope) {
+      return isSignedIn()
+        && request.auth.uid != ownerUid
+        && exists(grantPath(ownerUid))
+        // Re-checked on every read rather than trusted from the path, so a
+        // tampered or mis-keyed grant document opens nothing.
+        && grant(ownerUid).ownerUid == ownerUid
+        && grant(ownerUid).coachUid == request.auth.uid
+        && grant(ownerUid).status == 'active'
+        && grant(ownerUid).scopes.hasAny([scope])
+        // Revocation is immediate because there is nothing cached to go stale.
+        && (!('expiresAt' in grant(ownerUid)) || grant(ownerUid).expiresAt > request.time);
+    }
+
+    function canRead(uid, scope) {
+      return isOwner(uid) || hasGrant(uid, scope);
+    }
+
+    // -------------------------------------------------------------------------
+    // Envelope
+    // -------------------------------------------------------------------------
+
+    function data() {
+      return request.resource.data;
+    }
+
+    function prior() {
+      return resource.data;
+    }
+
+    // Highest schema version these rules understand. See the deployment note above.
+    function maxSchemaVersion() {
+      return 1;
+    }
+
+    function envelopeKeys() {
+      return ['sv', 'uid', 'createdAt', 'updatedAt', 'id'];
+    }
+
+    // `uid` duplicates the path segment deliberately: it lets this rule reject a
+    // payload that names someone else even when the path is the writer's own,
+    // which is the difference between a document that is in the right place and
+    // a document that is honest about whose it is.
+    function validEnvelope(uid) {
+      return data().uid is string
+        && data().uid == uid
+        && data().sv is int
+        && data().sv >= 1
+        && data().sv <= maxSchemaVersion()
+        // Forces FieldValue.serverTimestamp(). A client-chosen time is rejected,
+        // so sync ordering cannot be manipulated by a wrong or lying clock.
+        && data().updatedAt == request.time;
+    }
+
+    function validCreate(uid, docId) {
+      return validEnvelope(uid)
+        && data().createdAt == request.time
+        && data().id == docId;
+    }
+
+    function validUpdate(uid, docId) {
+      return validEnvelope(uid)
+        && prior().uid == uid
+        && data().createdAt == prior().createdAt
+        && data().id == docId
+        && data().id == prior().id;
+    }
+
+    function keysWithin(required, optional) {
+      return data().keys().hasAll(required)
+        && data().keys().hasOnly(required.concat(optional));
+    }
+
+    // -------------------------------------------------------------------------
+    // Field predicates
+    // -------------------------------------------------------------------------
+
+    function isEnum(value, allowed) {
+      return value is string && allowed.hasAny([value]);
+    }
+
+    function isText(value, maxLength) {
+      return value is string && value.size() <= maxLength;
+    }
+
+    function isName(value) {
+      return value is string && value.size() >= 1 && value.size() <= 120;
+    }
+
+    // Month and day ranges are checked here, not just the digit shape: `9999-99-99`
+    // is not a date, and a document id is a thing other clients have to parse.
+    // A regex cannot know that February has 28 days, so `2026-02-30` still gets
+    // through to Zod, which does know. That residue affects only how a user's own
+    // days are filed, never who can read them.
+    function isLocalDate(value) {
+      return value is string
+        && value.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$');
+    }
+
+    // 2000-01-01 to 2100-01-01. Keeps a broken device clock out of the log.
+    function isEpochMillis(value) {
+      return value is int && value >= 946684800000 && value <= 4102444800000;
+    }
+
+    function isTzOffset(value) {
+      return value is int && value >= -720 && value <= 840;
+    }
+
+    function isCount(value, maxValue) {
+      return value is int && value >= 0 && value <= maxValue;
+    }
+
+    function isQuantity(value, maxValue) {
+      return value is number && value >= 0 && value <= maxValue;
+    }
+
+    function isList(value, maxLength) {
+      return value is list && value.size() <= maxLength;
+    }
+
+    function isMap(value) {
+      return value is map;
+    }
+
+    // Optional field: absent, or present and valid. Written this way rather than
+    // as a nullable, because an absent field and a null field are different
+    // documents and only one of them round-trips through the exporter.
+    function optEnum(field, allowed) {
+      return !(field in data()) || isEnum(data()[field], allowed);
+    }
+
+    function optText(field, maxLength) {
+      return !(field in data()) || isText(data()[field], maxLength);
+    }
+
+    function optQuantity(field, maxValue) {
+      return !(field in data()) || isQuantity(data()[field], maxValue);
+    }
+
+    function optCount(field, maxValue) {
+      return !(field in data()) || isCount(data()[field], maxValue);
+    }
+
+    function optLocalDate(field) {
+      return !(field in data()) || isLocalDate(data()[field]);
+    }
+
+    function optEpochMillis(field) {
+      return !(field in data()) || isEpochMillis(data()[field]);
+    }
+
+    function optMap(field) {
+      return !(field in data()) || isMap(data()[field]);
+    }
+
+    function optList(field, maxLength) {
+      return !(field in data()) || isList(data()[field], maxLength);
+    }
+
+    function optId(field) {
+      return !(field in data()) || (data()[field] is string && data()[field].size() <= 64);
+    }
+
+    // -------------------------------------------------------------------------
+    // Enumerations. Mirrored from packages/data; the rules tests fail if they drift.
+    // -------------------------------------------------------------------------
+
+    function workoutStatuses() { return ['in_progress', 'completed', 'discarded']; }
+    function routineStatuses() { return ['draft', 'active', 'archived']; }
+    function themes() { return ['system', 'light', 'dark']; }
+    function equipment() {
+      return ['barbell', 'dumbbell', 'kettlebell', 'machine', 'cable', 'smith_machine',
+              'bodyweight', 'band', 'trap_bar', 'ez_bar', 'plate', 'sled', 'sandbag',
+              'medicine_ball', 'suspension', 'cardio_machine', 'other'];
+    }
+    function mechanics() { return ['compound', 'isolation']; }
+    function forceVectors() { return ['push', 'pull', 'static']; }
+    function movementPatterns() {
+      return ['squat', 'hinge', 'lunge', 'horizontal_push', 'vertical_push',
+              'horizontal_pull', 'vertical_pull', 'carry', 'rotation', 'isolation', 'cardio'];
+    }
+    function loadKinds() { return ['external', 'bodyweight', 'assisted', 'none']; }
+    function effortKinds() { return ['reps', 'duration', 'distance', 'reps_and_duration']; }
+    function photoPoses() {
+      return ['front_relaxed', 'side_relaxed', 'back_relaxed', 'front_flexed', 'other'];
+    }
+    function bodyFatMethods() { return ['skinfold', 'bioimpedance', 'dexa', 'navy_tape', 'estimate']; }
+    function foodSources() { return ['custom', 'barcode']; }
+    function macroTargetStatuses() { return ['active', 'superseded']; }
+    function macroTargetSources() { return ['manual', 'calculated']; }
+    function habitKinds() { return ['boolean', 'count', 'duration']; }
+    function habitCadences() { return ['daily', 'weekly', 'specific_days']; }
+    function aggregateIds() {
+      return ['training_volume', 'exercise_progress', 'personal_records', 'adherence', 'nutrition'];
+    }
+    function coachScopes() { return ['profile', 'training', 'nutrition', 'body', 'photos']; }
+    function grantStatuses() { return ['active', 'revoked']; }
+
+    // -------------------------------------------------------------------------
+    // Profile — /users/{uid}
+    // -------------------------------------------------------------------------
+
+    function validProfile(uid) {
+      return keysWithin(
+          envelopeKeys().concat(['units', 'theme', 'defaultRestSec', 'auth', 'consent']),
+          ['displayName', 'locale', 'timeZone', 'heightCm', 'birthDate', 'biologicalSex',
+           'goal', 'activityLevel', 'experienceLevel', 'activeRoutineId', 'onboardingCompletedOn'])
+        && isMap(data().units)
+        && isEnum(data().theme, themes())
+        && isCount(data().defaultRestSec, 86400)
+        && isMap(data().auth)
+        && isMap(data().consent)
+        && data().consent.analytics is bool
+        && data().consent.hostedAi is bool
+        && optText('displayName', 120)
+        && optText('locale', 35)
+        && optText('timeZone', 64)
+        && optQuantity('heightCm', 400)
+        && optLocalDate('birthDate')
+        && optEnum('biologicalSex', ['female', 'male', 'unspecified'])
+        && optEnum('goal', ['lose_fat', 'maintain', 'gain_muscle', 'recomp', 'performance'])
+        && optEnum('activityLevel', ['sedentary', 'lightly_active', 'moderately_active',
+                                     'very_active', 'extremely_active'])
+        && optEnum('experienceLevel', ['beginner', 'intermediate', 'advanced'])
+        && optId('activeRoutineId')
+        && optLocalDate('onboardingCompletedOn');
+    }
+
+    match /users/{uid} {
+      allow get: if canRead(uid, 'profile');
+      // There is no user directory and nothing to enumerate (ADR-0017).
+      allow list: if false;
+      allow create: if isOwner(uid) && validCreate(uid, uid) && validProfile(uid);
+      allow update: if isOwner(uid) && validUpdate(uid, uid) && validProfile(uid);
+      allow delete: if isOwner(uid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Workouts — /users/{uid}/workouts/{workoutId}
+    //
+    // Exercises and sets are nested inside this document (see SCHEMA.md). Rules
+    // cannot iterate a list, so element-level validation of sets is not possible
+    // here and is enforced by Zod at the write boundary instead. What is enforced
+    // here is everything an attacker could use to reach past their own data or to
+    // grow a document without bound: ownership, timestamps, the exact key set,
+    // the status enum, and hard caps on the arrays and counters.
+    // -------------------------------------------------------------------------
+
+    function validWorkout(uid) {
+      return keysWithin(
+          envelopeKeys().concat(['status', 'title', 'startedAt', 'localDate',
+                                 'tzOffsetMinutes', 'exercises', 'totals']),
+          ['endedAt', 'bodyweightKg', 'programRef', 'note', 'sessionRpe'])
+        && isEnum(data().status, workoutStatuses())
+        && isName(data().title)
+        && isEpochMillis(data().startedAt)
+        && isLocalDate(data().localDate)
+        && isTzOffset(data().tzOffsetMinutes)
+        && isList(data().exercises, 40)
+        && isMap(data().totals)
+        && isCount(data().totals.setCount, 400)
+        && isCount(data().totals.exerciseCount, 40)
+        && isQuantity(data().totals.volumeKg, 10000000)
+        && isCount(data().totals.durationSec, 86400)
+        && optEpochMillis('endedAt')
+        && optQuantity('bodyweightKg', 1000)
+        && optMap('programRef')
+        && optText('note', 280)
+        && optQuantity('sessionRpe', 10);
+    }
+
+    match /users/{uid}/workouts/{workoutId} {
+      allow get, list: if canRead(uid, 'training');
+      allow create: if isOwner(uid) && validCreate(uid, workoutId) && validWorkout(uid);
+      allow update: if isOwner(uid) && validUpdate(uid, workoutId) && validWorkout(uid);
+      allow delete: if isOwner(uid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Routines — /users/{uid}/routines/{routineId}
+    // -------------------------------------------------------------------------
+
+    function validRoutine(uid) {
+      return keysWithin(
+          envelopeKeys().concat(['name', 'status', 'days', 'weeks']),
+          ['description', 'startedOn', 'currentWeekIndex', 'currentDayIndex', 'origin'])
+        && isName(data().name)
+        && isEnum(data().status, routineStatuses())
+        && isList(data().days, 14)
+        && isList(data().weeks, 52)
+        && optText('description', 2000)
+        && optLocalDate('startedOn')
+        && optCount('currentWeekIndex', 519)
+        && optCount('currentDayIndex', 13)
+        && optMap('origin');
+    }
+
+    match /users/{uid}/routines/{routineId} {
+      allow get, list: if canRead(uid, 'training');
+      allow create: if isOwner(uid) && validCreate(uid, routineId) && validRoutine(uid);
+      allow update: if isOwner(uid) && validUpdate(uid, routineId) && validRoutine(uid);
+      allow delete: if isOwner(uid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Custom exercises — /users/{uid}/exercises/{exerciseId}
+    //
+    // The catalogue ships on-device (ADR-0006). Only user-authored rows are
+    // stored, which is why `source` is pinned to 'custom' rather than validated
+    // against the full enum: a document claiming to be catalogue data here would
+    // be a document claiming an authority it does not have.
+    // -------------------------------------------------------------------------
+
+    function validExercise(uid) {
+      return keysWithin(
+          envelopeKeys().concat(['name', 'searchName', 'source', 'equipment', 'mechanic',
+                                 'force', 'movementPattern', 'loadKind', 'effortKind',
+                                 'muscles', 'unilateral']),
+          ['implementMassKg', 'notes', 'catalogueVersion'])
+        && isName(data().name)
+        && isText(data().searchName, 120)
+        && data().source == 'custom'
+        && isEnum(data().equipment, equipment())
+        && isEnum(data().mechanic, mechanics())
+        && isEnum(data().force, forceVectors())
+        && isEnum(data().movementPattern, movementPatterns())
+        && isEnum(data().loadKind, loadKinds())
+        && isEnum(data().effortKind, effortKinds())
+        && isList(data().muscles, 12)
+        && data().muscles.size() >= 1
+        && data().unilateral is bool
+        && optQuantity('implementMassKg', 1000)
+        && optText('notes', 2000)
+        && optText('catalogueVersion', 32);
+    }
+
+    match /users/{uid}/exercises/{exerciseId} {
+      allow get, list: if canRead(uid, 'training');
+      allow create: if isOwner(uid) && validCreate(uid, exerciseId) && validExercise(uid);
+      allow update: if isOwner(uid) && validUpdate(uid, exerciseId) && validExercise(uid);
+      allow delete: if isOwner(uid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Personal records — /users/{uid}/personalRecords/{recordId}
+    // -------------------------------------------------------------------------
+
+    function validPersonalRecord(uid) {
+      return keysWithin(
+          envelopeKeys().concat(['exercise', 'current', 'repMaxKgByReps', 'history']),
+          ['lastAchievedOn'])
+        && isMap(data().exercise)
+        && isMap(data().current)
+        && isMap(data().repMaxKgByReps)
+        && isList(data().history, 100)
+        && optLocalDate('lastAchievedOn');
+    }
+
+    match /users/{uid}/personalRecords/{recordId} {
+      allow get, list: if canRead(uid, 'training');
+      allow create: if isOwner(uid) && validCreate(uid, recordId) && validPersonalRecord(uid);
+      allow update: if isOwner(uid) && validUpdate(uid, recordId) && validPersonalRecord(uid);
+      allow delete: if isOwner(uid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Body metrics — /users/{uid}/bodyMetrics/{date}
+    //
+    // Keyed by local date, so a second weigh-in on the same day updates one
+    // document instead of racing a duplicate into the trend line.
+    // -------------------------------------------------------------------------
+
+    function validBodyMetric(uid, date) {
+      return keysWithin(
+          envelopeKeys().concat(['localDate', 'tzOffsetMinutes', 'measuredAt']),
+          ['weightKg', 'bodyFatPercent', 'bodyFatMethod', 'measurements',
+           'restingHeartRateBpm', 'sleepQuality', 'note'])
+        && isLocalDate(data().localDate)
+        && data().localDate == date
+        && isTzOffset(data().tzOffsetMinutes)
+        && isEpochMillis(data().measuredAt)
+        && optQuantity('weightKg', 1000)
+        && optQuantity('bodyFatPercent', 75)
+        && optEnum('bodyFatMethod', bodyFatMethods())
+        && optMap('measurements')
+        && optCount('restingHeartRateBpm', 220)
+        && optCount('sleepQuality', 5)
+        && optText('note', 280);
+    }
+
+    match /users/{uid}/bodyMetrics/{date} {
+      allow get, list: if canRead(uid, 'body');
+      allow create: if isOwner(uid) && validCreate(uid, date) && isLocalDate(date)
+                       && validBodyMetric(uid, date);
+      allow update: if isOwner(uid) && validUpdate(uid, date) && isLocalDate(date)
+                       && validBodyMetric(uid, date);
+      allow delete: if isOwner(uid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Progress photos — /users/{uid}/progressPhotos/{photoId}
+    //
+    // Metadata only; the bytes live in Cloud Storage. `storagePath` is forced to
+    // sit under the user's own prefix, so a document cannot be used to point the
+    // gallery at somebody else's object even if Storage rules were ever loosened.
+    // 'photos' is never implied by another scope — a coach gets these only when
+    // the user ticks that box specifically.
+    // -------------------------------------------------------------------------
+
+    function isOwnStoragePath(uid, value) {
+      return value is string
+        && value.size() <= 512
+        && value.size() > ('users/' + uid + '/').size()
+        && value[0:('users/' + uid + '/').size()] == 'users/' + uid + '/';
+    }
+
+    function validProgressPhoto(uid) {
+      return keysWithin(
+          envelopeKeys().concat(['localDate', 'tzOffsetMinutes', 'takenAt', 'pose',
+                                 'storagePath', 'widthPx', 'heightPx', 'byteSize']),
+          ['blurhash', 'weightKg', 'note'])
+        && isLocalDate(data().localDate)
+        && isTzOffset(data().tzOffsetMinutes)
+        && isEpochMillis(data().takenAt)
+        && isEnum(data().pose, photoPoses())
+        && isOwnStoragePath(uid, data().storagePath)
+        && isCount(data().widthPx, 20000)
+        && isCount(data().heightPx, 20000)
+        && isCount(data().byteSize, 50000000)
+        && optText('blurhash', 64)
+        && optQuantity('weightKg', 1000)
+        && optText('note', 280);
+    }
+
+    match /users/{uid}/progressPhotos/{photoId} {
+      allow get, list: if canRead(uid, 'photos');
+      allow create: if isOwner(uid) && validCreate(uid, photoId) && validProgressPhoto(uid);
+      allow update: if isOwner(uid) && validUpdate(uid, photoId) && validProgressPhoto(uid);
+      allow delete: if isOwner(uid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Custom foods — /users/{uid}/foods/{foodId}
+    // -------------------------------------------------------------------------
+
+    function validFood(uid) {
+      return keysWithin(
+          envelopeKeys().concat(['name', 'searchName', 'source', 'nutrientsPer100g', 'servings']),
+          ['brand', 'densityGPerMl', 'barcode', 'externalRef'])
+        && isName(data().name)
+        && isText(data().searchName, 120)
+        && isEnum(data().source, foodSources())
+        && isMap(data().nutrientsPer100g)
+        && isQuantity(data().nutrientsPer100g.energyKcal, 100000)
+        && isQuantity(data().nutrientsPer100g.proteinG, 100000)
+        && isQuantity(data().nutrientsPer100g.carbsG, 100000)
+        && isQuantity(data().nutrientsPer100g.fatG, 100000)
+        && isList(data().servings, 20)
+        && optText('brand', 120)
+        && optQuantity('densityGPerMl', 5)
+        && (!('barcode' in data()) || data().barcode.matches('^[0-9]{6,14}$'))
+        && optText('externalRef', 64);
+    }
+
+    match /users/{uid}/foods/{foodId} {
+      allow get, list: if canRead(uid, 'nutrition');
+      allow create: if isOwner(uid) && validCreate(uid, foodId) && validFood(uid);
+      allow update: if isOwner(uid) && validUpdate(uid, foodId) && validFood(uid);
+      allow delete: if isOwner(uid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Recipes — /users/{uid}/recipes/{recipeId}
+    // -------------------------------------------------------------------------
+
+    function validRecipe(uid) {
+      return keysWithin(
+          envelopeKeys().concat(['name', 'servings', 'ingredients', 'totalMassG',
+                                 'nutrientsPerServing', 'nutrientsPer100g']),
+          ['cookedMassG', 'method'])
+        && isName(data().name)
+        && isQuantity(data().servings, 100)
+        && data().servings > 0
+        && isList(data().ingredients, 60)
+        && data().ingredients.size() >= 1
+        && isQuantity(data().totalMassG, 100000)
+        && isMap(data().nutrientsPerServing)
+        && isMap(data().nutrientsPer100g)
+        && optQuantity('cookedMassG', 100000)
+        && optText('method', 2000);
+    }
+
+    match /users/{uid}/recipes/{recipeId} {
+      allow get, list: if canRead(uid, 'nutrition');
+      allow create: if isOwner(uid) && validCreate(uid, recipeId) && validRecipe(uid);
+      allow update: if isOwner(uid) && validUpdate(uid, recipeId) && validRecipe(uid);
+      allow delete: if isOwner(uid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Nutrition days — /users/{uid}/nutritionDays/{date}
+    //
+    // One document per local day, holding its meals and entries. Keyed by the
+    // user's own calendar day rather than a UTC-derived one, so a late dinner
+    // stays on the day it was eaten.
+    // -------------------------------------------------------------------------
+
+    function validNutritionDay(uid, date) {
+      return keysWithin(
+          envelopeKeys().concat(['localDate', 'tzOffsetMinutes', 'meals', 'totals',
+                                 'entryCount', 'waterMl']),
+          ['targetSnapshot', 'note'])
+        && isLocalDate(data().localDate)
+        && data().localDate == date
+        && isTzOffset(data().tzOffsetMinutes)
+        && isList(data().meals, 12)
+        && isMap(data().totals)
+        && isQuantity(data().totals.energyKcal, 100000)
+        && isCount(data().entryCount, 150)
+        && isQuantity(data().waterMl, 100000)
+        && optMap('targetSnapshot')
+        && optText('note', 280);
+    }
+
+    match /users/{uid}/nutritionDays/{date} {
+      allow get, list: if canRead(uid, 'nutrition');
+      allow create: if isOwner(uid) && validCreate(uid, date) && isLocalDate(date)
+                       && validNutritionDay(uid, date);
+      allow update: if isOwner(uid) && validUpdate(uid, date) && isLocalDate(date)
+                       && validNutritionDay(uid, date);
+      allow delete: if isOwner(uid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Macro targets — /users/{uid}/macroTargets/{targetId}
+    // -------------------------------------------------------------------------
+
+    function validMacroTarget(uid) {
+      return keysWithin(
+          envelopeKeys().concat(['effectiveFrom', 'status', 'values', 'source']),
+          ['basis'])
+        && isLocalDate(data().effectiveFrom)
+        && isEnum(data().status, macroTargetStatuses())
+        && isMap(data().values)
+        && isQuantity(data().values.energyKcal, 100000)
+        && isQuantity(data().values.proteinG, 100000)
+        && isQuantity(data().values.carbsG, 100000)
+        && isQuantity(data().values.fatG, 100000)
+        && isEnum(data().source, macroTargetSources())
+        && optMap('basis');
+    }
+
+    match /users/{uid}/macroTargets/{targetId} {
+      allow get, list: if canRead(uid, 'nutrition');
+      allow create: if isOwner(uid) && validCreate(uid, targetId) && validMacroTarget(uid);
+      allow update: if isOwner(uid) && validUpdate(uid, targetId) && validMacroTarget(uid);
+      allow delete: if isOwner(uid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Habits — /users/{uid}/habits/{habitId} and /users/{uid}/habitDays/{date}
+    // -------------------------------------------------------------------------
+
+    function validHabit(uid) {
+      return keysWithin(
+          envelopeKeys().concat(['name', 'kind', 'cadence']),
+          ['weekdays', 'timesPerWeek', 'targetValue', 'unitLabel', 'archivedOn', 'note'])
+        && isName(data().name)
+        && isEnum(data().kind, habitKinds())
+        && isEnum(data().cadence, habitCadences())
+        && optList('weekdays', 7)
+        && optCount('timesPerWeek', 21)
+        && optQuantity('targetValue', 100000)
+        && optText('unitLabel', 24)
+        && optLocalDate('archivedOn')
+        && optText('note', 280);
+    }
+
+    match /users/{uid}/habits/{habitId} {
+      allow get, list: if canRead(uid, 'training');
+      allow create: if isOwner(uid) && validCreate(uid, habitId) && validHabit(uid);
+      allow update: if isOwner(uid) && validUpdate(uid, habitId) && validHabit(uid);
+      allow delete: if isOwner(uid);
+    }
+
+    function validHabitDay(uid, date) {
+      return keysWithin(
+          envelopeKeys().concat(['localDate', 'tzOffsetMinutes', 'entries']), [])
+        && isLocalDate(data().localDate)
+        && data().localDate == date
+        && isTzOffset(data().tzOffsetMinutes)
+        && isList(data().entries, 30);
+    }
+
+    match /users/{uid}/habitDays/{date} {
+      allow get, list: if canRead(uid, 'training');
+      allow create: if isOwner(uid) && validCreate(uid, date) && isLocalDate(date)
+                       && validHabitDay(uid, date);
+      allow update: if isOwner(uid) && validUpdate(uid, date) && isLocalDate(date)
+                       && validHabitDay(uid, date);
+      allow delete: if isOwner(uid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Aggregates — /users/{uid}/aggregates/{aggregateId}
+    //
+    // Derived data, synced so a cold device does not have to replay two years of
+    // sessions to draw its first chart (ADR-0005). `state` is an opaque fold and
+    // is not validated field by field: it is reconstructible from the documents
+    // above, so the worst a corrupt one costs is a rebuild.
+    //
+    // The nutrition fold answers to the nutrition scope, not the training one.
+    // -------------------------------------------------------------------------
+
+    function aggregateScope(aggregateId) {
+      return aggregateId == 'nutrition' ? 'nutrition' : 'training';
+    }
+
+    function validAggregate(uid, aggregateId) {
+      return keysWithin(
+          envelopeKeys().concat(['version', 'sequenceByKind', 'computedAt', 'state']),
+          ['computedThrough'])
+        && isEnum(aggregateId, aggregateIds())
+        && data().version is int
+        && data().version >= 1
+        && data().version <= 1000
+        && isMap(data().sequenceByKind)
+        && data().computedAt == request.time
+        && optLocalDate('computedThrough');
+    }
+
+    match /users/{uid}/aggregates/{aggregateId} {
+      allow get: if canRead(uid, aggregateScope(aggregateId));
+
+      // `list` cannot use `aggregateScope(aggregateId)`: during a query the document
+      // id wildcard is not bound to a document, so the scope a coach needs is
+      // undecidable and the query is refused outright — including for a coach who
+      // holds every scope. Listing therefore asks for both scopes explicitly.
+      // A client never needs the listing anyway: the aggregate ids are a fixed,
+      // known set, so the normal path is a get() per id.
+      allow list: if isOwner(uid)
+        || (hasGrant(uid, 'training') && hasGrant(uid, 'nutrition'));
+      allow create: if isOwner(uid) && validCreate(uid, aggregateId)
+                       && validAggregate(uid, aggregateId);
+      allow update: if isOwner(uid) && validUpdate(uid, aggregateId)
+                       && validAggregate(uid, aggregateId);
+      allow delete: if isOwner(uid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Coach grants — /coachGrants/{grantId}
+    //
+    // The one collection a non-owner may see, and it holds nothing but the fact
+    // of the relationship. Rules for it:
+    //
+    //   - Only the owner creates one, and only naming themselves as owner. A
+    //     coach cannot write a grant that awards themselves access.
+    //   - The document id must equal `${ownerUid}__${coachUid}`, so the id a
+    //     read resolves cannot disagree with the body it finds there.
+    //   - ownerUid and coachUid are immutable. A grant cannot be repointed.
+    //   - The coach may read it, and may delete it — walking away is always
+    //     available to both sides — but may never update it.
+    //   - No grant ever confers write access to the owner's data. A coach who
+    //     could edit a client's log could hide what they did to it.
+    // -------------------------------------------------------------------------
+
+    function validGrantShape(grantId) {
+      return data().keys().hasAll(['sv', 'id', 'ownerUid', 'coachUid', 'status', 'scopes',
+                                   'createdAt', 'updatedAt'])
+        && data().keys().hasOnly(['sv', 'id', 'ownerUid', 'coachUid', 'status', 'scopes',
+                                  'createdAt', 'updatedAt', 'expiresAt', 'revokedAt', 'note'])
+        && data().sv is int
+        && data().sv >= 1
+        && data().sv <= maxSchemaVersion()
+        && data().id == grantId
+        && data().ownerUid is string
+        && data().coachUid is string
+        && data().ownerUid != data().coachUid
+        && grantId == data().ownerUid + '__' + data().coachUid
+        && isEnum(data().status, grantStatuses())
+        && data().scopes is list
+        && data().scopes.size() >= 1
+        && data().scopes.size() <= 5
+        && data().scopes.hasOnly(coachScopes())
+        && data().updatedAt == request.time
+        && (!('expiresAt' in data()) || data().expiresAt is timestamp)
+        && (!('revokedAt' in data()) || data().revokedAt is timestamp)
+        && (data().status != 'revoked' || 'revokedAt' in data())
+        && optText('note', 280);
+    }
+
+    match /coachGrants/{grantId} {
+      allow get: if isSignedIn()
+        && (request.auth.uid == resource.data.ownerUid || request.auth.uid == resource.data.coachUid);
+
+      // Per-document evaluation: a query that could return someone else's grant
+      // fails outright, so the only listing that succeeds is one already filtered
+      // to the caller.
+      allow list: if isSignedIn()
+        && (request.auth.uid == resource.data.ownerUid || request.auth.uid == resource.data.coachUid);
+
+      allow create: if isSignedIn()
+        && request.auth.uid == data().ownerUid
+        && validGrantShape(grantId)
+        && data().createdAt == request.time
+        && data().status == 'active'
+        && !('revokedAt' in data());
+
+      allow update: if isSignedIn()
+        && request.auth.uid == resource.data.ownerUid
+        && request.auth.uid == data().ownerUid
+        && data().ownerUid == resource.data.ownerUid
+        && data().coachUid == resource.data.coachUid
+        && data().createdAt == resource.data.createdAt
+        && validGrantShape(grantId);
+
+      allow delete: if isSignedIn()
+        && (request.auth.uid == resource.data.ownerUid
+            || request.auth.uid == resource.data.coachUid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Default deny.
+    //
+    // Allow rules are additive, so this does not take anything away — it states
+    // the posture, and anything not matched above is already inaccessible.
+    // Notably there is no catch-all under /users/{uid}: an unrecognised
+    // subcollection is denied, so a new collection cannot ship without a rule and
+    // a test for it.
+    // -------------------------------------------------------------------------
+
     match /{document=**} {
       allow read, write: if false;
     }
