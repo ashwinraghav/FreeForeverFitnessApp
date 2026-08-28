@@ -8,6 +8,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./sync": "./src/sync/index.ts",
     "./package.json": "./package.json"
   },
   "files": ["src", "SCHEMA.md"],
@@ -15,15 +16,17 @@
     "build": "tsc -b",
     "test": "vitest run --project unit",
     "test:rules": "vitest run --project rules",
+    "test:sync": "vitest run --config src/sync/__tests__/vitest.config.ts --project sync-unit",
+    "test:sync:emu": "vitest run --config src/sync/__tests__/vitest.config.ts --project sync-emu",
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
+    "firebase": "12.18.0",
     "zod": "4.4.3"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "5.0.2",
     "@types/node": "22.20.1",
-    "firebase": "12.18.0",
     "typescript": "5.9.3",
     "vitest": "4.1.11"
   }

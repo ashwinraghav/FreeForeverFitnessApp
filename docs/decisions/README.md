@@ -30,6 +30,7 @@ New decision: `pnpm adr "Short title"`.
 | [0022](./0022-product-name.md) | Product name: TheFreeForeverFitnessApp | Accepted |
 | [0023](./0023-storage-rules-are-security-surface.md) | Cloud Storage rules are part of the security surface | Accepted |
 | [0024](./0024-coach-photo-access-deferred.md) | Coach access to progress-photo bytes is deferred to Phase 4 | Accepted |
+| [0025](./0025-conflict-resolution-per-data-class.md) | Conflict resolution is decided per data class | Accepted |
 
 ## Reading order for newcomers
 
