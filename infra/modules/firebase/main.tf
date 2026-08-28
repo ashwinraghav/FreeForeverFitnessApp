@@ -186,6 +186,20 @@ resource "google_identity_platform_default_supported_idp_config" "apple" {
 # this?"; App Check answers "is this our app at all?". Both are needed, and
 # neither is a substitute for the other.
 
+# THIS is what makes App Check real. Registering an App Check provider and
+# calling initializeAppCheck() on the client changes nothing on its own: until
+# enforcement is turned on per service, an attacker omits the App Check header
+# and every request still succeeds. Enforcement is a server-side act, and this
+# resource is the only place this project performs it (ADR-0012 forbids doing
+# it in the console).
+#
+# An unenforced App Check is arguably worse than none, because the client-side
+# wiring reads as protection to anyone reviewing the app code.
+#
+# Covers Google-managed Firebase backends only. The AI proxy is a custom
+# Cloud Run backend, so no service config exists for it -- it verifies the
+# App Check token itself, gated by the APP_CHECK_REQUIRED env var set in
+# modules/ai-proxy. Two different mechanisms for the same guarantee.
 resource "google_firebase_app_check_service_config" "enforced" {
   provider = google-beta
   for_each = toset(var.app_check_services)
@@ -193,6 +207,19 @@ resource "google_firebase_app_check_service_config" "enforced" {
   project          = var.project_id
   service_id       = each.value
   enforcement_mode = var.app_check_enforcement
+
+  lifecycle {
+    # ENFORCED with no attestation provider registered is not a weaker
+    # security posture -- it is a total outage. The web app is the only
+    # registered app (ADR-0008 is PWA-first), so reCAPTCHA is the only way a
+    # client can obtain a token; without it enforcement rejects everything,
+    # including the real app. Caught at plan time rather than on the first
+    # production request.
+    precondition {
+      condition     = var.app_check_enforcement != "ENFORCED" || var.recaptcha_secret_id != ""
+      error_message = "app_check_enforcement is ENFORCED but recaptcha_secret_id is empty. With no attestation provider the client cannot mint an App Check token, so every request from the real app would be rejected. Create the reCAPTCHA site key/secret first (see infra/README.md -> App Check)."
+    }
+  }
 
   depends_on = [google_firebase_project.this]
 }

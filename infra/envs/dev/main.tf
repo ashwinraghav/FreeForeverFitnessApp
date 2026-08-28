@@ -60,7 +60,16 @@ module "platform" {
 
   # Unenforced so a maintainer can point a local build at the dev project
   # without registering a debug token. Prod enforces.
-  app_check_enforcement       = "UNENFORCED"
+  #
+  # The service list is still declared: UNENFORCED registers the services with
+  # App Check and starts collecting metrics, so the dev project shows what
+  # fraction of traffic would be rejected before prod flips to ENFORCED.
+  app_check_enforcement = "UNENFORCED"
+  app_check_services = [
+    "firestore.googleapis.com",
+    "firebasestorage.googleapis.com",
+    "identitytoolkit.googleapis.com",
+  ]
   app_check_required_by_proxy = false
 
   authorized_domains = concat(["localhost"], var.extra_authorized_domains)

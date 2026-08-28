@@ -91,6 +91,21 @@ variable "app_check_enforcement" {
   default = "UNENFORCED"
 }
 
+variable "app_check_services" {
+  description = <<-EOT
+    Firebase backends App Check enforcement covers. Plumbed through rather than
+    left to the module default so that "which backends are actually protected"
+    is answerable from the environment stack, where someone reviewing a deploy
+    will look for it.
+  EOT
+  type        = list(string)
+  default = [
+    "firestore.googleapis.com",
+    "firebasestorage.googleapis.com",
+    "identitytoolkit.googleapis.com",
+  ]
+}
+
 variable "recaptcha_secret_id" {
   type    = string
   default = ""

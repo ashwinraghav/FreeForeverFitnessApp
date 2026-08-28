@@ -28,9 +28,17 @@ custom_domain            = null # e.g. "app.example.com" -- needs DNS records by
 extra_authorized_domains = []
 
 # --- App Check ----------------------------------------------------------
-# The NAME of the Secret Manager secret holding the reCAPTCHA site SECRET.
-# The site KEY is public and lives in .env.example / the client bundle.
-recaptcha_secret_id = "" # e.g. "recaptcha-site-secret"
+# REQUIRED in prod. The NAME of the Secret Manager secret holding the
+# reCAPTCHA site SECRET; the site KEY is public and lives in .env.example and
+# the client bundle.
+#
+# Prod runs App Check ENFORCED over Firestore, Storage and Auth. With no
+# attestation provider registered the client cannot mint a token, so
+# enforcement would reject the real app along with everyone else — a
+# precondition refuses the combination at plan time rather than letting you
+# discover it in production. Create the reCAPTCHA key first; see
+# infra/README.md -> App Check.
+recaptcha_secret_id = "REPLACE-ME-recaptcha-site-secret"
 
 # --- Auth providers -----------------------------------------------------
 enable_google_signin   = false

@@ -67,11 +67,26 @@ jobs:
           set -euo pipefail
           dist=apps/web/dist
 
-          manifest=$(find "${dist}" -maxdepth 2 -name 'manifest*.webmanifest' -o -maxdepth 2 -name 'manifest*.json' | head -1)
-          if [ -z "${manifest}" ]; then
-            echo "::error::No web app manifest in ${dist}. ADR-0008 makes the PWA the product."
+          # Resolve the manifest the way a browser does: follow
+          # <link rel="manifest"> out of index.html. Globbing for
+          # 'manifest*.json' instead picks up unrelated data files —
+          # apps/web/dist/data/manifest.json is a dataset index, and which one
+          # `find` returned first was down to traversal order.
+          href=$(tr -d '\n' < "${dist}/index.html" \
+            | grep -oE '<link[^>]+rel="manifest"[^>]*>' \
+            | grep -oE 'href="[^"]+"' | head -1 | cut -d'"' -f2)
+
+          if [ -z "${href}" ]; then
+            echo "::error::index.html has no <link rel=\"manifest\">. ADR-0008 makes the PWA the product."
             exit 1
           fi
+
+          manifest="${dist}/${href#/}"
+          if [ ! -f "${manifest}" ]; then
+            echo "::error::index.html links ${href} but ${manifest} does not exist."
+            exit 1
+          fi
+          echo "manifest: ${manifest}"
 
           node -e '
             const fs = require("fs");

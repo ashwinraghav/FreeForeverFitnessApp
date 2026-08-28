@@ -19,6 +19,7 @@ contents.
 - [Local development, with no GCP account](#local-development-with-no-gcp-account)
 - [Bootstrapping a real deployment](#bootstrapping-a-real-deployment)
 - [Workload Identity Federation](#workload-identity-federation)
+- [App Check](#app-check)
 - [Budget guardrails](#budget-guardrails)
 - [Kill switch](#kill-switch)
 - [Manual steps](#manual-steps)
@@ -348,6 +349,90 @@ the pool ID.
 
 ---
 
+## App Check
+
+**Enforcement is the whole thing.** Registering an App Check provider and
+calling `initializeAppCheck()` in the client changes nothing on its own: until
+enforcement is switched on per service, an attacker omits the App Check header
+and every request still succeeds. Enforcement is a server-side act.
+
+An unenforced App Check is arguably worse than none, because the client wiring
+reads as protection to anyone reviewing the app code.
+
+### What Terraform owns
+
+`modules/firebase` declares `google_firebase_app_check_service_config` per
+service with an explicit `enforcement_mode`, so this is Terraform's, not the
+console's (ADR-0012).
+
+| Service | ID | Enforced in prod |
+|---|---|---|
+| Cloud Firestore | `firestore.googleapis.com` | yes |
+| Cloud Storage | `firebasestorage.googleapis.com` | yes |
+| Authentication | `identitytoolkit.googleapis.com` | yes |
+| Realtime Database | `firebasedatabase.googleapis.com` | n/a — not used (ADR-0005) |
+
+Storage is on that list because progress-photo bytes are a security surface in
+their own right and are governed by `storage.rules` (ADR-0023). Rules are the
+last line, not the only one.
+
+`dev` sets `UNENFORCED` and `prod` sets `ENFORCED`. Unenforced is not the same
+as absent: it registers the services and collects App Check metrics, so the dev
+project shows what fraction of traffic *would* be rejected before prod flips
+the switch.
+
+The service list is plumbed through `modules/platform` and named explicitly in
+both `envs/dev/main.tf` and `envs/prod/main.tf`, so "which backends are actually
+protected" is answerable from the environment stack rather than from a module
+default someone has to go and read.
+
+### The Cloud Run proxy is a separate mechanism
+
+`google_firebase_app_check_service_config` covers Google-managed Firebase
+backends only. The AI proxy is a custom backend, so no service config exists for
+it — it verifies the App Check token itself, gated by the `APP_CHECK_REQUIRED`
+environment variable set in `modules/ai-proxy`. Two mechanisms, one guarantee;
+turning on the first does nothing for the second.
+
+### ENFORCED with no provider is an outage, not a weaker posture
+
+The web app is the only registered app (ADR-0008 is PWA-first), so reCAPTCHA is
+the only way a client can obtain an App Check token. Setting
+`app_check_enforcement = "ENFORCED"` while `recaptcha_secret_id` is empty means
+no client can mint a token and enforcement rejects **everything, including the
+real app**.
+
+A `precondition` on the service config refuses that combination at plan time.
+Verified across all four combinations of mode and secret; `ENFORCED` + empty is
+the only one that blocks.
+
+### Manual steps
+
+Terraform cannot create the reCAPTCHA key itself — it is a Google-side artefact
+outside the Firebase resource surface.
+
+1. Create a **reCAPTCHA v3 site key** (or reCAPTCHA Enterprise key) for the
+   production domain. The **site key** is public and ships in the client bundle
+   as `VITE_FIREBASE_APPCHECK_SITE_KEY`. The **site secret** is not.
+2. Put the secret in Secret Manager and pass its *name*:
+   ```bash
+   printf '%s' "$SITE_SECRET" | \
+     gcloud secrets versions add recaptcha-site-secret --project "$PROJECT" --data-file=-
+   ```
+3. Set `recaptcha_secret_id = "recaptcha-site-secret"` in `envs/prod/terraform.tfvars`.
+4. Apply. Terraform registers the provider and turns enforcement on together.
+
+### Testing gap, stated plainly
+
+App Check cannot be exercised locally: the emulator suite ignores it entirely
+and reCAPTCHA cannot run under Node, so `initializeAppCheck()` has never
+executed in a test and no CI job covers it. That gap is not closeable with the
+current tooling — which is exactly why the Terraform side has to be right, and
+why the guardrails job asserts that Storage is in the enforced list and that
+prod is `ENFORCED` rather than trusting review to catch a regression.
+
+---
+
 ## Budget guardrails
 
 Provisioned before anything billable (ADR-0012). Three layers, because each has
@@ -490,7 +575,7 @@ documenting them.
 | GitHub Environment `production` + required reviewers | GitHub-side configuration. Without reviewers, the prod deploy gate is decorative. |
 | GitHub repository variables | Output by Terraform, set by hand once. |
 | Apple Sign In: Services ID, Team ID, Key ID, `.p8` key | Apple Developer portal. The client secret is a **JWT that expires within six months** — Sign in with Apple then breaks with no deploy having happened. Put the rotation in a calendar, not in a runbook nobody opens. |
-| reCAPTCHA Enterprise site key/secret | Created in the console; the key is public and ships in the client bundle, the secret goes to Secret Manager. |
+| reCAPTCHA site key/secret | Created in the console; the key is public and ships in the client bundle, the secret goes to Secret Manager. **Required before prod can apply** — see [App Check](#app-check). |
 
 ---
 

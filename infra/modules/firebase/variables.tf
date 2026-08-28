@@ -124,12 +124,43 @@ variable "app_check_enforcement" {
 }
 
 variable "app_check_services" {
-  description = "Services App Check enforcement applies to."
+  description = <<-EOT
+    Firebase backends App Check enforcement is applied to.
+
+    Every backend the client touches must be listed. A service left off this
+    list is not merely less protected -- it is completely unprotected, because
+    an attacker just omits the App Check header and the request succeeds. The
+    client-side initializeAppCheck() call buys nothing on its own; enforcement
+    is a server-side act and this list is where it happens.
+
+    The four IDs the API accepts are firestore.googleapis.com,
+    firebasestorage.googleapis.com, identitytoolkit.googleapis.com and
+    firebasedatabase.googleapis.com. Realtime Database is not used by this
+    project (ADR-0005: Firestore is the sync engine), so it is omitted.
+  EOT
   type        = list(string)
   default = [
     "firestore.googleapis.com",
+    # Progress-photo bytes are a security surface in their own right and are
+    # governed by storage.rules (ADR-0023). Enforcement has to cover Storage
+    # too, or the rules are the only thing standing in front of the bytes.
+    "firebasestorage.googleapis.com",
+    # Authentication. Blocks scripted account creation against the anonymous
+    # sign-in endpoint that ADR-0009 deliberately leaves wide open to humans.
     "identitytoolkit.googleapis.com",
   ]
+
+  validation {
+    condition = alltrue([
+      for s in var.app_check_services : contains([
+        "firestore.googleapis.com",
+        "firebasestorage.googleapis.com",
+        "identitytoolkit.googleapis.com",
+        "firebasedatabase.googleapis.com",
+      ], s)
+    ])
+    error_message = "Unsupported App Check service ID. A typo here silently enforces nothing, so the list is checked rather than passed through."
+  }
 }
 
 variable "recaptcha_secret_id" {
@@ -137,8 +168,12 @@ variable "recaptcha_secret_id" {
     Secret Manager secret ID holding the reCAPTCHA Enterprise / v3 site
     SECRET. The site KEY is public and ships in the client bundle
     (VITE_FIREBASE_APPCHECK_SITE_KEY); the site secret is not and lives here.
-    Empty string leaves App Check registered but without a web attestation
-    provider, which is the correct state for dev.
+
+    Empty string leaves App Check registered but with no web attestation
+    provider. That is correct for dev, where enforcement is UNENFORCED. It is
+    NOT correct alongside app_check_enforcement = "ENFORCED": with no provider
+    the client cannot mint a token at all, so enforcement rejects every request
+    from the real app. A precondition in main.tf refuses that combination.
   EOT
   type        = string
   default     = ""

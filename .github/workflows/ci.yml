@@ -30,8 +30,20 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
 
+      # `pnpm test` is `pnpm -r test`, which reaches each package's `test`
+      # script. @freeforever/data's is `vitest run --project unit`, so the
+      # sync projects — a separate vitest config under src/sync/__tests__ —
+      # are invisible to it. Named explicitly here rather than left to a
+      # recursive run that cannot see them.
+      #
+      # sync-unit needs no emulator: reducers, merges, calendar maths, the
+      # App Check guard. It belongs with the other unit tests, and the
+      # emulator-dependent half runs in the `sync-emu` job below.
+      - name: Sync unit suite
+        run: pnpm --filter @freeforever/data test:sync
+
   rules:
-    name: Firestore rules
+    name: Security rules (Firestore + Storage)
     runs-on: ubuntu-latest
     # Rules are public (ADR-0015), so they must actually hold. Blocking.
     steps:
@@ -40,7 +52,61 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - run: npx firebase-tools emulators:exec --only firestore "pnpm test:rules"
+
+      # BOTH emulators. storage.rules governs progress-photo bytes (ADR-0023)
+      # and test/rules/storage.test.ts needs the Storage emulator to exercise
+      # it; with `--only firestore` those 40 tests skip and the file errors in
+      # cleanup, so this job has been failing rather than quietly under-testing.
+      #
+      # --project matches PROJECT_ID in test/rules/harness.ts so the emulator's
+      # single-project namespace is the one the tests actually address. It is
+      # not a safety boundary: the harness passes its own projectId to
+      # initializeTestEnvironment, so --project cannot constrain what the tests
+      # reach. What makes this safe is that emulators:exec runs with no
+      # credentials and the SDK is pointed at localhost.
+      - name: Firestore + Storage rules
+        run: >-
+          npx firebase-tools emulators:exec
+          --project freeforever-rules-test
+          --only firestore,storage
+          "pnpm test:rules"
+
+  sync-emu:
+    name: Sync engine (emulator)
+    runs-on: ubuntu-latest
+    # Kept separate from the rules job on purpose, not merged for speed:
+    #
+    #   - The two suites need different emulator sets (firestore,storage vs
+    #     firestore,auth). One job starting all three would let a rules test
+    #     silently acquire an Auth dependency it never declared — the exact
+    #     ADR-0015 failure mode of a suite whose infrastructure needs are
+    #     invisible.
+    #   - `emulators:exec` runs one command, so merging means `a && b` and the
+    #     second suite never runs when the first fails. Two jobs report both
+    #     failures in a single run.
+    #   - Separate jobs run in parallel, so this is also faster in wall-clock
+    #     than one job running both suites in sequence.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+
+      # Auth is not optional here: the suite exercises the anonymous-to-linked
+      # upgrade path (ADR-0009), which is where a bug silently destroys someone's
+      # training history. Blocking for the same reason the rules job is.
+      #
+      # --project matches EMULATOR_PROJECT in src/sync/__tests__/emuHarness.ts,
+      # and the command is the one documented at the top of that file. A
+      # mismatch still passes — singleProjectMode only warns — so keeping these
+      # aligned is about not leaving a discrepancy for someone to debug later.
+      - name: Sync engine against emulators
+        run: >-
+          npx firebase-tools emulators:exec
+          --project demo-freeforever-sync
+          --only firestore,auth
+          "pnpm --filter @freeforever/data test:sync:emu"
 
   tokens:
     name: Design token guards

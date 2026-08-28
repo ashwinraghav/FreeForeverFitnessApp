@@ -142,6 +142,36 @@ jobs:
           fi
           echo "ok: no pull_request_target triggers"
 
+      - name: App Check is enforced, and covers Storage
+        run: |
+          set -euo pipefail
+          # App Check enforcement is a server-side act. The client calling
+          # initializeAppCheck() buys nothing until these are right, and the
+          # gap is invisible from the app code — so it is asserted here rather
+          # than left to review. None of this can be covered by a test: the
+          # emulator ignores App Check and reCAPTCHA cannot run under Node.
+
+          if ! grep -q 'app_check_enforcement *= *"ENFORCED"' infra/envs/prod/main.tf; then
+            echo "::error::prod does not set app_check_enforcement = ENFORCED. Unenforced App Check is decoration."
+            exit 1
+          fi
+
+          # Storage governs progress-photo bytes (ADR-0023). Omitting a service
+          # leaves it completely unprotected, not merely less protected.
+          for svc in firestore firebasestorage identitytoolkit; do
+            if ! grep -A8 'app_check_services' infra/envs/prod/main.tf | grep -q "${svc}.googleapis.com"; then
+              echo "::error::prod App Check does not cover ${svc}.googleapis.com."
+              exit 1
+            fi
+          done
+
+          # ENFORCED with no attestation provider rejects the real app too.
+          if ! grep -q 'precondition' infra/modules/firebase/main.tf; then
+            echo "::error::The ENFORCED-without-provider precondition is gone. That combination is a total outage."
+            exit 1
+          fi
+          echo "ok: App Check enforced over Firestore, Storage and Auth"
+
       - name: Budget precedes billable resources
         run: |
           set -euo pipefail

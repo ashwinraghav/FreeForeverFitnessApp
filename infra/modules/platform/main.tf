@@ -130,6 +130,7 @@ module "firebase" {
   apple_oauth_secret_id = var.apple_oauth_secret_id
 
   app_check_enforcement = var.app_check_enforcement
+  app_check_services    = var.app_check_services
   recaptcha_secret_id   = var.recaptcha_secret_id
 
   custom_domain = var.custom_domain

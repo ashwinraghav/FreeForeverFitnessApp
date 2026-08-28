@@ -55,9 +55,21 @@ module "platform" {
 
   firestore_point_in_time_recovery = "POINT_IN_TIME_RECOVERY_ENABLED"
 
-  app_check_enforcement       = "ENFORCED"
+  # Every backend the client touches. Storage is on this list because
+  # progress-photo bytes are governed by storage.rules (ADR-0023) and rules
+  # alone are the last line, not the only one.
+  app_check_enforcement = "ENFORCED"
+  app_check_services = [
+    "firestore.googleapis.com",
+    "firebasestorage.googleapis.com",
+    "identitytoolkit.googleapis.com",
+  ]
   app_check_required_by_proxy = true
-  recaptcha_secret_id         = var.recaptcha_secret_id
+
+  # Required: ENFORCED without this is refused by a precondition, because with
+  # no attestation provider the client cannot mint a token and enforcement
+  # would reject the real app along with everyone else.
+  recaptcha_secret_id = var.recaptcha_secret_id
 
   authorized_domains = concat(["localhost"], var.extra_authorized_domains)
   custom_domain      = var.custom_domain
