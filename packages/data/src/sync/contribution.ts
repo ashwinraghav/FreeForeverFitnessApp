@@ -4,7 +4,7 @@ import type { IsoWeek, LocalDate } from '../common/time.js';
 import type { MuscleGroup } from '../schemas/exercise.js';
 import { exerciseKey } from '../schemas/exercise.js';
 import type { SetEntry, SetLoad, Workout } from '../schemas/workout.js';
-import { isWorkingSet } from '../schemas/workout.js';
+import { isVolumeEligible } from '../schemas/workout.js';
 import { isoWeekOf } from './week.js';
 
 /**
@@ -21,9 +21,10 @@ import { isoWeekOf } from './week.js';
  *
  * - Only `status === 'completed'` sessions contribute. An in-progress session is
  *   read live from its own document; a discarded one contributes nothing.
- * - A "working set" is any attempted non-warmup set. Failed sets are real work:
- *   they count toward volume and set counts (`failedSetCount` reports them
- *   separately), and they never feed an e1RM.
+ * - A "working set" is any attempted non-warmup set — the canonical
+ *   `isVolumeEligible` from the workout schema. Failed sets are real work: they
+ *   count toward volume and set counts (`failedSetCount` reports them
+ *   separately), and they never feed an e1RM (`isRecordEligible`'s question).
  * - Volume is load x reps over attempted working rep sets, doubled for unilateral
  *   exercises, whose one logged set loads each limb separately.
  * - Bodyweight-loaded sets need the session's `bodyweightKg` snapshot. Without it
@@ -83,10 +84,6 @@ function e1rmOf(loadKg: number, reps: number): number {
   return reps <= 1 ? loadKg : loadKg * (1 + reps / 30);
 }
 
-function wasAttempted(set: SetEntry): boolean {
-  return set.state === 'completed' || set.state === 'failed';
-}
-
 /**
  * Folds one workout, or returns null when the session contributes nothing
  * (not completed). Pure; never throws on data the schema allowed.
@@ -116,7 +113,7 @@ export function foldWorkout(workout: Workout): WorkoutFold | null {
         prescribedSetCount += 1;
         if (set.state === 'completed') completedPrescribedSetCount += 1;
       }
-      if (!wasAttempted(set) || !isWorkingSet(set)) continue;
+      if (!isVolumeEligible(set)) continue;
 
       workingSetCount += 1;
       exerciseWorkingSets += 1;
