@@ -5,17 +5,17 @@ import { ThemePair } from '../lib/ThemePair.js';
 import { Button } from './Button.js';
 import { EmptyState } from './EmptyState.js';
 
-const meta = {
+const meta: Meta<typeof EmptyState> = {
   title: 'Primitives/EmptyState',
   component: EmptyState,
   args: {
     title: 'No workouts yet',
     body: 'Start one and it will show up here, along with everything you lift.',
   },
-} satisfies Meta<typeof EmptyState>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof EmptyState>;
 
 export const Playground: Story = {};
 

@@ -4,13 +4,13 @@ import { useState } from 'react';
 import { ThemePair } from '../lib/ThemePair.js';
 import { NumberField } from './NumberField.js';
 
-const meta = {
+const meta: Meta<typeof NumberField> = {
   title: 'Primitives/NumberField',
   component: NumberField,
-} satisfies Meta<typeof NumberField>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof NumberField>;
 
 /** The field is controlled, so a live story has to own the value. */
 function Controlled({ ghost = null }: { ghost?: number | null }) {

@@ -6,8 +6,8 @@
     "outDir": "dist/types",
     "rootDir": ".",
     "emitDeclarationOnly": true,
-    "types": ["vitest/globals"]
+    "types": ["node"]
   },
-  "include": ["src", "test", "dist/tokens.ts", "tokens/tokens.json"],
+  "include": ["src", "test", "eslint", "dist/tokens.ts", "tokens/tokens.json"],
   "exclude": ["dist/types", "node_modules"]
 }

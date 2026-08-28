@@ -3,14 +3,14 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { ThemePair } from '../lib/ThemePair.js';
 import { Button } from './Button.js';
 
-const meta = {
+const meta: Meta<typeof Button> = {
   title: 'Primitives/Button',
   component: Button,
   args: { children: 'Log set', variant: 'primary', size: 'md' },
-} satisfies Meta<typeof Button>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Button>;
 
 export const Playground: Story = {};
 

@@ -3,13 +3,13 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { ThemePair } from '../lib/ThemePair.js';
 import { Divider } from './Divider.js';
 
-const meta = {
+const meta: Meta<typeof Divider> = {
   title: 'Primitives/Divider',
   component: Divider,
-} satisfies Meta<typeof Divider>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Divider>;
 
 export const Playground: Story = {};
 

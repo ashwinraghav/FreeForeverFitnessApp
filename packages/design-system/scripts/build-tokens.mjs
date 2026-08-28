@@ -29,6 +29,57 @@ const rem = (px) => {
   return `${String(Number(v.toFixed(6)))}rem`;
 };
 
+/**
+ * A CSS custom-property name is a <dashed-ident>, and an unescaped `.` is not a valid
+ * ident character - it terminates the ident and turns the whole declaration into a
+ * syntax error. Token keys like `kg-2.5` are the right thing in JSON and in the TS
+ * export, so the dot is translated here, at the single point where a key becomes a
+ * CSS name.
+ *
+ * `_` rather than an escaped `\.`: an escaped dot is valid, but anyone later
+ * hand-writing `var(--ff-plate-kg-2.5-fill)` without the backslash gets silence
+ * instead of an error. A token whose correct spelling is easy to typo invisibly is a
+ * bad token. Nobody should be hand-writing these anyway - see `plateVar` in
+ * dist/tokens.ts.
+ */
+const cssIdent = (key) => {
+  const safe = String(key).replace(/\./g, '_');
+  if (!/^[A-Za-z0-9_-]+$/.test(safe)) {
+    throw new Error(
+      `Token key ${JSON.stringify(key)} cannot become a CSS ident. ` +
+        `Custom-property names may contain only [A-Za-z0-9_-].`,
+    );
+  }
+  return safe;
+};
+
+/** `--color-*: initial` is Tailwind v4 namespace-reset syntax, not a property name. */
+const NAMESPACE_RESET = /^--[A-Za-z0-9_-]*\*$/;
+const VALID_CUSTOM_PROPERTY = /^--[A-Za-z0-9_-]+$/;
+
+/**
+ * Fail the build rather than emit a stylesheet the CSS parser will reject.
+ *
+ * This is the guard the plate bug got past: five plate colours were emitted with a
+ * dot in the name, every consumer's `var()` silently resolved to nothing, and the
+ * only signal was a `[WARNING] Expected ":"` buried in `vite build` output. Both
+ * declarations and references are checked - a reference to an unparseable name is
+ * just as dead as the declaration.
+ */
+function assertValidCustomProperties(css, file) {
+  const declared = [...css.matchAll(/^\s*(--[^\s:]+)\s*:/gm)].map((m) => m[1]);
+  const referenced = [...css.matchAll(/var\(\s*(--[^\s,)]+)/g)].map((m) => m[1]);
+  const bad = [...new Set([...declared, ...referenced])].filter(
+    (name) => !VALID_CUSTOM_PROPERTY.test(name) && !NAMESPACE_RESET.test(name),
+  );
+  if (bad.length > 0) {
+    throw new Error(
+      `${file}: ${bad.length} invalid CSS custom-property name(s): ${bad.join(', ')}. ` +
+        `Names must match ${VALID_CUSTOM_PROPERTY}.`,
+    );
+  }
+}
+
 const isSurface = ([, v]) => v.role === 'surface';
 const colorEntries = Object.entries(T.color);
 
@@ -43,6 +94,8 @@ const staticBlock = () => {
   for (const [k, v] of Object.entries(T.space)) L.push(`  --${P}-space-${k}: ${rem(v.px)};`);
   L.push(``, `  /* Radius */`);
   for (const [k, v] of Object.entries(T.radius)) L.push(`  --${P}-radius-${k}: ${v.px}px;`);
+  L.push(``, `  /* Border widths - public vocabulary; feature teams need a hairline. */`);
+  for (const [k, v] of Object.entries(T.border)) L.push(`  --${P}-border-${k}: ${v.px}px;`);
   L.push(``, `  /* Hit targets - px on purpose: a thumb does not scale with the root font size. */`);
   for (const [k, v] of Object.entries(T.hit)) L.push(`  --${P}-hit-${k}: ${v.px}px;`);
   L.push(``, `  /* Motion */`);
@@ -59,8 +112,8 @@ const staticBlock = () => {
   for (const [k, v] of Object.entries(T.font)) L.push(`  --${P}-font-${k}: ${v.value};`);
   L.push(``, `  /* IWF calibrated plate colours - identical in both themes by design (ADR-0013). */`);
   for (const [k, v] of Object.entries(T.plate.iwf)) {
-    L.push(`  --${P}-plate-${k}-fill: ${v.fill};`);
-    L.push(`  --${P}-plate-${k}-label: ${v.label};`);
+    L.push(`  --${P}-plate-${cssIdent(k)}-fill: ${v.fill};`);
+    L.push(`  --${P}-plate-${cssIdent(k)}-label: ${v.label};`);
   }
   return L.join('\n');
 };
@@ -160,6 +213,11 @@ export const radius = {
 ${obj(Object.entries(T.radius).map(([k, v]) => [k, String(v.px)]))}
 } as const;
 
+/** Border widths in CSS px. Public: use these rather than a literal or a var() fallback. */
+export const border = {
+${obj(Object.entries(T.border).map(([k, v]) => [k, String(v.px)]))}
+} as const;
+
 /** Minimum tap sizes in CSS px. \`min\` is the floor; \`midSet\` is anything tapped between sets. */
 export const hit = {
 ${obj(Object.entries(T.hit).map(([k, v]) => [k, String(v.px)]))}
@@ -214,6 +272,23 @@ ${Object.entries(T.plate.iwf)
   .join('\n')}
 } as const satisfies Record<string, Plate>;
 
+/**
+ * \`var()\` references for the plate colours, keyed exactly like \`plates\`.
+ *
+ * Use these instead of writing the custom-property name by hand. The CSS name is not
+ * the same string as the key - \`kg-2.5\` becomes \`--ff-plate-kg-2_5-fill\`, because a
+ * dot is not valid in a CSS ident - and a mistyped custom property fails silently
+ * rather than loudly. Importing the reference removes the chance to get it wrong.
+ */
+export const plateVar = {
+${Object.entries(T.plate.iwf)
+  .map(
+    ([k]) =>
+      `  ${q(k)}: { fill: ${q(`var(--${P}-plate-${cssIdent(k)}-fill)`)}, label: ${q(`var(--${P}-plate-${cssIdent(k)}-label)`)} },`,
+  )
+  .join('\n')}
+} as const satisfies Record<keyof typeof plates, { readonly fill: string; readonly label: string }>;
+
 export const plateOutlineVar = ${q(`var(--${P}-color-${T.plate.outline})`)};
 
 /** Descending, for a greedy plate-loading solve. */
@@ -228,15 +303,22 @@ const themeLines = [];
 themeLines.push(`  /* Colour - resolved at runtime from tokens.css, so utilities follow the theme. */`);
 for (const [k] of colorEntries) themeLines.push(`  --color-${k}: var(--${P}-color-${k});`);
 themeLines.push(``, `  /* Plate colours (theme-independent). */`);
-for (const [k, v] of Object.entries(T.plate.iwf)) {
-  themeLines.push(`  --color-plate-${k.replace('.', '_')}: var(--${P}-plate-${k}-fill);`);
-  themeLines.push(`  --color-plate-${k.replace('.', '_')}-label: var(--${P}-plate-${k}-label);`);
+for (const [k] of Object.entries(T.plate.iwf)) {
+  // Both sides go through cssIdent. Sanitising only the Tailwind-side name is what
+  // left three of these pointing at a var() that does not exist.
+  themeLines.push(`  --color-plate-${cssIdent(k)}: var(--${P}-plate-${cssIdent(k)}-fill);`);
+  themeLines.push(
+    `  --color-plate-${cssIdent(k)}-label: var(--${P}-plate-${cssIdent(k)}-label);`,
+  );
 }
 themeLines.push(``, `  /* Spacing - Tailwind's --spacing-* namespace. */`);
 for (const [k] of Object.entries(T.space)) themeLines.push(`  --spacing-${k}: var(--${P}-space-${k});`);
 for (const [k] of Object.entries(T.hit)) themeLines.push(`  --spacing-hit-${k}: var(--${P}-hit-${k});`);
 themeLines.push(``, `  /* Radius */`);
 for (const [k] of Object.entries(T.radius)) themeLines.push(`  --radius-${k}: var(--${P}-radius-${k});`);
+themeLines.push(``, `  /* Border widths. Tailwind v4 has no border-width namespace, so these`);
+themeLines.push(`     pass through as plain custom properties: border-[length:var(--border-hairline)]. */`);
+for (const [k] of Object.entries(T.border)) themeLines.push(`  --border-${k}: var(--${P}-border-${k});`);
 themeLines.push(``, `  /* Type */`);
 for (const [k] of Object.entries(T.type)) {
   themeLines.push(`  --text-${k}: var(--${P}-text-${k});`);
@@ -276,6 +358,11 @@ const themeCss = `${BANNER('dist/theme.css')}
 ${themeLines.join('\n')}
 }
 `;
+
+assertValidCustomProperties(tokensCss, 'dist/tokens.css');
+assertValidCustomProperties(themeCss, 'dist/theme.css');
+// tokens.ts is not CSS, but the var() strings it hands to callers are.
+assertValidCustomProperties(tokensTs, 'dist/tokens.ts');
 
 mkdirSync(dist, { recursive: true });
 writeFileSync(join(dist, 'tokens.css'), tokensCss);

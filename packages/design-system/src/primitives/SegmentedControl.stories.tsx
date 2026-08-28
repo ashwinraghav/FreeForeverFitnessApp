@@ -4,13 +4,13 @@ import { useState } from 'react';
 import { ThemePair } from '../lib/ThemePair.js';
 import { SegmentedControl } from './SegmentedControl.js';
 
-const meta = {
+const meta: Meta<typeof SegmentedControl> = {
   title: 'Primitives/SegmentedControl',
   component: SegmentedControl,
-} satisfies Meta<typeof SegmentedControl>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof SegmentedControl>;
 
 function Demo() {
   const [value, setValue] = useState('kg');

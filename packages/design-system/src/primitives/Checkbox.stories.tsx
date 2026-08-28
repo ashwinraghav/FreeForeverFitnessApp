@@ -3,14 +3,14 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { ThemePair } from '../lib/ThemePair.js';
 import { Checkbox } from './Checkbox.js';
 
-const meta = {
+const meta: Meta<typeof Checkbox> = {
   title: 'Primitives/Checkbox',
   component: Checkbox,
   args: { children: 'Warm-up set' },
-} satisfies Meta<typeof Checkbox>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Checkbox>;
 
 export const Playground: Story = {};
 

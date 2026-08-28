@@ -3,14 +3,14 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { ThemePair } from '../lib/ThemePair.js';
 import { Toggle } from './Toggle.js';
 
-const meta = {
+const meta: Meta<typeof Toggle> = {
   title: 'Primitives/Toggle',
   component: Toggle,
   args: { children: 'Rest timer' },
-} satisfies Meta<typeof Toggle>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Toggle>;
 
 export const Playground: Story = {};
 

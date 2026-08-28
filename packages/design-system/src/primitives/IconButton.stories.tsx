@@ -4,14 +4,14 @@ import { CloseGlyph, MinusGlyph, PlusGlyph } from '../lib/glyphs.js';
 import { ThemePair } from '../lib/ThemePair.js';
 import { IconButton } from './IconButton.js';
 
-const meta = {
+const meta: Meta<typeof IconButton> = {
   title: 'Primitives/IconButton',
   component: IconButton,
   args: { icon: <PlusGlyph />, 'aria-label': 'Add set', variant: 'secondary', size: 'md' },
-} satisfies Meta<typeof IconButton>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof IconButton>;
 
 export const Playground: Story = {};
 

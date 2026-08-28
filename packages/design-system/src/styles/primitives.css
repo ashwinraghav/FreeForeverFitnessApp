@@ -17,13 +17,26 @@
  */
 
 :root {
-  /* Internal geometry. Deliberately NOT in tokens.json: these are implementation
-     details of the primitives, not vocabulary other teams should be reaching for.
-     They live on :root so a primitive works wherever it is mounted. */
-  --ff-border: 1px;
-  --ff-border-thick: 2px;
+  /*
+   * Focus-ring geometry. Genuinely internal: the ring is drawn entirely by
+   * `.ff-focusable` below, so no feature team ever needs these. They live on :root
+   * so a primitive works wherever it is mounted.
+   *
+   * Border widths used to live here too, described as private. That was wrong -
+   * three teams needed a hairline width and were reaching for `var(--ff-border, 1px)`
+   * with a literal fallback, which defeats ADR-0021. They are now real public tokens
+   * (`--ff-border-hairline`, `--ff-border-strong`) emitted from tokens.json.
+   */
   --ff-ring-inner: 2px;
   --ff-ring-outer: 4px;
+
+  /*
+   * DEPRECATED aliases, kept so existing `var(--ff-border, 1px)` usage keeps working
+   * during integration. Migrate to --ff-border-hairline / --ff-border-strong; these
+   * two will be removed once no consumer references them.
+   */
+  --ff-border: var(--ff-border-hairline);
+  --ff-border-thick: var(--ff-border-strong);
 }
 
 /* ------------------------------------------------------------------ foundations */
@@ -46,8 +59,8 @@
 /* Forced-colors mode throws away box-shadow. Fall back to a real outline. */
 @media (forced-colors: active) {
   .ff-focusable:focus-visible {
-    outline: var(--ff-border-thick, 2px) solid Highlight;
-    outline-offset: var(--ff-border-thick, 2px);
+    outline: var(--ff-border-strong) solid Highlight;
+    outline-offset: var(--ff-border-strong);
   }
 }
 
@@ -75,7 +88,7 @@
   min-block-size: var(--ff-hit-min);
   font-family: var(--ff-font-sans);
   font-variant-numeric: tabular-nums;
-  border: var(--ff-border) solid transparent;
+  border: var(--ff-border-hairline) solid transparent;
   border-radius: var(--ff-radius-md);
   cursor: pointer;
   transition:
@@ -239,7 +252,7 @@
   min-block-size: var(--ff-hit-min);
   padding-inline: var(--ff-space-12);
   background-color: var(--ff-color-sunken);
-  border: var(--ff-border) solid var(--ff-color-line-strong);
+  border: var(--ff-border-hairline) solid var(--ff-color-line-strong);
   border-radius: var(--ff-radius-md);
   color: var(--ff-color-fg-primary);
   font-family: var(--ff-font-sans);
@@ -254,7 +267,7 @@
 
 .ff-input[aria-invalid='true'] {
   border-color: var(--ff-color-danger);
-  border-width: var(--ff-border-thick);
+  border-width: var(--ff-border-strong);
 }
 
 .ff-input:disabled {
@@ -279,7 +292,7 @@
   min-block-size: var(--ff-hit-mid-set);
   padding-inline: var(--ff-space-8);
   background-color: var(--ff-color-sunken);
-  border: var(--ff-border) solid var(--ff-color-line-strong);
+  border: var(--ff-border-hairline) solid var(--ff-color-line-strong);
   border-radius: var(--ff-radius-md);
 }
 
@@ -328,7 +341,7 @@
   min-inline-size: var(--ff-hit-mid-set);
   min-block-size: var(--ff-hit-mid-set);
   background-color: var(--ff-color-raised);
-  border: var(--ff-border) solid var(--ff-color-line-strong);
+  border: var(--ff-border-hairline) solid var(--ff-color-line-strong);
   border-radius: var(--ff-radius-md);
   color: var(--ff-color-fg-primary);
   font-size: var(--ff-text-title);
@@ -384,7 +397,7 @@
   align-items: center;
   justify-content: center;
   background-color: var(--ff-color-sunken);
-  border: var(--ff-border-thick) solid var(--ff-color-line-strong);
+  border: var(--ff-border-strong) solid var(--ff-color-line-strong);
   color: var(--ff-color-on-accent);
   transition:
     background-color var(--ff-duration-fast) var(--ff-ease-standard),
@@ -582,7 +595,7 @@
 
 .ff-divider {
   border: 0;
-  border-block-start: var(--ff-border) solid var(--ff-color-hairline);
+  border-block-start: var(--ff-border-hairline) solid var(--ff-color-hairline);
   margin-block: var(--ff-space-16);
 }
 
@@ -603,7 +616,7 @@
 .ff-divider--labelled::after {
   content: '';
   flex: 1;
-  border-block-start: var(--ff-border) solid var(--ff-color-hairline);
+  border-block-start: var(--ff-border-hairline) solid var(--ff-color-hairline);
 }
 
 .ff-list {
@@ -620,7 +633,7 @@
   min-block-size: var(--ff-hit-min);
   padding-block: var(--ff-space-8);
   padding-inline: var(--ff-space-16);
-  border-block-end: var(--ff-border) solid var(--ff-color-hairline);
+  border-block-end: var(--ff-border-hairline) solid var(--ff-color-hairline);
   color: var(--ff-color-fg-primary);
   font-size: var(--ff-text-body);
 }
@@ -680,7 +693,7 @@
   background-color: var(--ff-color-raised);
   border-start-start-radius: var(--ff-radius-lg);
   border-start-end-radius: var(--ff-radius-lg);
-  border-block-start: var(--ff-border) solid var(--ff-color-hairline);
+  border-block-start: var(--ff-border-hairline) solid var(--ff-color-hairline);
   color: var(--ff-color-fg-primary);
   font-family: var(--ff-font-sans);
   animation: ff-rise var(--ff-duration-slow) var(--ff-ease-standard);
@@ -724,7 +737,7 @@
   inline-size: min(90vw, 28rem);
   padding: var(--ff-space-24);
   background-color: var(--ff-color-raised);
-  border: var(--ff-border) solid var(--ff-color-hairline);
+  border: var(--ff-border-hairline) solid var(--ff-color-hairline);
   border-radius: var(--ff-radius-lg);
   color: var(--ff-color-fg-primary);
   font-family: var(--ff-font-sans);
@@ -757,7 +770,7 @@
   gap: var(--ff-space-12);
   padding: var(--ff-space-12) var(--ff-space-16);
   background-color: var(--ff-color-raised);
-  border: var(--ff-border) solid var(--ff-color-line-strong);
+  border: var(--ff-border-hairline) solid var(--ff-color-line-strong);
   border-radius: var(--ff-radius-md);
   color: var(--ff-color-fg-primary);
   font-family: var(--ff-font-sans);
@@ -789,14 +802,14 @@
 .ff-tabs__list {
   display: flex;
   gap: var(--ff-space-4);
-  border-block-end: var(--ff-border) solid var(--ff-color-hairline);
+  border-block-end: var(--ff-border-hairline) solid var(--ff-color-hairline);
 }
 
 .ff-tab {
   padding-inline: var(--ff-space-16);
   background: transparent;
   border-radius: var(--ff-radius-none);
-  border-block-end: var(--ff-border-thick) solid transparent;
+  border-block-end: var(--ff-border-strong) solid transparent;
   color: var(--ff-color-fg-secondary);
   font-size: var(--ff-text-body);
   font-weight: var(--ff-weight-heading);
@@ -874,7 +887,7 @@
   justify-content: center;
   overflow: hidden;
   background-color: var(--ff-color-raised);
-  border: var(--ff-border) solid var(--ff-color-line-strong);
+  border: var(--ff-border-hairline) solid var(--ff-color-line-strong);
   border-radius: var(--ff-radius-full);
   color: var(--ff-color-fg-secondary);
   font-family: var(--ff-font-sans);

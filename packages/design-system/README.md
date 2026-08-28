@@ -87,6 +87,8 @@ path, and it is cheap. Do not add an eslint-disable.
 | `transition: 180ms` | `transition: var(--ff-duration-base)` |
 | `border-radius: 8px` | `border-radius: var(--ff-radius-lg)` |
 | `min-height: 48px` | `min-block-size: var(--ff-hit-min)` |
+| `border: 1px solid …` | `border: var(--ff-border-hairline) solid …` |
+| `var(--ff-border, 1px)` | `var(--ff-border-hairline)` — a fallback literal is still a literal |
 | a hex in a canvas chart | `colorFor(theme, "accent")` from `@freeforever/design-system/tokens` |
 
 ---
@@ -141,6 +143,7 @@ tone, pair it with a shape too.
 ```
 space      4 8 12 16 20 24 32 40 48 64          (rem)
 radius     none(0) sm(3) md(5) lg(8) full        (px)
+border     hairline(1) strong(2)                 (px)
 hit        compact(44) min(48) mid-set(56)       (px, on purpose)
 duration   fast(120) base(180) slow(240)
 easing     --ff-ease-standard: cubic-bezier(.2,0,0,1)
@@ -169,6 +172,23 @@ Two rules if you render a plate:
    label colour per plate is in the token file and is asserted at 4.5:1.
 
 `platesDescending` is exported ready-sorted for a greedy plate-loading solve.
+
+**Do not hand-write a plate custom-property name.** The CSS name is not the same
+string as the token key: a `.` is not valid in a CSS ident, so `kg-2.5` is emitted as
+`--ff-plate-kg-2_5-fill`. Import the reference instead, keyed exactly like `plates`:
+
+```ts
+import { plateVar, plates, plateOutlineVar } from "@freeforever/design-system/tokens";
+
+plateVar["kg-2.5"].fill;   // "var(--ff-plate-kg-2_5-fill)"
+plateVar["kg-2.5"].label;  // "var(--ff-plate-kg-2_5-label)"
+plates["kg-2.5"].fill;     // "#8B939B"  - a literal, for canvas
+```
+
+An underscore rather than an escaped `\.` is deliberate: an escaped dot is valid CSS,
+but anyone who later types `var(--ff-plate-kg-2.5-fill)` without the backslash gets
+silence rather than an error. A token whose correct spelling is easy to typo
+invisibly is a bad token, so the spelling is something you import.
 
 ---
 
@@ -280,6 +300,24 @@ surfaces, including `sunken`, because a field filled with `sunken` sitting on
 unchanged and keeps its original weight for non-semantic rules between rows.
 
 ---
+
+## Emitted CSS is a public interface
+
+`packages/design-system` is Apache-2.0 so it can be reused outside this project
+(ADR-0003), which makes the custom properties in `dist/` published API, not an
+implementation detail.
+
+Two mechanisms keep them valid:
+
+- **The build fails** if it would emit a custom-property name that is not a valid
+  `<dashed-ident>`. Both declarations and `var()` references are checked, in all three
+  artefacts.
+- **`test/css-idents.test.ts`** asserts the same property over the emitted files, plus
+  that every `--ff-*` reference resolves to something actually declared.
+
+This is the same class of problem as the contrast suite — a mechanical property of the
+output that no human will re-check, and that fails *silently*. An invalid custom
+property does not throw; it resolves to nothing, so a colour just does not appear.
 
 ## Scripts
 

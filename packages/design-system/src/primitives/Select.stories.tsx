@@ -3,14 +3,14 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { ThemePair } from '../lib/ThemePair.js';
 import { Select } from './Select.js';
 
-const meta = {
+const meta: Meta<typeof Select> = {
   title: 'Primitives/Select',
   component: Select,
   args: { label: 'Units' },
-} satisfies Meta<typeof Select>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Select>;
 
 const options = (
   <>

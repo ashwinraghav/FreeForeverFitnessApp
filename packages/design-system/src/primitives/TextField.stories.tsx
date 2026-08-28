@@ -3,14 +3,14 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { ThemePair } from '../lib/ThemePair.js';
 import { TextField } from './TextField.js';
 
-const meta = {
+const meta: Meta<typeof TextField> = {
   title: 'Primitives/TextField',
   component: TextField,
   args: { label: 'Workout name', placeholder: 'Push day' },
-} satisfies Meta<typeof TextField>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof TextField>;
 
 export const Playground: Story = {};
 

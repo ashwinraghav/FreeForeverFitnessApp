@@ -19,8 +19,11 @@ describe('Checkbox', () => {
 
   it('sets the indeterminate DOM property, which has no HTML attribute', () => {
     render(<Checkbox indeterminate>Warm-up set</Checkbox>);
-    expect(screen.getByRole('checkbox', { checked: undefined })).toBeInstanceOf(HTMLInputElement);
-    expect((screen.getByRole('checkbox') as HTMLInputElement).indeterminate).toBe(true);
+    const box = screen.getByRole('checkbox');
+    expect(box).toBeInstanceOf(HTMLInputElement);
+    expect((box as HTMLInputElement).indeterminate).toBe(true);
+    // Mixed is not checked - the two states must stay distinguishable.
+    expect(box).not.toBeChecked();
   });
 
   it('signals its state with a shape, not only a colour', () => {

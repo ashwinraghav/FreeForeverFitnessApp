@@ -3,14 +3,14 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { ThemePair } from '../lib/ThemePair.js';
 import { Radio } from './Radio.js';
 
-const meta = {
+const meta: Meta<typeof Radio> = {
   title: 'Primitives/Radio',
   component: Radio,
   args: { children: 'Kilograms', name: 'units' },
-} satisfies Meta<typeof Radio>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Radio>;
 
 export const Playground: Story = {};
 

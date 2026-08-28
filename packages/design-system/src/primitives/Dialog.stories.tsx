@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from './Button.js';
 import { Dialog } from './Dialog.js';
 
-const meta = {
+const meta: Meta<typeof Dialog> = {
   title: 'Primitives/Dialog',
   component: Dialog,
   parameters: {
@@ -15,10 +15,10 @@ const meta = {
       },
     },
   },
-} satisfies Meta<typeof Dialog>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Dialog>;
 
 function Demo() {
   const [open, setOpen] = useState(false);

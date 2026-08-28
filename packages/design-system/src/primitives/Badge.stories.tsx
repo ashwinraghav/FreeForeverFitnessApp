@@ -3,14 +3,14 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { ThemePair } from '../lib/ThemePair.js';
 import { Badge } from './Badge.js';
 
-const meta = {
+const meta: Meta<typeof Badge> = {
   title: 'Primitives/Badge',
   component: Badge,
   args: { children: 'PR', tone: 'success' },
-} satisfies Meta<typeof Badge>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Badge>;
 
 export const Playground: Story = {};
 

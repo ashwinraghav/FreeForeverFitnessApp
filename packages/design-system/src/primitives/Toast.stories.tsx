@@ -3,14 +3,14 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { ThemePair } from '../lib/ThemePair.js';
 import { Toast } from './Toast.js';
 
-const meta = {
+const meta: Meta<typeof Toast> = {
   title: 'Primitives/Toast',
   component: Toast,
   args: { children: 'Set logged', tone: 'success' },
-} satisfies Meta<typeof Toast>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Toast>;
 
 export const Playground: Story = {};
 

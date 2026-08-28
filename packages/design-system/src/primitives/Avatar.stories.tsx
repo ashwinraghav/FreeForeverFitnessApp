@@ -3,14 +3,14 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { ThemePair } from '../lib/ThemePair.js';
 import { Avatar } from './Avatar.js';
 
-const meta = {
+const meta: Meta<typeof Avatar> = {
   title: 'Primitives/Avatar',
   component: Avatar,
   args: { name: 'Ada Lovelace', size: 'md' },
-} satisfies Meta<typeof Avatar>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Avatar>;
 
 export const Playground: Story = {};
 

@@ -4,13 +4,13 @@ import { useState } from 'react';
 import { ThemePair } from '../lib/ThemePair.js';
 import { Tabs } from './Tabs.js';
 
-const meta = {
+const meta: Meta<typeof Tabs> = {
   title: 'Primitives/Tabs',
   component: Tabs,
-} satisfies Meta<typeof Tabs>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Tabs>;
 
 const items = [
   { id: 'history', label: 'History', content: <p>Past sessions for this lift.</p> },

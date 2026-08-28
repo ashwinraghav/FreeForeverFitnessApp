@@ -4,14 +4,14 @@ import { useState } from 'react';
 import { ThemePair } from '../lib/ThemePair.js';
 import { Chip } from './Chip.js';
 
-const meta = {
+const meta: Meta<typeof Chip> = {
   title: 'Primitives/Chip',
   component: Chip,
   args: { children: 'Push' },
-} satisfies Meta<typeof Chip>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Chip>;
 
 export const Playground: Story = {};
 

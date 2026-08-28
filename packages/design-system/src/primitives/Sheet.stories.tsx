@@ -4,13 +4,13 @@ import { useState } from 'react';
 import { Button } from './Button.js';
 import { Sheet } from './Sheet.js';
 
-const meta = {
+const meta: Meta<typeof Sheet> = {
   title: 'Primitives/Sheet',
   component: Sheet,
-} satisfies Meta<typeof Sheet>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Sheet>;
 
 function Demo({ modal }: { modal?: boolean }) {
   const [open, setOpen] = useState(false);

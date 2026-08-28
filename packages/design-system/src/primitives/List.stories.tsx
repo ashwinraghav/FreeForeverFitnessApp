@@ -4,13 +4,13 @@ import { ThemePair } from '../lib/ThemePair.js';
 import { Badge } from './Badge.js';
 import { List, ListItem } from './List.js';
 
-const meta = {
+const meta: Meta<typeof List> = {
   title: 'Primitives/List',
   component: List,
-} satisfies Meta<typeof List>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof List>;
 
 export const Playground: Story = {
   args: {

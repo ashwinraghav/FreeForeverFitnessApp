@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-// @ts-expect-error - the shareable rule ships as plain ESM JS so consumers need no build step.
+// The shareable rule ships as plain ESM JS so consumers need no build step; `allowJs`
+// lets TypeScript infer its types from the JSDoc annotations in that file.
 import { findRawLiterals, looksLikeStyleValue } from '../eslint/detect.js';
 
 /**

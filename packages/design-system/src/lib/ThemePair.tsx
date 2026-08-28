@@ -23,7 +23,7 @@ export function ThemePair({ children }: { children: ReactNode }) {
           style={{
             background: 'var(--ff-color-ground)',
             color: 'var(--ff-color-fg-primary)',
-            border: 'var(--ff-border) solid var(--ff-color-hairline)',
+            border: 'var(--ff-border-hairline) solid var(--ff-color-hairline)',
             borderRadius: 'var(--ff-radius-lg)',
             padding: 'var(--ff-space-20)',
           }}

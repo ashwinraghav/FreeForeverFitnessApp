@@ -3,13 +3,13 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { ThemePair } from '../lib/ThemePair.js';
 import { Skeleton } from './Skeleton.js';
 
-const meta = {
+const meta: Meta<typeof Skeleton> = {
   title: 'Primitives/Skeleton',
   component: Skeleton,
-} satisfies Meta<typeof Skeleton>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Skeleton>;
 
 export const Playground: Story = { args: { width: '12rem', height: 'var(--ff-space-16)' } };
 

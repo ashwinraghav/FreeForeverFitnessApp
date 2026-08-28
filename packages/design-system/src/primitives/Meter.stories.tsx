@@ -3,14 +3,14 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { ThemePair } from '../lib/ThemePair.js';
 import { Meter } from './Meter.js';
 
-const meta = {
+const meta: Meta<typeof Meter> = {
   title: 'Primitives/Meter',
   component: Meter,
   args: { value: 96, max: 160, low: 60, optimum: 140, label: 'Protein', unit: 'g', showScale: true },
-} satisfies Meta<typeof Meter>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Meter>;
 
 export const Playground: Story = {};
 
