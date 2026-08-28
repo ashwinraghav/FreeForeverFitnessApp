@@ -52,12 +52,28 @@ export type DistanceDisplayUnit = z.infer<typeof distanceDisplayUnitSchema>;
 export type EnergyDisplayUnit = z.infer<typeof energyDisplayUnitSchema>;
 
 /**
+ * A plate the gym owns, counted in pairs — a barbell loads symmetrically, and a
+ * single plate on one side is not a thing anyone does.
+ */
+export const gymPlateSchema = z.strictObject({
+  massKg: z.number().positive().max(100),
+  /** Pairs available. Zero is legal: it records "this gym has none of these". */
+  pairCount: z.number().int().min(0).max(20),
+});
+
+export type GymPlate = z.infer<typeof gymPlateSchema>;
+
+/**
  * Carried on the profile, never on a logged value. Changing any of these is a
- * presentation change and rewrites no history.
+ * presentation change and rewrites no history — with the exception of the three
+ * equipment fields below, which describe the world rather than the reader.
  *
- * `barbellIncrement` and `dumbbellIncrement` are also canonical (kg) — they describe
- * the gym's physical plates, not the user's reading preference, which is why a US
- * lifter with 2.5lb plates stores 1.13398 rather than 2.5.
+ * `barbellIncrementKg`, `dumbbellIncrementKg` and `gymPlates` are canonical (kg) and
+ * are facts about the user's gym, not reading preferences — which is why a US lifter
+ * with 2.5lb plates stores 1.13398 rather than 2.5. They live here because this is
+ * where the increments already were, and splitting three related equipment facts
+ * across two objects would be worse than one object whose name has outgrown its
+ * contents. Worth renaming if a fourth arrives.
  */
 export const unitPreferencesSchema = z.strictObject({
   trainingLoad: massDisplayUnitSchema,
@@ -69,6 +85,16 @@ export const unitPreferencesSchema = z.strictObject({
   barbellIncrementKg: z.number().positive().max(10),
   /** Smallest load step available on the dumbbell rack, in kg. */
   dumbbellIncrementKg: z.number().positive().max(10),
+  /**
+   * The plates this user's usual gym has. A **default**, not a constraint: the plate
+   * calculator takes an inventory as a parameter and falls back to this, because one
+   * person trains at two gyms and the travelling case must not require editing a
+   * profile to get the right answer.
+   *
+   * Absent means "assume a standard metric set", which is what the calculator's own
+   * default already does — so this field is an override, and omitting it is normal.
+   */
+  gymPlates: z.array(gymPlateSchema).max(20).optional(),
 });
 
 export type UnitPreferences = z.infer<typeof unitPreferencesSchema>;

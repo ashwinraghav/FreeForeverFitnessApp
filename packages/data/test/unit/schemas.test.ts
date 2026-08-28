@@ -7,6 +7,7 @@ import {
   coachGrantSchema,
   exerciseKey,
   isRecordEligible,
+  isVolumeEligible,
   isWarmupSet,
   isWorkingSet,
   localDateSchema,
@@ -141,6 +142,57 @@ const aWorkout = {
   },
 };
 
+describe('what counts toward volume', () => {
+  // The one judgement call in this schema, made executable so it cannot drift back
+  // into prose. Volume asks "did the body do work?"; records ask "did this prove a
+  // capability?". They differ on exactly one set: a failed one.
+  const attempted = { performedAt: 1_787_000_000_000 } as const;
+
+  const cases = [
+    { label: 'completed working set', set: { type: 'working', state: 'completed' }, volume: true, record: true },
+    { label: 'failed working set', set: { type: 'working', state: 'failed' }, volume: true, record: false },
+    { label: 'pending working set', set: { type: 'working', state: 'pending' }, volume: false, record: false },
+    { label: 'completed warmup', set: { type: 'warmup', state: 'completed' }, volume: false, record: false },
+    { label: 'failed warmup', set: { type: 'warmup', state: 'failed' }, volume: false, record: false },
+    { label: 'completed drop set', set: { type: 'drop', state: 'completed' }, volume: true, record: true },
+    { label: 'failed AMRAP', set: { type: 'amrap', state: 'failed' }, volume: true, record: false },
+  ] as const;
+
+  it.each(cases)('$label', ({ set, volume, record }) => {
+    expect(isVolumeEligible(set as never)).toBe(volume);
+    expect(isRecordEligible(set as never)).toBe(record);
+  });
+
+  it('the two predicates disagree on failed sets and only on failed sets', () => {
+    const disagreements = cases.filter((entry) => entry.volume !== entry.record);
+    expect(disagreements.map((entry) => entry.label)).toEqual([
+      'failed working set',
+      'failed AMRAP',
+    ]);
+    for (const entry of disagreements) {
+      expect(entry.set.state).toBe('failed');
+    }
+  });
+
+  it('a failed set still carries the reps it actually did, which is why it counts', () => {
+    // Grinding four of a prescribed five is four reps of real work. The alternative
+    // reading — that a failed set contributes nothing — would delete them.
+    const ground = { ...aSet, ...attempted, state: 'failed', effort: { kind: 'reps', reps: 4 } };
+    const parsed = setEntrySchema.safeParse(ground);
+    expect(parsed.success).toBe(true);
+    expect(isVolumeEligible(ground as never)).toBe(true);
+  });
+
+  it('a set abandoned before a rep contributes nothing either way', () => {
+    // The case excluding failed sets is imagined for. It needs no special handling:
+    // zero reps is zero volume, so including failed sets is never less accurate.
+    const bailed = { ...aSet, ...attempted, state: 'failed', effort: { kind: 'reps', reps: 0 } };
+    expect(setEntrySchema.safeParse(bailed).success).toBe(true);
+    expect(isVolumeEligible(bailed as never)).toBe(true);
+    expect((bailed.effort as { reps: number }).reps).toBe(0);
+  });
+});
+
 describe('the workout session', () => {
   it('accepts a session in progress with no end time', () => {
     expect(workoutSchema.safeParse(aWorkout).success).toBe(true);
@@ -256,6 +308,35 @@ describe('coach grants', () => {
 describe('units', () => {
   it('defaults to canonical units', () => {
     expect(unitPreferencesSchema.safeParse(DEFAULT_UNIT_PREFERENCES).success).toBe(true);
+  });
+
+  it('treats a gym plate inventory as optional', () => {
+    // Absent is the normal case: the plate calculator has its own metric default,
+    // and takes an inventory as a parameter so a second gym needs no profile edit.
+    expect(DEFAULT_UNIT_PREFERENCES.gymPlates).toBeUndefined();
+    expect(
+      unitPreferencesSchema.safeParse({
+        ...DEFAULT_UNIT_PREFERENCES,
+        gymPlates: [
+          { massKg: 20, pairCount: 4 },
+          { massKg: 1.25, pairCount: 0 },
+        ],
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a plate inventory that is not physically loadable', () => {
+    for (const gymPlates of [
+      [{ massKg: 0, pairCount: 2 }],
+      [{ massKg: -20, pairCount: 2 }],
+      [{ massKg: 20, pairCount: -1 }],
+      [{ massKg: 20, pairCount: 1.5 }],
+      [{ massKg: 20 }],
+    ]) {
+      expect(
+        unitPreferencesSchema.safeParse({ ...DEFAULT_UNIT_PREFERENCES, gymPlates }).success,
+      ).toBe(false);
+    }
   });
 
   it('uses the exact definition of a pound, not a rounded one', () => {

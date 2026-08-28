@@ -97,11 +97,16 @@ export type SetType = z.infer<typeof setTypeSchema>;
  *   completed — attempted, and the user counted it as made.
  *   failed    — attempted, and it did not go. A missed rep, a bail, form gone.
  *
- * The distinction is load-bearing, not cosmetic: a failed set is real work and
- * counts toward volume and fatigue, but it must never set a personal record and it
- * is exactly the signal a progression scheme reads to decide not to add weight.
- * Collapsing failed into "not completed" throws that away; collapsing it into
- * "completed" inflates every chart.
+ * The distinction is load-bearing, not cosmetic. A failed set is real work: it counts
+ * toward volume and fatigue ({@link isVolumeEligible}), it must never set a personal
+ * record or feed an e1RM estimate ({@link isRecordEligible}), and it is exactly the
+ * signal a progression scheme reads to decide not to add weight. Collapsing failed
+ * into "not completed" throws that away; collapsing it into "completed" inflates
+ * every chart.
+ *
+ * Those two predicates answer different questions — "did the body do work?" and "did
+ * this prove a capability?" — and reusing one for the other is the mistake this
+ * comment exists to prevent.
  */
 export const SET_STATES = ['pending', 'completed', 'failed'] as const;
 
@@ -170,7 +175,11 @@ export function isWarmupSet(set: Pick<SetEntry, 'type'>): boolean {
   return set.type === 'warmup';
 }
 
-/** A set that counts toward volume, fatigue and progression. Warmups do not. */
+/**
+ * A set that is part of the training stimulus rather than preparation for it.
+ * Warmups are not. Says nothing about whether the set was attempted — for volume,
+ * use {@link isVolumeEligible}.
+ */
 export function isWorkingSet(set: Pick<SetEntry, 'type'>): boolean {
   return set.type !== 'warmup';
 }
@@ -178,6 +187,18 @@ export function isWorkingSet(set: Pick<SetEntry, 'type'>): boolean {
 /** A set that may set a record. A failed set never does, however heavy. */
 export function isRecordEligible(set: Pick<SetEntry, 'type' | 'state'>): boolean {
   return set.state === 'completed' && isWorkingSet(set);
+}
+
+/**
+ * A set whose work counts toward volume and fatigue: a working set that was actually
+ * attempted, whether or not it went.
+ *
+ * Deliberately not the same predicate as {@link isRecordEligible}, and deliberately
+ * named for the question it answers. The two coincide on every set except a failed
+ * one, which is exactly the set they must disagree about.
+ */
+export function isVolumeEligible(set: Pick<SetEntry, 'type' | 'state'>): boolean {
+  return set.state !== 'pending' && isWorkingSet(set);
 }
 
 /** Upper bounds, mirrored as hard limits in `firestore.rules`. */
@@ -238,9 +259,34 @@ export const workoutTotalsSchema = z.strictObject({
   workingSetCount: z.number().int().min(0).max(MAX_SETS_PER_WORKOUT),
   completedSetCount: z.number().int().min(0).max(MAX_SETS_PER_WORKOUT),
   failedSetCount: z.number().int().min(0).max(MAX_SETS_PER_WORKOUT),
-  /** Sum of load x reps over completed working sets, kg. */
+  /**
+   * Sum of effective load x reps over every working set that was **attempted** —
+   * completed or failed — in kg. Warmups and untouched pending sets are excluded.
+   * Use {@link isVolumeEligible}; see below for why not {@link isRecordEligible}.
+   *
+   * Failed sets count, and the reasoning is worth keeping because it is not obvious.
+   * A set that ground out four of a prescribed five moved the bar four times, and
+   * those reps are recorded on the set — `effort` is required on every set, whatever
+   * its state. Dropping them would make a week the lifter pushed to failure read as
+   * *lighter* than an easy one, inverting the signal precisely when it matters most.
+   * And the exclusion buys nothing in the case it is imagined for: a set abandoned
+   * before a single rep records zero reps and contributes zero either way. Including
+   * failed work is therefore never less accurate than excluding it.
+   *
+   * What failure does invalidate is evidence of capability — a missed rep proves no
+   * strength — and that is a separate question, already answered by
+   * `isRecordEligible`, which keeps failed sets out of PRs and e1RM.
+   *
+   * This number is also the only place failed work reaches the aggregates. The
+   * synced `WeeklyVolumeBucket` carries `volumeKg` and `failedSetCount` but no
+   * separate failed tonnage, and under ADR-0005 the aggregate is all a chart may
+   * read — so work left out here is not merely reported elsewhere, it is gone.
+   */
   volumeKg: z.number().min(0).max(10_000_000),
-  /** Same, split by the muscle fractions on each exercise. Absent muscles are zero. */
+  /**
+   * The same total, split by the muscle fractions on each exercise. Same rule about
+   * failed sets. Absent muscles are zero.
+   */
   volumeKgByMuscle: muscleVolumeMapSchema,
   /** Wall-clock length of the session, excluding nothing. */
   durationSec: durationSecondsSchema,

@@ -76,6 +76,11 @@ export interface WeeklyVolumeBucket {
   readonly sessionCount: number;
   readonly workingSetCount: number;
   readonly failedSetCount: number;
+  /**
+   * Sum of `workoutTotals.volumeKg` over the week's sessions, and so on the same
+   * terms: every **attempted** working set, failed ones included. `failedSetCount`
+   * says how much of the week was grind; it does not need subtracting from this.
+   */
   readonly volumeKg: number;
   readonly durationSec: number;
   /** Volume split by muscle, using each exercise's contribution fractions. */
