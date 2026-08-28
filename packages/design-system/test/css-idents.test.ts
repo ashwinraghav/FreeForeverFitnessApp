@@ -76,7 +76,15 @@ describe('every var() reference resolves to a declared token', () => {
     ...declaredIn(read('src/styles/primitives.css')),
   ]);
 
-  it.each(['dist/theme.css', 'dist/tokens.ts', 'src/styles/primitives.css'])(
+  it.each([
+    'dist/theme.css',
+    'dist/tokens.ts',
+    'src/styles/primitives.css',
+    // Inline styles reference tokens too, and a typo there silently produces an
+    // unstyled gallery rather than an error.
+    'src/lib/ThemePair.tsx',
+    'src/storybook/preview.tsx',
+  ])(
     '%s points at nothing undefined',
     (path) => {
       const dangling = [...new Set(referencedIn(read(path)))]

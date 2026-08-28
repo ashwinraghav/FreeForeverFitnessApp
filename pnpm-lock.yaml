@@ -8,6 +8,24 @@ importers:
 
   .:
     devDependencies:
+      '@freeforever/design-system':
+        specifier: workspace:*
+        version: link:packages/design-system
+      '@storybook/addon-a11y':
+        specifier: 8.6.14
+        version: 8.6.14(storybook@8.6.14)
+      '@storybook/addon-essentials':
+        specifier: 8.6.14
+        version: 8.6.14(@types/react@19.0.10)(storybook@8.6.14)
+      '@storybook/react':
+        specifier: 8.6.14
+        version: 8.6.14(@storybook/test@8.6.14(storybook@8.6.14))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(storybook@8.6.14)(typescript@5.7.3)
+      '@storybook/react-vite':
+        specifier: 8.6.14
+        version: 8.6.14(@storybook/test@8.6.14(storybook@8.6.14))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(rollup@4.63.0)(storybook@8.6.14)(typescript@5.7.3)(vite@6.1.0(@types/node@22.20.1)(terser@5.51.2))
+      storybook:
+        specifier: 8.6.14
+        version: 8.6.14
       typescript:
         specifier: 5.7.3
         version: 5.7.3

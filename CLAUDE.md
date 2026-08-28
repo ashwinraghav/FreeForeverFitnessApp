@@ -59,10 +59,12 @@ Both found the hard way. A test that passes because it never exercised anything 
 worse than a failing one, so check for these before trusting a green DOM suite.
 
 **1. `import.meta.url` is rewritten under the jsdom project.** Vite prefixes it with
-`/@fs`, so a fixture path built from it silently misses every file. A stubbed `fetch`
-then 404s, and assertions about "not found" behaviour pass against an index that never
-loaded. **Make your fetch stub throw on a missing fixture rather than returning a 404** —
-then a broken path fails loudly instead of quietly confirming what you expected.
+`/@fs` **and drops the trailing slash from `URL.pathname`**, while the node project keeps
+it — so a naive join produces `.../buildmanifest.json` and silently misses every file. A
+stubbed `fetch` then 404s, and assertions about "not found" behaviour pass against an
+index that never loaded. Use the shared fixture-path helper rather than building paths by
+hand, and **make your fetch stub throw on a missing fixture rather than returning a
+404** — then a broken path fails loudly instead of quietly confirming what you expected.
 
 **2. jsdom defines `DecompressionStream` but its `Blob` has no `.stream()`.** Feature
 detection therefore says gunzip is available and the call throws. Serve

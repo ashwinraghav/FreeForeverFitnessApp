@@ -23,6 +23,10 @@
       "types": "./dist/tokens.d.ts",
       "default": "./dist/tokens.ts"
     },
+    "./storybook": {
+      "types": "./dist/types/src/storybook/preview.d.ts",
+      "default": "./src/storybook/preview.tsx"
+    },
     "./tokens.json": "./tokens/tokens.json",
     "./tokens.css": "./dist/tokens.css",
     "./theme.css": "./dist/theme.css",

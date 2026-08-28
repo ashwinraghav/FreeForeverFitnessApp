@@ -301,6 +301,28 @@ unchanged and keeps its original weight for non-semantic rules between rows.
 
 ---
 
+## Where Storybook lives
+
+This package's `.storybook/` config globs **this package only**, on purpose. Reaching
+into `apps/web` from here would make an Apache-2.0 package that is meant to be
+consumable on its own (ADR-0003) fail to build unless a particular sibling app exists.
+
+Feature stories therefore belong to a Storybook that owns both trees. To stop the two
+configs drifting, the presentation half is shared rather than copied:
+
+```ts
+// a root-level .storybook/preview.ts
+export { default } from "@freeforever/design-system/storybook";
+```
+
+That one line brings the token stylesheets, the dark/light toolbar and the a11y
+defaults. The glob, the framework and the dependencies stay with whoever owns that
+config. `recommendedAddons` is exported from the same module.
+
+Stories are also mounted in CI - `test/stories-smoke.test.tsx` composes every story
+with the real `composeStories`, renders it in both themes, and fails on a React
+warning. A story nobody can open and nobody runs is decoration.
+
 ## Emitted CSS is a public interface
 
 `packages/design-system` is Apache-2.0 so it can be reused outside this project
