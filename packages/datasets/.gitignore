@@ -1,0 +1,9 @@
+# Raw upstream downloads. Never committed: too large, and re-fetchable.
+raw/
+# Full-build output. The small SAMPLE build under build/ IS committed, so a
+# reader can inspect a real artefact without running the pipeline (see README).
+build/full/
+
+# Media binaries. Never committed here: they are published from the media repo
+# by the release workflow (ADR-0007, src/media.mjs). ~34 MB for the full set.
+build/media/assets/

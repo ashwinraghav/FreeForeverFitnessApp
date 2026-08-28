@@ -1,0 +1,23 @@
+{
+  "name": "@freeforever/datasets",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "On-device food index + exercise catalogue: build pipeline and runtime readers. Data licences: see NOTICE.md.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "exports": {
+    ".": { "types": "./src/index.d.ts", "default": "./src/index.mjs" }
+  },
+  "files": ["src", "build", "NOTICE.md", "LICENSE", "docs"],
+  "scripts": {
+    "test": "node --test \"pipeline/test/*.test.mjs\"",
+    "fetch:sample": "node pipeline/fetch-samples.mjs",
+    "build:food": "node pipeline/build-food-index.mjs",
+    "build:exercises": "node pipeline/build-exercise-catalogue.mjs",
+    "build:media": "node pipeline/build-media.mjs",
+    "verify": "node pipeline/verify-index.mjs",
+    "report:index": "node pipeline/report-index.mjs",
+    "build": "node pipeline/build-food-index.mjs --input fixtures --out build && node pipeline/build-exercise-catalogue.mjs && node pipeline/verify-index.mjs"
+  }
+}
