@@ -32,6 +32,7 @@ New decision: `pnpm adr "Short title"`.
 | [0024](./0024-coach-photo-access-deferred.md) | Coach access to progress-photo bytes is deferred to Phase 4 | Accepted |
 | [0025](./0025-conflict-resolution-per-data-class.md) | Conflict resolution is decided per data class | Accepted |
 | [0026](./0026-licence-boundary-forbids-core-importing-data.md) | The licence split is a dependency constraint, not just a file header | Accepted |
+| [0027](./0027-calorie-safety-floors.md) | Calorie targets have hard, explained safety floors | Accepted |
 
 ## Reading order for newcomers
 

@@ -212,18 +212,27 @@
   display: flex;
   gap: var(--ff-space-8);
   overflow-x: auto;
+  /* A real <ul>: clear the UA list styling rather than the semantics. */
+  list-style: none;
+  margin: 0;
   padding-inline: var(--ff-space-16);
   padding-block: var(--ff-space-4);
   scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
 }
 
-.ffn-repeat-item {
+/* The <li> carries the layout so the <button> stays a plain button. */
+.ffn-repeat-cell {
   flex: 0 0 auto;
   scroll-snap-align: start;
+  display: flex;
+}
+
+.ffn-repeat-item {
   display: grid;
   gap: var(--ff-space-4);
   inline-size: calc(var(--ff-space-64) * 2.2);
+  /* 56px, the mid-set target: one-handed, out of breath, bad light. */
   min-block-size: var(--ff-hit-mid-set);
   padding: var(--ff-space-8) var(--ff-space-12);
   text-align: start;

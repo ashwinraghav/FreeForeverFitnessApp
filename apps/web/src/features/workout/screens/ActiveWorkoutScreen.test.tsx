@@ -227,7 +227,7 @@ describe('every change is persisted immediately', () => {
 
   it('survives a remount with everything intact', () => {
     const repository = repositoryWithActiveSession();
-    const first = mountScreen(repository);
+    const _first = mountScreen(repository);
     fireEvent.click(nextLogButton());
 
     // A whole new component tree, reading only what is on disk.
@@ -239,7 +239,7 @@ describe('every change is persisted immediately', () => {
 
   it('keeps a typed value across a remount', () => {
     const repository = repositoryWithActiveSession();
-    const first = mountScreen(repository);
+    const _first = mountScreen(repository);
     fireEvent.click(weightCell());
     fireEvent.change(screen.getByLabelText('Weight'), { target: { value: '102.5' } });
 
@@ -267,7 +267,7 @@ describe('the rest timer', () => {
 
   it('shows the right number after a gap with no ticks — the backgrounding case', () => {
     const repository = repositoryWithActiveSession();
-    const first = mountScreen(repository);
+    const _first = mountScreen(repository);
     fireEvent.click(nextLogButton());
 
     // Ninety seconds pass with the app closed. Nothing ticked; nothing counted.
@@ -278,7 +278,7 @@ describe('the rest timer', () => {
 
   it('counts up in overtime rather than vanishing at zero', () => {
     const repository = repositoryWithActiveSession();
-    const first = mountScreen(repository);
+    const _first = mountScreen(repository);
     fireEvent.click(nextLogButton());
 
     clock = NOW + 135_000;

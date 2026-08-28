@@ -80,7 +80,6 @@ function assertValidCustomProperties(css, file) {
   }
 }
 
-const isSurface = ([, v]) => v.role === 'surface';
 const colorEntries = Object.entries(T.color);
 
 /* ------------------------------------------------------------------ tokens.css */

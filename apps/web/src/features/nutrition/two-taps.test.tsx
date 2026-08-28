@@ -115,7 +115,9 @@ describe('logging a repeat food', () => {
     // The shortcut is on screen the moment the tab opens — no "+", no menu, no
     // disclosure step. If any of those creep in, the click count below fails.
     const strip = screen.getByRole('list', { name: /log again/i });
-    const shortcut = within(strip).getByRole('listitem', { name: /log chicken breast, raw/i });
+    // `button`, not `listitem`. The shortcut must be announced as something
+    // that can be activated — see the note in RepeatStrip.
+    const shortcut = within(strip).getByRole('button', { name: /log chicken breast, raw/i });
 
     await user.click(shortcut);
 
@@ -141,7 +143,7 @@ describe('logging a repeat food', () => {
     renderNutrition();
 
     const strip = screen.getByRole('list', { name: /log again/i });
-    await user.click(within(strip).getByRole('listitem', { name: /log oats, rolled/i }));
+    await user.click(within(strip).getByRole('button', { name: /log oats, rolled/i }));
 
     // 80 g of oats at 389 kcal/100 g = 311 kcal. Assert on the ring itself
     // rather than on the page text — the same figure legitimately appears on
@@ -156,7 +158,7 @@ describe('logging a repeat food', () => {
     renderNutrition();
 
     const strip = screen.getByRole('list', { name: /log again/i });
-    await user.click(within(strip).getByRole('listitem', { name: /log chicken/i }));
+    await user.click(within(strip).getByRole('button', { name: /log chicken/i }));
     expect(readState().days[today()]?.entryCount).toBe(1);
 
     await user.click(screen.getByRole('button', { name: /undo/i }));
@@ -171,7 +173,7 @@ describe('logging a repeat food', () => {
     renderNutrition();
 
     const strip = screen.getByRole('list', { name: /log again/i });
-    const shortcut = within(strip).getByRole('listitem', { name: /log chicken breast, raw/i });
+    const shortcut = within(strip).getByRole('button', { name: /log chicken breast, raw/i });
 
     // The visible label is clamped to two lines, so a screen-reader user has to
     // learn the portion, the energy and the destination meal from the name.
@@ -210,8 +212,38 @@ describe('logging a repeat food', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 
     renderNutrition();
-    const items = within(screen.getByRole('list', { name: /log again/i })).getAllByRole('listitem');
-    expect(items[0]?.getAttribute('aria-label')).toMatch(/oats/i);
+    const strip = screen.getByRole('list', { name: /log again/i });
+    // The listitem count is what guarantees the strip's length, so it stays.
+    const cells = within(strip).getAllByRole('listitem');
+    expect(cells).toHaveLength(2);
+    // Ordering is read off the button, which is where the name now lives.
+    expect(within(cells[0] as HTMLElement).getByRole('button').getAttribute('aria-label')).toMatch(
+      /oats/i,
+    );
+  });
+
+  it('announces each shortcut as a button, not as an inert list item', () => {
+    // A regression guard for a real bug: `role="listitem"` on the <button>
+    // REPLACED its implicit role, so screen readers announced the shortcut but
+    // never said it could be activated. The headline interaction of this
+    // feature was invisible as an interaction to the users who most rely on
+    // being told.
+    seedStorageWithHistory();
+    renderNutrition();
+
+    const strip = screen.getByRole('list', { name: /log again/i });
+    const buttons = within(strip).getAllByRole('button');
+    expect(buttons).toHaveLength(2);
+
+    for (const button of buttons) {
+      expect(button.tagName).toBe('BUTTON');
+      // No role override may reappear on the control itself.
+      expect(button.getAttribute('role')).toBeNull();
+      expect(button.getAttribute('aria-label')).toMatch(/^Log /);
+    }
+
+    // And the list semantics still hold around them.
+    expect(within(strip).getAllByRole('listitem')).toHaveLength(2);
   });
 
   it('does not show the shortcut strip to someone with no history', () => {

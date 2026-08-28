@@ -1,6 +1,5 @@
 import type { MuscleGroup } from '@freeforever/data';
 import type { HeatLevel, MuscleHeatmap } from '../select/muscles';
-import { MUSCLE_LABELS } from '../data/ports';
 
 /**
  * The between-sets glance.

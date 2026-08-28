@@ -118,7 +118,7 @@ export function macrosForEnergy(input: MacroSplitInput): {
   const fatFloorG = bodyweightKg * MIN_FAT_G_PER_KG;
 
   let proteinG = bodyweightKg * proteinPerKg;
-  let fatG = Math.max((energyKcal * fatFraction) / KCAL_PER_GRAM.fat, fatFloorG);
+  const fatG = Math.max((energyKcal * fatFraction) / KCAL_PER_GRAM.fat, fatFloorG);
 
   if (fatG > (energyKcal * fatFraction) / KCAL_PER_GRAM.fat) {
     adjustments.push({

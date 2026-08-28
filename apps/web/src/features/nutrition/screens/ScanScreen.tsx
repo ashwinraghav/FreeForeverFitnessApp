@@ -220,8 +220,10 @@ export function ScanScreen() {
         {failure === null ? (
           <>
             <div className="ffn-viewfinder">
-              {/* eslint-disable-next-line jsx-a11y/media-has-caption -- a live
-                  camera preview has no audio track and nothing to caption. */}
+              {/* A live camera preview has no audio track and nothing to
+                  caption, so jsx-a11y/media-has-caption does not apply. Kept as
+                  a note rather than a disable directive, since the rule
+                  correctly stays silent here. */}
               <video ref={videoRef} playsInline muted aria-label="Camera preview" />
               <div className="ffn-reticle" aria-hidden="true" />
             </div>

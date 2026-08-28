@@ -34,7 +34,26 @@ export function RepeatStrip({
   if (recents.length === 0) return null;
 
   return (
-    <div className="ffn-repeat" role="list" aria-label="Log again">
+    /*
+     * A real <ul>/<li>/<button>, not roles painted onto divs.
+     *
+     * This previously put `role="listitem"` on the button itself, which
+     * REPLACES the implicit `button` role rather than adding to it: assistive
+     * tech announced "Chicken breast, raw, list item" and never said the thing
+     * could be activated. The product's headline interaction was invisible as
+     * an interaction to exactly the people who most need it announced.
+     *
+     * `role="list"` stays on the <ul> despite being implicit. VoiceOver in
+     * Safari strips list semantics from a list styled `list-style: none`, and
+     * this is a phone-first PWA — iOS Safari is the browser that matters most
+     * here, so the redundancy is load-bearing rather than decorative.
+     *
+     * The linter allows this by configuration rather than by a disable comment
+     * here: the root config sets
+     * `'jsx-a11y/no-redundant-roles': ['error', { ul: ['list'] }]`, so the
+     * exception is stated once with its reasoning instead of once per list.
+     */
+    <ul className="ffn-repeat" role="list" aria-label="Log again">
       {recents.map((recent) => {
         const energy = scaleNutrients(
           recent.snapshot.nutrientsPer100g,
@@ -43,28 +62,30 @@ export function RepeatStrip({
         const portion = formatPortion(recent.lastQuantity, recent.lastServing);
 
         return (
-          <button
-            key={recent.snapshot.key}
-            type="button"
-            role="listitem"
-            className="ffn-repeat-item"
-            onClick={() => onLogAgain(recent)}
-            onContextMenu={(event) => {
-              event.preventDefault();
-              onOpenPortion(recent);
-            }}
-            // The accessible name carries the whole action, because the visible
-            // label is truncated to two lines and a screen-reader user must
-            // still know what one tap is about to do.
-            aria-label={`Log ${recent.snapshot.ref.name}, ${portion}, ${Math.round(energy)} kilocalories, to ${recent.lastSlot.replace('_', ' ')}`}
-          >
-            <span className="ffn-repeat-name">{recent.snapshot.ref.name}</span>
-            <span className="ffn-repeat-meta">
-              {portion} · {formatEnergy(energy, energyUnit)} {energyUnit}
-            </span>
-          </button>
+          <li className="ffn-repeat-cell" key={recent.snapshot.key}>
+            <button
+              type="button"
+              className="ffn-repeat-item"
+              onClick={() => onLogAgain(recent)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                onOpenPortion(recent);
+              }}
+              // The accessible name carries the whole action, because the
+              // visible label is truncated to two lines and a screen-reader
+              // user must still know what one tap is about to do. It belongs on
+              // the button, not the <li>: the name has to reach the thing that
+              // is actually activated.
+              aria-label={`Log ${recent.snapshot.ref.name}, ${portion}, ${Math.round(energy)} kilocalories, to ${recent.lastSlot.replace('_', ' ')}`}
+            >
+              <span className="ffn-repeat-name">{recent.snapshot.ref.name}</span>
+              <span className="ffn-repeat-meta">
+                {portion} · {formatEnergy(energy, energyUnit)} {energyUnit}
+              </span>
+            </button>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }

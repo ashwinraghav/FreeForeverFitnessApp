@@ -6,7 +6,6 @@ import {
   computeRecipeTotals,
   formatEnergy,
   formatGrams,
-  servingsForFood,
 } from '@freeforever/core/src/nutrition/index.js';
 import { FoodRow } from '../components/FoodRow.js';
 import { PortionSheet } from '../components/PortionSheet.js';
