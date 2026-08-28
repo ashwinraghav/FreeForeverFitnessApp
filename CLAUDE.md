@@ -27,14 +27,31 @@ the integrator rather than reaching across.
 | Area | Owns |
 |---|---|
 | design-system | `packages/design-system` |
-| domain-model | `packages/data`, `firestore.rules` |
+| domain-model | `packages/data` (except `src/sync`), `firestore.rules`, `storage.rules` |
+| sync | `packages/data/src/sync`, Firebase client init, **App Check enforcement** |
 | workout | `apps/web/src/features/workout`, `packages/core/src/training` |
 | nutrition | `apps/web/src/features/nutrition`, `packages/core/src/nutrition` |
 | insights | `apps/web/src/features/insights` |
 | infra | `infra/`, `.github/` |
 | datasets | `packages/datasets` |
+| integrator | root config, `apps/web/src/app`, `apps/web/src/shell`, **CSP**, **service worker** |
 
-Root config (`package.json`, `tsconfig.base.json`, route manifests) is integrator-only.
+Root config (`package.json`, `tsconfig.base.json`, `apps/web/src/app/routes.ts`) is
+integrator-only. Feature teams never edit the route manifest — four teams appending to one
+array is exactly the collision this model exists to prevent.
+
+## Before any fan-out: audit this map (ADR-0023)
+
+Strict ownership converts collision risk into **coverage** risk. It prevents two agents
+touching one file; it does nothing about a file nobody was assigned, and nobody reports a
+gap in their own brief. That is how the Cloud Storage ruleset came to be missing while
+every Firestore rule was carefully tested.
+
+So before each fan-out the integrator enumerates every security-relevant artefact and
+confirms each has a named owner. Currently: `firestore.rules`, `storage.rules`, Content
+Security Policy, the service worker, App Check enforcement, auth and account-linking, and
+(from Phase 3) the AI proxy and its quotas. **An artefact with no owner is a defect in this
+map, not an oversight by a team.**
 
 ## Accessibility is not negotiable
 

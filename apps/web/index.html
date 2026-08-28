@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    <!--
+      Content Security Policy (ADR-0023 ownership audit).
+
+      This meta tag is the floor, not the ceiling: it applies in dev and as a
+      fallback. The authoritative policy is served as a real header from
+      firebase.json, because a meta CSP cannot express frame-ancestors and is
+      not applied to the document until parsing reaches it.
+
+      connect-src is the interesting one. It lists Google's identity and
+      Firestore endpoints and nothing else: no analytics, no ad networks, no
+      third-party fonts (ADR-0014 self-hosts them), and no CDN for anything
+      executable. jsDelivr appears in img-src only — it serves exercise media
+      (ADR-0007), never script.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        script-src 'self';
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' data: blob: https://cdn.jsdelivr.net;
+        font-src 'self';
+        connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://securetoken.googleapis.com;
+        media-src 'self' blob:;
+        object-src 'none';
+        base-uri 'self';
+        form-action 'self';
+        frame-ancestors 'none';
+        upgrade-insecure-requests;
+      "
+    />
+
+    <meta name="theme-color" content="#0A1119" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#F1F4F8" media="(prefers-color-scheme: light)" />
+    <title>TheFreeForeverFitnessApp</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

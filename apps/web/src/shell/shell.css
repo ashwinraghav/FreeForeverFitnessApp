@@ -1,0 +1,55 @@
+/*
+ * Shell layout only. No colours, spacing or durations as literals — tokens
+ * only (ADR-0021). Feature teams style their own screens the same way.
+ */
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--ff-color-ground);
+  color: var(--ff-color-fg-primary);
+  font-family: var(--ff-font-sans);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  /* A 90-minute session with sweaty hands: never let a mis-swipe bounce the page. */
+  overscroll-behavior-y: none;
+}
+
+.ff-frame {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  height: 100%;
+}
+
+.ff-main { overflow-y: auto; }
+
+.ff-tabs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  border-top: 1px solid var(--ff-color-hairline);
+  background: var(--ff-color-surface);
+  /* Clear the home indicator so the last row of tabs is not half-swallowed. */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.ff-tab {
+  display: grid;
+  place-items: center;
+  /* 56px is the mid-set target from ADR-0013, not a rounded-up 48. */
+  min-height: var(--ff-hit-mid-set);
+  color: var(--ff-color-fg-muted);
+  text-decoration: none;
+  font-size: var(--ff-text-label);
+}
+
+.ff-tab.active { color: var(--ff-color-accent); }
+
+.ff-booting {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--ff-color-fg-muted);
+}
