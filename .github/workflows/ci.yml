@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+        env: { GITLEAKS_CONFIG: .gitleaks.toml }
+
+  verify:
+    name: Typecheck, lint, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+
+  rules:
+    name: Firestore rules
+    runs-on: ubuntu-latest
+    # Rules are public (ADR-0015), so they must actually hold. Blocking.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: npx firebase-tools emulators:exec --only firestore "pnpm test:rules"
+
+  tokens:
+    name: Design token guards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      # Contrast ratios asserted as unit tests so a palette change cannot
+      # silently break WCAG AA. See ADR-0013.
+      - run: pnpm --filter @freeforever/design-system test
+      # No raw hex/px/ms outside the design system. See ADR-0021.
+      - run: pnpm lint

@@ -1,0 +1,37 @@
+node_modules/
+dist/
+build/
+coverage/
+.turbo/
+*.log
+
+# Secrets — never commit. See SECURITY.md
+.env
+.env.*
+!.env.example
+*-service-account*.json
+*serviceAccount*.json
+service-account*.json
+gha-creds-*.json
+.firebase-admin-key*
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
+
+# Firebase emulator
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+emulator-data/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

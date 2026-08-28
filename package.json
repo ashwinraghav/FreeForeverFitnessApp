@@ -1,0 +1,20 @@
+{
+  "name": "thefreeforeverfitnessapp",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "packageManager": "pnpm@9.12.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "pnpm --filter @freeforever/web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "test:rules": "pnpm --filter @freeforever/data test:rules",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc -b --pretty false",
+    "format": "prettier --write .",
+    "emulators": "firebase emulators:start --import ./emulator-data --export-on-exit",
+    "scan:secrets": "gitleaks detect --no-banner --redact -c .gitleaks.toml",
+    "adr": "node scripts/new-adr.mjs"
+  }
+}

@@ -1,0 +1,23 @@
+title = "TheFreeForeverFitnessApp secret scan"
+
+[extend]
+useDefault = true
+
+# The Firebase Web API key is a public project identifier, not a credential.
+# Documented by Firebase as safe to expose. See ADR-0010.
+# Real protection = Firestore Security Rules + App Check, both tested in CI.
+[[rules]]
+id = "firebase-web-api-key-allowed"
+description = "Firebase web apiKey is public by design — allowed"
+regex = '''AIza[0-9A-Za-z_-]{35}'''
+[rules.allowlist]
+description = "Client config only. A service-account key is a different thing and stays blocked."
+regexes = ['''AIza[0-9A-Za-z_-]{35}''']
+
+[allowlist]
+description = "Paths with no secrets by construction"
+paths = [
+  '''docs/agent-log/.*''',
+  '''\.env\.example$''',
+  '''LICENSE$''',
+]

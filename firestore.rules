@@ -1,0 +1,32 @@
+rules_version = '2';
+
+// These rules are PUBLIC — anyone can read them in this repository.
+// That is deliberate (ADR-0015). It means they must actually be correct,
+// not merely unread. Every rule below is covered by a test in
+// packages/data/test/rules/*.test.ts, and those tests block CI.
+//
+// STATUS: skeleton. Team "domain-model" owns the real implementation.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // A user's own training and nutrition data. Nobody else may read it —
+    // including a coach, until an explicit grant exists (Phase 4).
+    match /users/{uid}/{document=**} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // Default deny. Anything not matched above is inaccessible.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
