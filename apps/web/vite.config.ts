@@ -16,6 +16,11 @@ import { VitePWA } from 'vite-plugin-pwa';
  * plugin could not detect it, and the app rendered a blank page with no error.
  * A meta CSP also cannot express frame-ancestors.
  *
+ * NOTE: the production copy of this policy lives in `firebase.json` hosting
+ * headers, because Firebase Hosting serves it and JSON cannot import from here.
+ * The two must be changed together. `firebase.json` is the one that actually
+ * protects users; this one only covers `pnpm dev`.
+ *
  * connect-src is the interesting directive: Google identity and Firestore, and
  * nothing else. No analytics, no ad networks, no third-party font or script
  * CDN. jsDelivr appears in img-src only — it serves exercise media (ADR-0007)
