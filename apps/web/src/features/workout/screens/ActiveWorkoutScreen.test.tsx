@@ -578,6 +578,45 @@ describe('finishing', () => {
     expect(after?.status).toBe('in_progress');
   });
 
+  it('does not carry the rest timer into the next session', () => {
+    // The bar kept counting after Finish, labelled "Rest · set" because the exercise
+    // it named no longer existed. `repository.saveRest(null)` reached around the hook,
+    // which holds the timer in React state and re-persists it at the next alarm
+    // transition — so the clear did not stick either.
+    const repository = repositoryWithActiveSession();
+    const view = mountScreen(repository);
+    fireEvent.click(nextLogButton());
+    expect(view.container.querySelector('.ffw-restbar')).not.toBeNull();
+
+    fireEvent.click(button('Finish'));
+    expect(view.container.querySelector('.ffw-restbar')).toBeNull();
+    expect(repository.loadRest()).toBeNull();
+
+    fireEvent.click(button('Start next session'));
+    expect(view.container.querySelector('.ffw-restbar')).toBeNull();
+    expect(repository.loadRest()).toBeNull();
+  });
+
+  it('leaves no rest state for a reload to resurrect', async () => {
+    // Clearing storage directly is not enough: the hook still holds the timer, and
+    // when the deadline passes it writes the timer back as "alarmed". So a clear that
+    // looked successful could repopulate storage seconds later, and the next cold
+    // start would show a countdown from a workout that had already been saved.
+    // Getting there needs the deadline to actually pass, which is why this one waits.
+    const repository = repositoryWithActiveSession();
+    mountScreen(repository);
+    fireEvent.click(nextLogButton());
+    fireEvent.click(button('Finish'));
+
+    // Well past the two-minute default rest, so the alarm transition is due.
+    clock = NOW + 200_000;
+    await new Promise((resolve) => {
+      setTimeout(resolve, 400);
+    });
+
+    expect(repository.loadRest()).toBeNull();
+  });
+
   it('stops the clock once the session is over', () => {
     // A clock still counting on a finished workout is the loudest possible way of
     // saying "nothing happened".

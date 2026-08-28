@@ -198,15 +198,28 @@ export function ActiveWorkoutScreen({
     setJustFinished({ workout: finished.workout, priorSessions: repository.loadHistory() });
     repository.appendHistory(toCompletedSession(finished.workout));
     repository.saveActive(null);
-    repository.saveRest(null);
+    /*
+     * Through the hook, not `repository.saveRest(null)`.
+     *
+     * Writing the storage directly reaches around `useRestTimer`, which keeps the
+     * timer in React state: the bar carried on counting into the next session with
+     * its label degraded to "Rest · set", because the exercise it named was gone.
+     * And the clear did not even stick — the hook re-persists on its next alarm
+     * transition, so a reload could resurrect a countdown belonging to a workout
+     * that had already been saved.
+     */
+    timer.stop();
     dispatch({ type: 'finish', now: now() });
     onFinished?.();
-  }, [state, repository, now, onFinished]);
+  }, [state, repository, now, onFinished, timer]);
 
   const startNext = useCallback(() => {
     setJustFinished(null);
     setOpenEditor(null);
     setUndoOffer(null);
+    // Belt and braces: a rest can only survive to here via a path that skipped
+    // `finish`, but a new session must never inherit the last one's countdown.
+    timer.stop();
     dispatch({
       type: 'start_new',
       now: now(),
@@ -214,7 +227,7 @@ export function ActiveWorkoutScreen({
         ? {}
         : { bodyweightKg: state.workout.bodyweightKg }),
     });
-  }, [now, state.workout.bodyweightKg]);
+  }, [now, state.workout.bodyweightKg, timer]);
 
   const logged = hasLoggedWork(state.workout);
 
@@ -360,7 +373,7 @@ export function ActiveWorkoutScreen({
         <RestBar
           rest={timer.rest}
           now={timer.now}
-          forLabel={restingExercise?.exercise.name ?? 'set'}
+          forLabel={restingExercise?.exercise.name ?? 'your last set'}
           onAdjust={timer.adjust}
           onSkip={() => timer.stop()}
         />
