@@ -1,0 +1,51 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+#
+# NOTHING IN THIS FILE IS A SECRET. Secret *names* only; Terraform resolves
+# values from Secret Manager at apply time. See SECURITY.md.
+
+project_id      = "REPLACE-ME-prod"
+billing_account = "REPLACE-ME-000000-000000-000000"
+state_bucket    = "REPLACE-ME-tfstate"
+region          = "europe-west1"
+
+# ADR-0020 publishes the actual monthly bill. This ceiling is the number that
+# says what "surprising" means for this project.
+budget_amount_usd = 50
+alert_emails      = ["REPLACE-ME@example.com"]
+
+# --- Workload Identity Federation (ADR-0011) ----------------------------
+github_repository          = "REPLACE-ME-owner/TheFreeForeverFitnessApp"
+github_repository_id       = "REPLACE-ME-000000000"
+github_repository_owner_id = "REPLACE-ME-0000000"
+deploy_branch              = "main"
+
+# A production deploy requires a job declaring this GitHub Environment.
+# Configure it with required reviewers, otherwise this gate is decorative.
+deploy_environment = "production"
+
+# --- Hosting ------------------------------------------------------------
+custom_domain            = null # e.g. "app.example.com" -- needs DNS records by hand
+extra_authorized_domains = []
+
+# --- App Check ----------------------------------------------------------
+# The NAME of the Secret Manager secret holding the reCAPTCHA site SECRET.
+# The site KEY is public and lives in .env.example / the client bundle.
+recaptcha_secret_id = "" # e.g. "recaptcha-site-secret"
+
+# --- Auth providers -----------------------------------------------------
+enable_google_signin   = false
+google_oauth_client_id = ""
+google_oauth_secret_id = ""
+
+enable_apple_signin   = false
+apple_services_id     = ""
+apple_oauth_secret_id = ""
+
+# --- AI cost ceilings (ADR-0016) ----------------------------------------
+ai_proxy_max_instances             = 2
+ai_global_monthly_spend_cap_micros = 20000000 # $20/month, then degrade to deterministic
+ai_per_user_daily_call_quota       = 20
+
+# --- Emergency ----------------------------------------------------------
+# Flip to true and `terraform apply` to stop hosted AI spend within a minute.
+ai_proxy_kill_switch = false

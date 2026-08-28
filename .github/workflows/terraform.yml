@@ -1,0 +1,242 @@
+name: Terraform
+
+on:
+  push:
+    branches: [main]
+    paths: ['infra/**', '.github/workflows/terraform.yml']
+  pull_request:
+    paths: ['infra/**', '.github/workflows/terraform.yml']
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION: '1.9.8'
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Static checks. No cloud credentials, so this runs on forks too.
+  # -------------------------------------------------------------------------
+  check:
+    name: fmt + validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive -diff infra/
+
+      # -backend=false: validating configuration must not need credentials or
+      # a state bucket. This is what lets a fork's PR go green.
+      - name: terraform validate
+        run: |
+          set -euo pipefail
+          failed=0
+          for dir in infra/envs/*/; do
+            echo "::group::validate ${dir}"
+            terraform -chdir="${dir}" init -backend=false -input=false -no-color
+            terraform -chdir="${dir}" validate -no-color || failed=1
+            echo "::endgroup::"
+          done
+          exit "${failed}"
+
+  # -------------------------------------------------------------------------
+  # Configuration invariants that `terraform validate` cannot see.
+  # A wildcard in the WIF attribute condition is syntactically perfect and a
+  # total compromise, so it gets its own check (ADR-0011).
+  # -------------------------------------------------------------------------
+  guardrails:
+    name: Security guardrails
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No service-account key resources
+        run: |
+          set -euo pipefail
+          if grep -rn --include='*.tf' -E '^\s*resource\s+"google_service_account_key"' infra/; then
+            echo "::error::A service-account key resource exists. ADR-0011 forbids key material entirely."
+            exit 1
+          fi
+          echo "ok: no google_service_account_key anywhere"
+
+      - name: No secret VALUES in Terraform
+        run: |
+          set -euo pipefail
+          # The secret container is Terraform's; the version is not. A version
+          # resource puts the value in state and in every plan output.
+          if grep -rn --include='*.tf' -E '^\s*resource\s+"google_secret_manager_secret_version"' infra/; then
+            echo "::error::A secret VERSION resource exists. Declare the container only; add values with 'gcloud secrets versions add'."
+            exit 1
+          fi
+          echo "ok: secret containers only"
+
+      - name: WIF attribute condition is not a wildcard
+        run: |
+          set -euo pipefail
+          file=infra/modules/ci-wif/main.tf
+
+          if ! grep -q 'attribute_condition' "${file}"; then
+            echo "::error::No attribute_condition on the WIF provider. That trusts every GitHub Actions workflow on the internet."
+            exit 1
+          fi
+
+          # Pin on the immutable numeric IDs, not just the recyclable name.
+          for claim in repository_owner_id repository_id repository; do
+            if ! grep -q "assertion.${claim} ==" "${file}"; then
+              echo "::error::attribute_condition does not pin assertion.${claim}. See infra/README.md."
+              exit 1
+            fi
+          done
+
+          # A set binding on the deploy identity would widen it to every
+          # workflow in the repo, including one added by an unreviewed PR.
+          if grep -n 'deployer_wif' -A3 "${file}" | grep -q 'principalSet://'; then
+            echo "::error::Deployer bound with principalSet://. Use principal:// so the binding names one branch or environment."
+            exit 1
+          fi
+
+          echo "ok: WIF condition pins owner id, repo id and repo name"
+
+      - name: WIF audience is pinned to the project NUMBER
+        run: |
+          set -euo pipefail
+          file=infra/modules/ci-wif/main.tf
+
+          if ! grep -q 'allowed_audiences' "${file}"; then
+            echo "::error::allowed_audiences removed. Without it the provider accepts GitHub's default audience."
+            exit 1
+          fi
+
+          # google-github-actions/auth derives the audience from the provider's
+          # .name, which is always the projects/{NUMBER}/... form. A pin built
+          # from the project ID matches no token GitHub will ever send, and the
+          # failure surfaces at the first real deploy.
+          if grep -A12 'allowed_audiences' "${file}" | grep -q 'iam.googleapis.com/projects/\${var.project_id}'; then
+            echo "::error::allowed_audiences is built from var.project_id. It must use the project NUMBER — see infra/README.md."
+            exit 1
+          fi
+
+          if ! grep -A12 'allowed_audiences' "${file}" | grep -q 'data.google_project.this.number'; then
+            echo "::error::allowed_audiences does not resolve the project number."
+            exit 1
+          fi
+          echo "ok: audience pinned to the project number"
+
+      - name: No pull_request_target triggers
+        run: |
+          set -euo pipefail
+          # pull_request_target runs untrusted PR code with base-repo
+          # permissions and can request id-token: write. The planner's
+          # principalSet binding is justified partly on fork PRs not receiving
+          # an OIDC token; adding this trigger invalidates that reasoning and
+          # must be a deliberate, reviewed decision rather than a quiet one.
+          if grep -rn --include='*.yml' --include='*.yaml' -E '^\s*pull_request_target:' .github/workflows/; then
+            echo "::error::pull_request_target trigger added. Re-read the planner binding rationale in infra/README.md before allowing this."
+            exit 1
+          fi
+          echo "ok: no pull_request_target triggers"
+
+      - name: Budget precedes billable resources
+        run: |
+          set -euo pipefail
+          # ADR-0012. Each billable module must carry an explicit graph edge to
+          # the budget module, not merely be written below it in the file.
+          for mod in firebase ai_proxy; do
+            if ! grep -A40 "^module \"${mod}\"" infra/modules/platform/main.tf | grep -q 'depends_on.*module.budget'; then
+              echo "::error::module.${mod} has no depends_on module.budget. ADR-0012 requires guardrails first."
+              exit 1
+            fi
+          done
+          echo "ok: billable modules depend on the budget module"
+
+  # -------------------------------------------------------------------------
+  # Plan on PR. Requires WIF, which forks cannot have — so it skips cleanly
+  # rather than failing red on a contribution from outside.
+  # -------------------------------------------------------------------------
+  plan:
+    name: Plan (dev)
+    runs-on: ubuntu-latest
+    needs: [check, guardrails]
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+
+    permissions:
+      contents: read
+      id-token: write        # required to request the OIDC token
+      pull-requests: write   # to post the plan as a comment
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Everything below is conditional on this. Repository variables are
+      # unset on a fresh clone and unavailable to forks, so the job no-ops
+      # until a maintainer has run the bootstrap in infra/README.md.
+      - name: Is WIF configured?
+        id: wif
+        run: |
+          if [ -n "${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}" ] && [ -n "${{ vars.GCP_PLAN_SERVICE_ACCOUNT }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::WIF variables absent — skipping plan. This is expected on forks and before infra bootstrap."
+          fi
+
+      # Keyless. No service-account JSON exists to be stored here (ADR-0011).
+      - uses: google-github-actions/auth@v2
+        if: steps.wif.outputs.configured == 'true'
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_PLAN_SERVICE_ACCOUNT }}
+          # Short-lived by construction. A plan takes minutes, not an hour.
+          access_token_lifetime: '600s'
+
+      - uses: hashicorp/setup-terraform@v3
+        if: steps.wif.outputs.configured == 'true'
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Plan
+        if: steps.wif.outputs.configured == 'true'
+        id: plan
+        working-directory: infra/envs/dev
+        run: |
+          set -euo pipefail
+          terraform init -input=false -no-color \
+            -backend-config="bucket=${{ vars.GCP_TFSTATE_BUCKET }}"
+
+          # -lock=false because the planner identity has objectViewer on the
+          # state bucket and cannot write a lock. Read-only by design; see
+          # infra/README.md.
+          terraform plan -input=false -no-color -lock=false \
+            -var "project_id=${{ vars.GCP_PROJECT_ID }}" \
+            -var "billing_account=${{ vars.GCP_BILLING_ACCOUNT }}" \
+            -var "state_bucket=${{ vars.GCP_TFSTATE_BUCKET }}" \
+            -var "github_repository=${{ github.repository }}" \
+            -var "github_repository_id=${{ github.repository_id }}" \
+            -var "github_repository_owner_id=${{ github.repository_owner_id }}" \
+            | tee plan.txt
+
+      - name: Comment plan on PR
+        if: steps.wif.outputs.configured == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let plan = fs.readFileSync('infra/envs/dev/plan.txt', 'utf8');
+            // Keep the comment under GitHub's 65536-character body limit.
+            const LIMIT = 60000;
+            if (plan.length > LIMIT) {
+              plan = plan.slice(-LIMIT) + '\n\n… truncated; see the job log for the full plan.';
+            }
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: ['#### Terraform plan — `envs/dev`', '', '```terraform', plan, '```'].join('\n'),
+            });

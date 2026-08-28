@@ -1,0 +1,133 @@
+{
+  "_comment": [
+    "Emulator-only Firestore fixtures.",
+    "",
+    "PROVISIONAL SHAPE. packages/data (team domain-model) owns the real schema.",
+    "Document paths and field names live in this JSON rather than in seed.mjs",
+    "precisely so that re-pointing them at the real schema is a data edit, not a",
+    "code change. If a path here has drifted from firestore.rules, this file is",
+    "the thing that is wrong.",
+    "",
+    "Everything sits under users/{uid}/... because that is the only subtree",
+    "firestore.rules currently allows anyone to read (default deny otherwise).",
+    "",
+    "Numbers are stored in canonical units -- kilograms and seconds -- so that",
+    "unit preference stays a display concern."
+  ],
+  "documents": {
+    "users/seed-anon-fresh": {
+      "createdAt": "2026-08-01T08:00:00Z",
+      "unitPreference": "metric",
+      "onboarded": false
+    },
+
+    "users/seed-returning": {
+      "createdAt": "2025-11-14T07:12:00Z",
+      "unitPreference": "metric",
+      "onboarded": true,
+      "displayName": "Returning lifter"
+    },
+    "users/seed-returning/workouts/w-2026-08-24": {
+      "startedAt": "2026-08-24T17:30:00Z",
+      "completedAt": "2026-08-24T18:41:00Z",
+      "title": "Lower A",
+      "totalVolumeKg": 8420,
+      "setCount": 18
+    },
+    "users/seed-returning/workouts/w-2026-08-26": {
+      "startedAt": "2026-08-26T17:26:00Z",
+      "completedAt": "2026-08-26T18:33:00Z",
+      "title": "Upper A",
+      "totalVolumeKg": 6115,
+      "setCount": 16
+    },
+    "users/seed-returning/workouts/w-2026-08-28": {
+      "startedAt": "2026-08-28T17:31:00Z",
+      "title": "Lower B",
+      "totalVolumeKg": 0,
+      "setCount": 0
+    },
+
+    "users/seed-returning/sets/s-0001": {
+      "workoutId": "w-2026-08-24",
+      "exerciseId": "back-squat",
+      "index": 1,
+      "weightKg": 100,
+      "reps": 5,
+      "rpe": 7.5,
+      "restSeconds": 180,
+      "completedAt": "2026-08-24T17:36:00Z"
+    },
+    "users/seed-returning/sets/s-0002": {
+      "workoutId": "w-2026-08-24",
+      "exerciseId": "back-squat",
+      "index": 2,
+      "weightKg": 102.5,
+      "reps": 5,
+      "rpe": 8,
+      "restSeconds": 180,
+      "completedAt": "2026-08-24T17:41:00Z"
+    },
+    "users/seed-returning/sets/s-0003": {
+      "workoutId": "w-2026-08-24",
+      "exerciseId": "romanian-deadlift",
+      "index": 1,
+      "weightKg": 80,
+      "reps": 8,
+      "rpe": 7,
+      "restSeconds": 120,
+      "completedAt": "2026-08-24T17:52:00Z"
+    },
+    "users/seed-returning/sets/s-0004": {
+      "workoutId": "w-2026-08-26",
+      "exerciseId": "bench-press",
+      "index": 1,
+      "weightKg": 70,
+      "reps": 6,
+      "rpe": 8,
+      "restSeconds": 180,
+      "completedAt": "2026-08-26T17:33:00Z"
+    },
+
+    "users/seed-returning/aggregates/weekly-volume": {
+      "_comment": "ADR-0005: charts read a materialised aggregate, never a Firestore query. This document is what an insights view is allowed to open.",
+      "updatedAt": "2026-08-26T18:35:00Z",
+      "unit": "kg",
+      "weeks": [
+        { "isoWeek": "2026-W31", "volumeKg": 21400, "sets": 46 },
+        { "isoWeek": "2026-W32", "volumeKg": 22850, "sets": 49 },
+        { "isoWeek": "2026-W33", "volumeKg": 20110, "sets": 43 },
+        { "isoWeek": "2026-W34", "volumeKg": 14535, "sets": 34 }
+      ]
+    },
+    "users/seed-returning/aggregates/personal-records": {
+      "updatedAt": "2026-08-24T18:41:00Z",
+      "records": [
+        { "exerciseId": "back-squat", "weightKg": 102.5, "reps": 5, "on": "2026-08-24" },
+        { "exerciseId": "bench-press", "weightKg": 75, "reps": 5, "on": "2026-08-19" },
+        { "exerciseId": "deadlift", "weightKg": 140, "reps": 3, "on": "2026-08-12" }
+      ]
+    },
+
+    "users/seed-returning/quotas/ai": {
+      "_comment": "ADR-0016: the per-uid AI ceiling the proxy decrements. Seeded near its limit so the degraded, deterministic path is the default thing a developer sees.",
+      "day": "2026-08-28",
+      "callsUsed": 18,
+      "callsAllowed": 20
+    },
+
+    "users/seed-anon-upgraded": {
+      "createdAt": "2026-08-20T09:03:00Z",
+      "unitPreference": "imperial",
+      "onboarded": true,
+      "upgradedFromAnonymousAt": "2026-08-27T20:15:00Z"
+    },
+    "users/seed-anon-upgraded/workouts/w-2026-08-27": {
+      "startedAt": "2026-08-27T06:02:00Z",
+      "completedAt": "2026-08-27T06:44:00Z",
+      "title": "Full body",
+      "totalVolumeKg": 3980,
+      "setCount": 12
+    }
+  }
+}

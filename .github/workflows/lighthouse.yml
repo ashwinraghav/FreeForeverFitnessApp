@@ -1,0 +1,113 @@
+name: Lighthouse
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lighthouse:
+    name: PWA + accessibility >= 95
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # apps/web does not exist yet (Phase 0). Skipping is deliberate and
+      # loud: a green tick that silently checked nothing is worse than no
+      # check at all, so the reason is written into the job summary.
+      - name: Does apps/web exist?
+        id: web
+        run: |
+          set -euo pipefail
+          if [ -f apps/web/package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Lighthouse skipped"
+              echo
+              echo "\`apps/web\` does not exist yet, so there is nothing to audit."
+              echo "This job becomes blocking the moment the web app lands —"
+              echo "no workflow change required."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice::apps/web absent — Lighthouse skipped (expected in Phase 0)."
+          fi
+
+      - uses: pnpm/action-setup@v4
+        if: steps.web.outputs.present == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.web.outputs.present == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Build
+        if: steps.web.outputs.present == 'true'
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @freeforever/web build
+
+      # Pinned: the PWA category exists in Lighthouse 11 and was removed in
+      # Lighthouse 12. Unpinning would turn the PWA assertion into a silent
+      # no-op rather than a failure — see the check below, which is version
+      # independent and exists precisely because this pin will not last.
+      - name: Lighthouse CI
+        if: steps.web.outputs.present == 'true'
+        run: npx --yes @lhci/cli@0.13.x autorun --config=.github/lighthouserc.json
+
+      # Deterministic installability check. Does not depend on Lighthouse
+      # having a PWA category, or on Lighthouse at all.
+      - name: PWA installability (version independent)
+        if: steps.web.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          dist=apps/web/dist
+
+          manifest=$(find "${dist}" -maxdepth 2 -name 'manifest*.webmanifest' -o -maxdepth 2 -name 'manifest*.json' | head -1)
+          if [ -z "${manifest}" ]; then
+            echo "::error::No web app manifest in ${dist}. ADR-0008 makes the PWA the product."
+            exit 1
+          fi
+
+          node -e '
+            const fs = require("fs");
+            const m = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const missing = ["name", "start_url", "display", "icons"].filter((k) => !m[k]);
+            if (missing.length) {
+              console.error(`::error::manifest missing: ${missing.join(", ")}`);
+              process.exit(1);
+            }
+            // Installability needs an icon of at least 192px square.
+            const bigEnough = (m.icons ?? []).some((icon) =>
+              String(icon.sizes ?? "")
+                .split(/\s+/)
+                .some((size) => {
+                  const [w, h] = size.toLowerCase().split("x").map(Number);
+                  return w >= 192 && h >= 192;
+                }),
+            );
+            if (!bigEnough) {
+              console.error("::error::manifest has no icon of at least 192x192");
+              process.exit(1);
+            }
+            console.log("manifest ok:", m.name);
+          ' "${manifest}"
+
+          if ! grep -rqE 'serviceWorker\.register|registerSW|workbox' "${dist}"; then
+            echo "::error::No service worker registration found in ${dist}."
+            exit 1
+          fi
+          echo "ok: manifest and service worker present"
+
+      - name: Upload Lighthouse report
+        if: always() && steps.web.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: .lighthouseci/
+          retention-days: 7
+          if-no-files-found: ignore

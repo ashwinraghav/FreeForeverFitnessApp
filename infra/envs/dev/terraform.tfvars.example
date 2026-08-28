@@ -1,0 +1,42 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+#
+# NOTHING IN THIS FILE IS A SECRET, and nothing secret may ever be added to it.
+# Where a secret is genuinely needed (OAuth client secrets, the reCAPTCHA site
+# secret, the AI provider key) this file carries the NAME of a Secret Manager
+# secret and Terraform reads the value at apply time.
+#
+# If you find yourself pasting a key here, stop: that is the failure this
+# repository's entire security posture is arranged to prevent (SECURITY.md).
+
+project_id      = "REPLACE-ME-dev"
+billing_account = "REPLACE-ME-000000-000000-000000"
+state_bucket    = "REPLACE-ME-tfstate"
+region          = "europe-west1"
+
+budget_amount_usd = 5
+alert_emails      = ["REPLACE-ME@example.com"]
+
+# --- Workload Identity Federation (ADR-0011) ----------------------------
+# Exactly one repository. The numeric IDs are what make the binding immune to
+# a repo being renamed, deleted, or its name re-registered by someone else.
+#
+#   gh api repos/OWNER/REPO --jq .id
+#   gh api users/OWNER      --jq .id      (or orgs/OWNER for an organisation)
+github_repository          = "REPLACE-ME-owner/TheFreeForeverFitnessApp"
+github_repository_id       = "REPLACE-ME-000000000"
+github_repository_owner_id = "REPLACE-ME-0000000"
+deploy_branch              = "main"
+
+# --- Auth providers -----------------------------------------------------
+# Leave disabled until the OAuth clients exist. Anonymous and email-link work
+# without any of this, which is the whole point of ADR-0009.
+enable_google_signin   = false
+google_oauth_client_id = ""
+google_oauth_secret_id = "" # e.g. "google-oauth-client-secret" -- a NAME
+
+enable_apple_signin   = false
+apple_services_id     = ""
+apple_oauth_secret_id = "" # e.g. "apple-oauth-client-secret" -- a NAME
+
+# --- Emergency ----------------------------------------------------------
+ai_proxy_kill_switch = false

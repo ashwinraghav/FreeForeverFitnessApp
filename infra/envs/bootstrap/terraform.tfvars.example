@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+# No secrets belong in this file. Project IDs and bucket names are not secret,
+# but they are also not this repository's business, so they stay out of git.
+
+project_id            = "REPLACE-ME-prod-project-id"
+state_bucket_name     = "REPLACE-ME-tfstate"
+state_bucket_location = "EU"
+region                = "europe-west1"
+
+state_admin_principals = [
+  # "user:maintainer@example.com",
+]
