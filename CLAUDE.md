@@ -53,6 +53,32 @@ Security Policy, the service worker, App Check enforcement, auth and account-lin
 (from Phase 3) the AI proxy and its quotas. **An artefact with no owner is a defect in this
 map, not an oversight by a team.**
 
+## No test in this repo can catch a layout bug
+
+jsdom has no layout engine. Every element reports zero size, so the whole suite is green
+at every viewport because it does not know what a viewport is. This is not a gap that
+more tests fix — it is a gap the test *environment* cannot address.
+
+It has already cost real bugs twice, both found only by opening a browser:
+
+- The rest bar measured 490px inside a 390px screen and pushed the button that ends the
+  rest off the right edge. A grid item's default `min-width: auto` refused to shrink.
+- An `IconButton` with `aspect-ratio: 1 / 1` sat in a `1fr` column of a full-width grid,
+  so at 1920px it became 624px wide and therefore 624px tall, stretching the whole action
+  bar to 649px and burying the screen. **The same bug was present at 390px** — 114px
+  instead of 81px — survivable, which is exactly why nobody caught it there.
+
+Two rules follow:
+
+1. **Check a real browser at more than one viewport before calling a screen done.**
+   `pnpm dev` and resize. Four minutes found the second bug; nothing else would have.
+2. **Be suspicious of `aspect-ratio` and of any intrinsically-sized control inside a
+   flexible track.** Both bugs were a sizing rule meeting a container that grows.
+
+If a layout assertion ever becomes testable here it will need a real browser
+(Playwright or similar) — a tier this repo does not yet have. Until then this is on
+whoever opens the app.
+
 ## Two jsdom traps that make tests pass for the wrong reason
 
 Both found the hard way. A test that passes because it never exercised anything is

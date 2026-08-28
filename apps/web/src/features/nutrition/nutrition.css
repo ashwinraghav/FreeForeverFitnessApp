@@ -17,6 +17,22 @@
   flex-direction: column;
   min-block-size: 100%;
   padding-block-end: var(--ff-space-24);
+
+  /*
+   * A phone-width column, centred, on anything wider.
+   *
+   * This is a phone-first PWA (ADR-0008) and a wide viewport is not the
+   * target — but it is a web app, so people will open it on a laptop, and
+   * "not the target" and "broken" are different things. Capping the column
+   * keeps the one-number-per-glance layout intact instead of stretching a
+   * design built for a thumb across 1500px.
+   *
+   * Expressed in spacing tokens rather than a raw width so it scales with the
+   * root font size: the app has to work at a 200% text setting (ADR-0013).
+   */
+  inline-size: 100%;
+  max-inline-size: calc(var(--ff-space-64) * 8);
+  margin-inline: auto;
 }
 
 .ffn-pad {
@@ -195,8 +211,19 @@
 
 .ffn-actions {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
+  /*
+   * `1fr 1fr auto`, NOT three equal columns.
+   *
+   * `IconButton` is square by design — the design system gives it
+   * `aspect-ratio: 1 / 1`. Put it in a `1fr` column and its width becomes a
+   * third of the bar, so its HEIGHT does too: at 1568px that made it 624px
+   * tall, which sized the grid row, which stretched the other two buttons to
+   * match and buried the rest of the screen under a 649px action bar. The two
+   * text buttons share the space; the square one takes exactly what it needs.
+   */
+  grid-template-columns: 1fr 1fr auto;
+  /* Belt and braces: never stretch a control to the row's height. */
+  align-items: center;
   gap: var(--ff-space-8);
   padding: var(--ff-space-12) var(--ff-space-16);
   position: sticky;
