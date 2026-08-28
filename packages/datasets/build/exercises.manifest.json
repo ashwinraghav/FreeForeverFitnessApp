@@ -1,0 +1,9 @@
+{
+  "file": "exercises.json.gz",
+  "count": 873,
+  "bytes": 1704139,
+  "gzipBytes": 216760,
+  "sha256": "sha256-PZ9fe5sszrnmqaY2fEFDQMdZX5xwIz+Ofo+mOmDBZeY=",
+  "licence": "Unlicense",
+  "source": "https://github.com/yuhonas/free-exercise-db"
+}

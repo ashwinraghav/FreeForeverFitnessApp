@@ -1,7 +1,13 @@
 node_modules/
 dist/
-build/
 coverage/
+
+# NOTE: no blanket `build/` rule. It used to be here and it silently excluded
+# packages/datasets/build — the versioned food and exercise index artefacts,
+# which are deliberately committed. ADR-0007 serves them from the public repo
+# via jsDelivr, which requires them to be in the repo, and apps/web copies them
+# into public/data before dev and build, which fails on a fresh clone without
+# them. Ignore build output per-package instead of by pattern.
 .turbo/
 *.log
 

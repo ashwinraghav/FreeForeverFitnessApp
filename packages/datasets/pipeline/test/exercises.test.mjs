@@ -171,6 +171,77 @@ test('every exercise has an effort unit, and holds are not counted in reps', () 
   }
 });
 
+/**
+ * The whole category x effortUnit matrix, asserted.
+ *
+ * The cardio bug was not that one rule was wrong — it was that a category fell
+ * through a default and nothing looked at the result. A per-row assertion would
+ * not have caught it either, because nobody writes a per-row assertion for a
+ * category they forgot existed. Asserting the matrix means any category whose
+ * effort units change, or any new category, shows up here.
+ */
+test('no category has an effort unit that makes no sense for it', () => {
+  /** @type {Record<string, string[]>} */
+  const ALLOWED = {
+    strength: ['reps', 'time', 'distance'], // isometrics are held, sled rows are dragged
+    powerlifting: ['reps'],
+    'olympic weightlifting': ['reps'],
+    plyometrics: ['reps', 'time'],
+    strongman: ['reps', 'distance'], // carries and drags
+    stretching: ['time'],
+    cardio: ['time', 'distance'],
+  };
+
+  /** @type {Record<string, Set<string>>} */
+  const seen = {};
+  for (const e of catalogue.all()) {
+    (seen[e.category] ??= new Set()).add(e.effortUnit);
+  }
+
+  const undeclared = Object.keys(seen).filter((c) => !ALLOWED[c]);
+  assert.deepEqual(
+    undeclared,
+    [],
+    'a category with no declared effort units — decide what a set of it counts and add it here',
+  );
+
+  for (const [category, units] of Object.entries(seen)) {
+    const allowed = /** @type {string[]} */ (ALLOWED[category]);
+    const wrong = [...units].filter((u) => !allowed.includes(u));
+    assert.deepEqual(wrong, [], `${category} should never be ${wrong.join(', ')}`);
+  }
+});
+
+test('nobody does ten reps of an elliptical', () => {
+  // The regression, named after the way it was reported. Cardio is logged by
+  // duration; an elliptical and a stationary bike have no distance to record.
+  const cardio = catalogue.all().filter((e) => e.category === 'cardio');
+  assert.ok(cardio.length >= 14, 'cardio rows disappeared from the catalogue');
+  assert.deepEqual(
+    cardio.filter((e) => e.effortUnit === 'reps').map((e) => e.name),
+    [],
+  );
+
+  const unit = (/** @type {string} */ n) =>
+    catalogue.all().find((x) => x.name === n)?.effortUnit;
+  for (const n of [
+    'Bicycling',
+    'Bicycling, Stationary',
+    'Elliptical Trainer',
+    'Jogging, Treadmill',
+    'Recumbent Bike',
+    'Rowing, Stationary',
+    'Stairmaster',
+    'Walking, Treadmill',
+  ]) {
+    assert.equal(unit(n), 'time', n);
+  }
+
+  // A sled push filed under cardio is still a carry, so the name overrides the
+  // category default rather than the other way round.
+  assert.equal(unit('Prowler Sprint'), 'distance');
+});
+
 test('search matches names and gym shorthand', () => {
   assert.ok(catalogue.search('ohp').length > 0);
   assert.equal(catalogue.search('barbell squat')[0]?.exercise.name, 'Barbell Squat');

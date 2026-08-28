@@ -55,16 +55,48 @@ const UPSTREAM = {
  * analysis at all ("body only" is bodyweight, "bands" is elastic, everything
  * else is external load), and a second field carrying the same fact is a second
  * field that can disagree with the first.
+ *
+ * EVERY category needs an entry. The first version of this function defaulted
+ * to `reps` for anything it did not recognise, and `cardio` fell straight
+ * through it — the whole category shipped claiming you do ten reps of an
+ * elliptical. An exhaustive table plus a build failure on an unknown category
+ * is the difference between a rule and a hope: the next category upstream adds
+ * stops the build instead of quietly becoming reps.
  */
+const CATEGORY_EFFORT = {
+  strength: 'reps',
+  powerlifting: 'reps',
+  'olympic weightlifting': 'reps',
+  plyometrics: 'reps',
+  strongman: 'reps',
+  stretching: 'time',
+  /**
+   * Time, uniformly. Every cardio movement here is legitimately logged by
+   * duration, and duration is the axis that is never wrong — an elliptical and
+   * a stationary bike have no distance to record. Outdoor running and rowing
+   * can *also* be logged by distance, but that is a second metric alongside
+   * time rather than a replacement for it, and choosing which axes a set
+   * records is the logging schema's decision, not a property of the exercise.
+   * A single-valued field should carry the axis you must record.
+   */
+  cardio: 'time',
+};
+
+/** Overrides the category default: a held or carried movement in any category. */
 const TIMED = /plank|\bhold\b|isometric|wall sit|dead hang|side bridge/i;
 const DISTANCE =
   /\bcarry\b|farmer'?s walk|monster walk|sled (drag|push|pull|row)|(backward|forward) drag|prowler|yoke walk|duck walk|waiter walk|overhead walk|bear crawl/i;
 
-/** @param {string} name @param {string} category */
+/**
+ * @param {string} name @param {string} category
+ * @returns {'reps'|'time'|'distance'|null} null when the category is unknown
+ */
 function effortUnitFor(name, category) {
+  const base = CATEGORY_EFFORT[/** @type {keyof typeof CATEGORY_EFFORT} */ (category)];
+  if (!base) return null;
   if (DISTANCE.test(name)) return 'distance';
-  if (category === 'stretching' || TIMED.test(name)) return 'time';
-  return 'reps';
+  if (TIMED.test(name)) return 'time';
+  return base;
 }
 
 /**
@@ -113,6 +145,8 @@ const bump = (into, key) => {
 };
 /** @type {Set<string>} */
 const unknownMuscles = new Set();
+/** @type {Set<string>} */
+const unknownCategories = new Set();
 /** @type {Record<string, number>} */
 const effortUnits = {};
 let withoutCues = 0;
@@ -142,6 +176,15 @@ for (const src of raw) {
     primary,
     secondary,
   };
+  const effortUnit = () => {
+    const unit = effortUnitFor(name, ctx.category);
+    if (!unit) {
+      unknownCategories.add(ctx.category);
+      return 'reps';
+    }
+    return unit;
+  };
+
   const coaching = coachingFor(ctx);
   for (const p of coaching.patterns) patternCoverage[p] = (patternCoverage[p] ?? 0) + 1;
   if (coaching.patterns.length === 0) withoutCues++;
@@ -167,7 +210,7 @@ for (const src of raw) {
      * "don't know", not a default.
      */
     deltoidBasis: p.basis ?? sec.basis ?? null,
-    effortUnit: effortUnitFor(name, ctx.category),
+    effortUnit: effortUnit(),
     instructions: (src.instructions ?? []).map((/** @type {string} */ s) => s.trim()).filter(Boolean),
     formCues: coaching.cues,
     commonMistakes: coaching.mistakes,
@@ -193,6 +236,18 @@ if (unknownMuscles.size > 0) {
   console.error(
     `\nunknown muscle name(s) from upstream: ${[...unknownMuscles].join(', ')}\n` +
       'Add them to MUSCLE in pipeline/lib/muscles.mjs before rebuilding.',
+  );
+  process.exit(1);
+}
+
+// Same reasoning, and the failure that would have caught the cardio bug: a
+// category with no declared effort unit is a decision nobody has made yet, and
+// silently calling it `reps` is how "ten reps of an elliptical" shipped.
+if (unknownCategories.size > 0) {
+  console.error(
+    `\nunknown exercise category from upstream: ${[...unknownCategories].join(', ')}\n` +
+      'Add an entry to CATEGORY_EFFORT in this file — decide whether a set of it is\n' +
+      'counted in reps, held for time, or covered as distance — before rebuilding.',
   );
   process.exit(1);
 }

@@ -112,12 +112,35 @@ the artefact.
 
 ## `effortUnit`
 
-How a set is counted: `reps` (732), `time` (130), `distance` (11).
+How a set is counted: `reps` (719), `time` (143), `distance` (11).
 
 Not in the upstream data, and not derivable from `category` alone — *Plank* and
 *Push Up* are both `strength`, and one is held while the other is counted. It
 takes name analysis, and analysis of the data belongs with the data rather than
 in each consumer's adapter.
+
+Each category declares a default; a movement name matching a hold or a carry
+overrides it, so a sled push filed under `cardio` is still `distance`.
+
+| Category | Default | Also seen |
+|---|---|---|
+| `strength`, `powerlifting`, `olympic weightlifting`, `plyometrics`, `strongman` | `reps` | `time` for isometrics, `distance` for carries and drags |
+| `stretching` | `time` | — |
+| `cardio` | `time` | `distance` for sled work filed here |
+
+**Cardio is `time`, uniformly.** Every cardio movement in the set is
+legitimately logged by duration, and duration is the axis that is never wrong —
+an elliptical and a stationary bike have no distance to record. Outdoor running
+and rowing can *also* be logged by distance, but that is a second metric
+alongside time rather than a replacement for it, and choosing which axes a set
+records is the logging schema's decision, not a property of the exercise. A
+single-valued field should carry the axis you must record.
+
+The category table is exhaustive and **an unrecognised category fails the
+build**. The first version of this rule defaulted to `reps` for anything it did
+not recognise, and `cardio` fell straight through it: the whole category shipped
+claiming you do ten reps of an elliptical. An exhaustive table plus a build
+failure is the difference between a rule and a hope.
 
 There is deliberately **no `loadKind`** companion. Load follows from `equipment`
 with no analysis at all: `body only` is bodyweight, `bands` is elastic,
@@ -142,6 +165,11 @@ assert.deepEqual(catalogue.unmappedMuscleNames(MY_MUSCLES), []);
 assert.deepEqual(catalogue.unmappedEquipmentNames(MY_EQUIPMENT), []);
 ```
 
-The build enforces the same thing from its side: an unrecognised upstream muscle
-name **fails the build** rather than shipping an exercise with a silently empty
-muscle list.
+The build enforces the same thing from its side. An unrecognised upstream
+**muscle name** or **exercise category** fails the build rather than shipping an
+exercise with a silently empty muscle list or a silently wrong effort unit.
+
+Our own suite also asserts the whole category x `effortUnit` matrix, not just
+individual rows. That distinction matters: the cardio bug was not one wrong
+rule, it was a category falling through a default, and nobody writes a per-row
+assertion for a category they forgot existed.

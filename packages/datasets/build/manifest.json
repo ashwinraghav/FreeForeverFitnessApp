@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "indexVersion": "2026.08.1",
+  "builtAt": "2026-08-28T09:15:48.562Z",
+  "locale": "us",
+  "budgetBytes": 4194304,
+  "totalGzipBytes": 41766,
+  "shards": {
+    "core": {
+      "candidates": 486,
+      "shipped": 486,
+      "droppedForBudget": 0,
+      "gzipBytes": 23290,
+      "bytesPerRecord": 47.9
+    },
+    "off": {
+      "candidates": 298,
+      "shipped": 298,
+      "droppedForBudget": 0,
+      "gzipBytes": 18476,
+      "bytesPerRecord": 62
+    }
+  },
+  "dedupe": {
+    "input": 791,
+    "byGtinWithinShard": 0,
+    "offSuppressedByCore": 0,
+    "byFingerprint": 7,
+    "output": 784
+  },
+  "artefacts": [
+    {
+      "shard": "core",
+      "licence": "public-domain-usgov",
+      "files": [
+        {
+          "role": "records",
+          "file": "food-core-records-2026.08.1.bin.gz",
+          "bytes": 35394,
+          "gzipBytes": 14763,
+          "sha256": "sha256-VyUEBjJlBW5/6EkilHmxdj7cgu9zipS8K21v6mp7Zzw="
+        },
+        {
+          "role": "search",
+          "file": "food-core-search-2026.08.1.bin.gz",
+          "bytes": 11773,
+          "gzipBytes": 7790,
+          "sha256": "sha256-qBS/k8bgQy4HI58ojHAmDzj9eSGEcxyBHkgsgXKTYnY="
+        },
+        {
+          "role": "barcodes",
+          "file": "food-core-barcodes-2026.08.1.bin.gz",
+          "bytes": 784,
+          "gzipBytes": 737,
+          "sha256": "sha256-OH2VCfBcMGD60/PcCzL2n1kGCZdxycG5I2WMb92F178="
+        }
+      ]
+    },
+    {
+      "shard": "off",
+      "licence": "ODbL-1.0",
+      "files": [
+        {
+          "role": "records",
+          "file": "food-off-records-2026.08.1.bin.gz",
+          "bytes": 23710,
+          "gzipBytes": 11531,
+          "sha256": "sha256-Y224iDssT8EXOsxg1jnejqw5bLFbfs6ONr064+8Oep8="
+        },
+        {
+          "role": "search",
+          "file": "food-off-search-2026.08.1.bin.gz",
+          "bytes": 8429,
+          "gzipBytes": 5639,
+          "sha256": "sha256-xrpZrjozNtNdOItlyjzbCjYNjDMm6T2wrpEf66+6wic="
+        },
+        {
+          "role": "barcodes",
+          "file": "food-off-barcodes-2026.08.1.bin.gz",
+          "bytes": 1513,
+          "gzipBytes": 1306,
+          "sha256": "sha256-agdW5dA9cyJdP/gGGFP6Rf1ytUGO9XF79YX+y15bnZE="
+        },
+        {
+          "role": "ndjson-parallel-distribution",
+          "file": "food-off-2026.08.1.ndjson.gz",
+          "bytes": 127039,
+          "gzipBytes": 16525,
+          "sha256": "sha256-Fib+/A4sSCioT6xVKEZD5m9CVq5zmdfdpRUkgfw25iM="
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "usda-fdc",
+      "name": "USDA FoodData Central",
+      "url": "https://fdc.nal.usda.gov/",
+      "licence": "public-domain-usgov",
+      "licenceUrl": "https://www.usa.gov/government-works",
+      "shard": "core",
+      "attribution": "U.S. Department of Agriculture, Agricultural Research Service. FoodData Central. fdc.nal.usda.gov.",
+      "shareAlike": false
+    },
+    {
+      "id": "open-food-facts",
+      "name": "Open Food Facts",
+      "url": "https://world.openfoodfacts.org/",
+      "licence": "ODbL-1.0",
+      "licenceUrl": "https://opendatacommons.org/licenses/odbl/1-0/",
+      "contentsLicence": "DbCL-1.0",
+      "shard": "off",
+      "attribution": "Contains information from Open Food Facts (https://world.openfoodfacts.org), made available under the Open Database License (ODbL) v1.0.",
+      "shareAlike": true,
+      "perRecordAttributionUrl": "https://world.openfoodfacts.org/product/{sourceId}",
+      "imagesExcluded": true
+    }
+  ],
+  "licenceVerifiedAt": "2026-08-28"
+}

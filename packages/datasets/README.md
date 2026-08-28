@@ -34,7 +34,7 @@ Node 22+ as it sits.
 ```sh
 cd packages/datasets
 
-node --test "pipeline/test/*.test.mjs"   # 55 tests, ~150 ms
+node --test "pipeline/test/*.test.mjs"   # 58 tests, ~150 ms
 node pipeline/build-food-index.mjs       # builds from fixtures/
 node pipeline/build-exercise-catalogue.mjs
 node pipeline/verify-index.mjs           # integrity + licence compliance
