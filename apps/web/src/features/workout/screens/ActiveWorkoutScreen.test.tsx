@@ -467,6 +467,14 @@ describe('the deterministic coach', () => {
 });
 
 describe('finishing', () => {
+  /**
+   * These assert on the **screen**, not the repository.
+   *
+   * The repository was never the problem: finishing saved the session and cleared the
+   * active slot correctly, and every test here passed while a user tapped Finish and
+   * watched nothing happen — same exercises, same header, clock still counting. The
+   * layer under test was the one that already worked. That is the gap these close.
+   */
   it('writes the session to history and clears the active slot', () => {
     const repository = repositoryWithActiveSession();
     mountScreen(repository);
@@ -480,9 +488,149 @@ describe('finishing', () => {
     expect(history[1]?.exercises[0]?.sets[0]?.weightKg).toBe(100);
   });
 
-  it('cannot be tapped with nothing in the session', () => {
+  it('shows an unmistakable acknowledgement of what was saved', () => {
+    const repository = repositoryWithActiveSession();
+    mountScreen(repository);
+    fireEvent.click(nextLogButton());
+    clock = NOW + 1_800_000;
+    fireEvent.click(button('Finish'));
+
+    expect(screen.getByRole('heading', { name: 'Session saved' })).toBeInTheDocument();
+    // The three numbers: one set, 500kg, half an hour.
+    expect(screen.getByText('500')).toBeInTheDocument();
+    expect(screen.getByText('30m')).toBeInTheDocument();
+  });
+
+  it('says "unknown" rather than zero when the load cannot be resolved', () => {
+    // A bodyweight session with no recorded bodyweight has no computable volume.
+    // Printing 0 tells the lifter they lifted nothing, which is worse than a dash.
+    const repository = memoryWorkoutRepository();
+    const bodyweightOnly = toExerciseRef(
+      STARTER_CATALOGUE.find((entry) => entry.id === 'pull-up')!,
+    );
+    const started = workoutReducer(startWorkout({ now: NOW }), {
+      type: 'add_exercise',
+      exercise: bodyweightOnly,
+      sets: 1,
+      now: NOW,
+    });
+    const exercise = started.workout.exercises[0]!;
+    repository.saveActive(
+      workoutReducer(started, {
+        type: 'set_set_state',
+        exerciseId: exercise.id,
+        setId: exercise.sets[0]!.id,
+        state: 'completed',
+        commit: { reps: 8 },
+        now: NOW,
+      }).workout,
+    );
+
+    mountScreen(repository);
+    fireEvent.click(button('Finish'));
+    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+  });
+
+  it('leaves the logging screen — the exercises are gone from view', () => {
+    // The reported symptom exactly: the exercise stayed on screen after Finish.
+    const repository = repositoryWithActiveSession();
+    mountScreen(repository);
+    expect(screen.getByRole('region', { name: 'Bench Press' })).toBeInTheDocument();
+
+    fireEvent.click(nextLogButton());
+    fireEvent.click(button('Finish'));
+
+    expect(screen.queryByRole('region', { name: 'Bench Press' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Log as made/ })).not.toBeInTheDocument();
+  });
+
+  it('celebrates every record on the summary, where it is the point', () => {
+    const repository = repositoryWithActiveSession();
+    mountScreen(repository);
+    fireEvent.click(weightCell());
+    fireEvent.change(screen.getByLabelText('Weight'), { target: { value: '105' } });
+    fireEvent.click(nextLogButton());
+    fireEvent.click(button('Finish'));
+
+    // Mid-session these collapse to one badge plus a count; here they all show.
+    expect(screen.getByRole('region', { name: 'Personal records' })).toBeInTheDocument();
+    expect(screen.getByText('Heaviest weight')).toBeInTheDocument();
+    expect(screen.getByText('Best estimated 1RM')).toBeInTheDocument();
+  });
+
+  it('lands on a fresh empty session', () => {
+    const repository = repositoryWithActiveSession();
+    const before = repository.loadActive()?.id;
+    mountScreen(repository);
+    fireEvent.click(nextLogButton());
+    fireEvent.click(button('Finish'));
+    fireEvent.click(button('Start next session'));
+
+    expect(screen.getByText('Nothing logged yet')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Session saved' })).not.toBeInTheDocument();
+
+    // A *different*, empty session is now the active one — not the finished one
+    // resurrected, and not nothing at all, so a reload resumes where we are.
+    const after = repository.loadActive();
+    expect(after?.id).not.toBe(before);
+    expect(after?.exercises).toHaveLength(0);
+    expect(after?.status).toBe('in_progress');
+  });
+
+  it('stops the clock once the session is over', () => {
+    // A clock still counting on a finished workout is the loudest possible way of
+    // saying "nothing happened".
+    const repository = repositoryWithActiveSession();
+    const view = mountScreen(repository);
+    fireEvent.click(nextLogButton());
+    clock = NOW + 600_000;
+    fireEvent.click(button('Finish'));
+    fireEvent.click(button('Start next session'));
+
+    expect(view.container.querySelector('.ffw-elapsed')?.textContent).toBe('0:00');
+  });
+});
+
+describe('a session with nothing logged is not a workout', () => {
+  it('does not offer Finish', () => {
+    // Writing an empty session puts a phantom entry into the streak and the session
+    // count that insights reads.
+    mountScreen(repositoryWithActiveSession());
+    expect(screen.queryByRole('button', { name: 'Finish' })).not.toBeInTheDocument();
+  });
+
+  it('offers a clear-up instead, since there is nothing to lose', () => {
+    const repository = repositoryWithActiveSession();
+    mountScreen(repository);
+    const clear = button('Clear session');
+    expect(clear).toBeEnabled();
+
+    fireEvent.click(clear);
+    expect(screen.getByText('Nothing logged yet')).toBeInTheDocument();
+    // Nothing was written to history.
+    expect(repository.loadHistory()).toHaveLength(1);
+  });
+
+  it('offers neither on a session that is completely empty', () => {
     mountScreen(repositoryWithHistory());
-    expect(button('Finish')).toHaveProperty('disabled', true);
+    expect(screen.queryByRole('button', { name: 'Finish' })).not.toBeInTheDocument();
+    expect(button('Clear session')).toBeDisabled();
+  });
+
+  it('offers Finish the moment one set is logged', () => {
+    mountScreen(repositoryWithActiveSession());
+    fireEvent.click(nextLogButton());
+    expect(button('Finish')).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Clear session' })).not.toBeInTheDocument();
+  });
+
+  it('counts a missed set as work worth saving', () => {
+    // A session where everything was missed still happened.
+    mountScreen(repositoryWithActiveSession());
+    fireEvent.click(nextLogButton());
+    fireEvent.click(button(/^Mark as missed: Bench Press, set 1/));
+    expect(button('Finish')).toBeEnabled();
   });
 });
 

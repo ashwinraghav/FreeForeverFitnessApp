@@ -1,4 +1,4 @@
-import { Route, Routes, useNavigate } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 
 import './workout.css';
 import { ActiveWorkoutScreen } from './screens/ActiveWorkoutScreen.js';
@@ -28,19 +28,16 @@ import { localWorkoutRepository } from './storage/workoutStore.js';
  * file to write.
  */
 export default function WorkoutRoutes() {
-  const navigate = useNavigate();
-
   return (
     <Routes>
-      <Route
-        index
-        element={
-          <ActiveWorkoutScreen
-            repository={localWorkoutRepository}
-            onFinished={() => navigate('.', { replace: true })}
-          />
-        }
-      />
+      {/*
+        * No `onFinished` navigation. It used to `navigate('.', { replace: true })`,
+        * which routes to the page you are already on — React Router does not remount,
+        * so nothing re-read the cleared storage and finishing looked like a no-op.
+        * The screen owns its own post-finish state now, which is where it belongs:
+        * the session did not change route, it changed phase.
+        */}
+      <Route index element={<ActiveWorkoutScreen repository={localWorkoutRepository} />} />
       {/* Anything deeper falls back to the session rather than a dead end. */}
       <Route
         path="*"

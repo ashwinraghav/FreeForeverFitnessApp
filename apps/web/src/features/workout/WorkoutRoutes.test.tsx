@@ -53,6 +53,8 @@ describe('the feature entry point', () => {
     expect(app.container.querySelector('.ffw-screen')).not.toBeNull();
     // Bottom-anchored actions, never a top-right "Done" (ADR-0013).
     expect(app.container.querySelector('.ffw-actions')).not.toBeNull();
-    expect(screen.getByRole('button', { name: 'Finish' })).toBeInTheDocument();
+    // With nothing logged the primary action is the clear-up, not Finish — an empty
+    // session is not a workout and must not reach history.
+    expect(screen.getByRole('button', { name: 'Clear session' })).toBeInTheDocument();
   });
 });

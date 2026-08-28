@@ -536,3 +536,96 @@
   font-size: var(--ff-text-caption);
   color: var(--ff-color-fg-muted);
 }
+
+/* ------------------------------------------------------- session summary */
+
+/*
+ * The one screen in this feature that is not read mid-set. The lifter is done,
+ * standing still and holding nothing, so this can breathe where the log cannot.
+ */
+.ffw-summary-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-16);
+  padding: var(--ff-space-32) var(--ff-space-16);
+  padding-block-end: calc(var(--ff-hit-mid-set) + var(--ff-space-48));
+}
+
+.ffw-summary-screen__title {
+  margin: 0;
+  font-size: var(--ff-text-display-lg);
+  line-height: var(--ff-leading-display-lg);
+  font-weight: var(--ff-weight-display-lg);
+  letter-spacing: var(--ff-tracking-display-lg);
+}
+
+.ffw-summary-screen__subtitle {
+  margin: 0;
+  color: var(--ff-color-fg-secondary);
+  font-size: var(--ff-text-body);
+}
+
+.ffw-figures {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: var(--ff-space-8);
+  margin: 0;
+  padding: var(--ff-space-16) 0;
+  border-block: var(--ff-border, 1px) solid var(--ff-color-hairline);
+}
+
+.ffw-figure__value {
+  margin: 0;
+  font-family: var(--ff-font-numeric);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--ff-text-display-lg);
+  line-height: var(--ff-leading-display-lg);
+  font-weight: var(--ff-weight-display-lg);
+}
+
+.ffw-figure__label {
+  font-size: var(--ff-text-caption);
+  color: var(--ff-color-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--ff-tracking-caption);
+}
+
+.ffw-summary-screen__heading {
+  margin: 0 0 var(--ff-space-8);
+  font-size: var(--ff-text-heading);
+  font-weight: var(--ff-weight-heading);
+}
+
+.ffw-pr-list,
+.ffw-summary-screen__breakdown {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ffw-pr-list__item {
+  display: flex;
+  align-items: center;
+  gap: var(--ff-space-8);
+  padding-block: var(--ff-space-4);
+}
+
+.ffw-pr-list__exercise {
+  color: var(--ff-color-fg-secondary);
+  font-size: var(--ff-text-body-sm);
+}
+
+.ffw-summary-screen__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--ff-space-12);
+  padding-block: var(--ff-space-8);
+  border-block-end: var(--ff-border, 1px) solid var(--ff-color-hairline);
+}
+
+.ffw-summary-screen__count {
+  color: var(--ff-color-fg-muted);
+  font-size: var(--ff-text-body-sm);
+  font-variant-numeric: tabular-nums;
+}

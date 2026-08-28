@@ -155,7 +155,20 @@ export type WorkoutAction =
   | { readonly type: 'set_title'; readonly title: string }
   | { readonly type: 'set_session_rpe'; readonly rpe: number | null }
   | { readonly type: 'finish'; readonly now?: number }
-  | { readonly type: 'discard'; readonly now?: number };
+  | { readonly type: 'discard'; readonly now?: number }
+  | {
+      /**
+       * Clear the decks and start over.
+       *
+       * `finish` marks a session completed but leaves it in state, because the screen
+       * still has to render what was just saved. Something has to move on afterwards,
+       * and this is it — without it the screen sat on a completed workout showing the
+       * same exercises and a still-running clock, which read as "Finish did nothing".
+       */
+      readonly type: 'start_new';
+      readonly now?: number;
+      readonly bodyweightKg?: number;
+    };
 
 export function workoutReducer(state: WorkoutState, action: WorkoutAction): WorkoutState {
   switch (action.type) {
@@ -211,6 +224,11 @@ export function workoutReducer(state: WorkoutState, action: WorkoutAction): Work
         status: 'discarded',
         endedAt: action.now ?? Date.now(),
       });
+    case 'start_new':
+      return startWorkout({
+        ...(action.now === undefined ? {} : { now: action.now }),
+        ...(action.bodyweightKg === undefined ? {} : { bodyweightKg: action.bodyweightKg }),
+      });
   }
 }
 
@@ -242,6 +260,19 @@ export function nextSetState(current: SetState): SetState {
   if (current === 'pending') return 'completed';
   if (current === 'completed') return 'failed';
   return 'pending';
+}
+
+/**
+ * Has anything actually been logged?
+ *
+ * The gate on finishing. A session where the lifter opened the app and added an
+ * exercise but never logged a set is not a workout, and writing one to history puts a
+ * phantom session into the streak and the session count that insights reads.
+ */
+export function hasLoggedWork(workout: DraftWorkout): boolean {
+  return workout.exercises.some((exercise) =>
+    exercise.sets.some((set) => set.state !== 'pending'),
+  );
 }
 
 /** Sets in their authoritative order. Array position is never trusted. */

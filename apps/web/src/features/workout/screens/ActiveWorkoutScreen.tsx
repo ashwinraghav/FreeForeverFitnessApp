@@ -10,6 +10,7 @@ import { ExercisePicker } from '../components/ExercisePicker.js';
 import type { EditableField } from '../components/SetRow.js';
 import { recordsThisSession, suggestionFor, suggestionLine } from '../model/coaching.js';
 import { commitValuesFor, ghostsForExercise } from '../model/ghosts.js';
+import type { CompletedSession } from '../model/history.js';
 import {
   historyFor,
   recentExerciseIds,
@@ -20,11 +21,13 @@ import { localDateOf } from '../model/ids.js';
 import {
   canAddExercise,
   canAddSet,
+  hasLoggedWork,
   orderedExercises,
   startWorkout,
   workoutReducer,
 } from '../model/session.js';
-import type { WorkoutState } from '../model/types.js';
+import { SessionSummary } from './SessionSummary.js';
+import type { DraftWorkout, WorkoutState } from '../model/types.js';
 import type { WorkoutRepository } from '../storage/workoutStore.js';
 import { primeAudio, SET_LOGGED_PATTERN, vibrate } from '../timer/feedback.js';
 import { RestBar } from '../timer/RestBar.js';
@@ -83,6 +86,16 @@ export function ActiveWorkoutScreen({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [openEditor, setOpenEditor] = useState<OpenEditor | null>(null);
   const [undoOffer, setUndoOffer] = useState<string | null>(null);
+  /**
+   * The session that was just saved, held only long enough to show it.
+   *
+   * Kept in screen state rather than in the reducer because it is not a workout being
+   * edited — it is a receipt. The reducer moves straight on to a fresh session.
+   */
+  const [justFinished, setJustFinished] = useState<{
+    readonly workout: DraftWorkout;
+    readonly priorSessions: readonly CompletedSession[];
+  } | null>(null);
 
   const history = useMemo(() => repository.loadHistory(), [repository]);
   const recentIds = useMemo(() => recentExerciseIds(history), [history]);
@@ -175,7 +188,14 @@ export function ActiveWorkoutScreen({
   }, []);
 
   const finish = useCallback(() => {
+    // Nothing logged is not a workout. Writing one puts a phantom session into the
+    // streak and the session count that insights reads off the history.
+    if (!hasLoggedWork(state.workout)) return;
+
     const finished = workoutReducer(state, { type: 'finish', now: now() });
+    // Snapshot the history *before* appending, so the summary's record detection
+    // compares this session against what came before rather than against itself.
+    setJustFinished({ workout: finished.workout, priorSessions: repository.loadHistory() });
     repository.appendHistory(toCompletedSession(finished.workout));
     repository.saveActive(null);
     repository.saveRest(null);
@@ -183,16 +203,45 @@ export function ActiveWorkoutScreen({
     onFinished?.();
   }, [state, repository, now, onFinished]);
 
+  const startNext = useCallback(() => {
+    setJustFinished(null);
+    setOpenEditor(null);
+    setUndoOffer(null);
+    dispatch({
+      type: 'start_new',
+      now: now(),
+      ...(state.workout.bodyweightKg === undefined
+        ? {}
+        : { bodyweightKg: state.workout.bodyweightKg }),
+    });
+  }, [now, state.workout.bodyweightKg]);
+
+  const logged = hasLoggedWork(state.workout);
+
   const restingExercise =
     timer.rest === null
       ? null
       : (state.workout.exercises.find((candidate) => candidate.id === timer.rest?.exerciseId) ?? null);
 
+  if (justFinished !== null) {
+    return (
+      <SessionSummary
+        workout={justFinished.workout}
+        priorSessions={justFinished.priorSessions}
+        onStartNext={startNext}
+      />
+    );
+  }
+
   return (
     <div className="ffw-screen">
       <header className="ffw-screen__header">
         <h2 className="ffw-screen__title">{state.workout.title}</h2>
-        <span className="ffw-elapsed">{elapsed(state.workout.startedAt, now())}</span>
+        {/* `endedAt` wins once it exists: a clock still counting on a finished
+            session is the most visible way to say "nothing happened". */}
+        <span className="ffw-elapsed">
+          {elapsed(state.workout.startedAt, state.workout.endedAt ?? now())}
+        </span>
       </header>
 
       <div className="ffw-summary">
@@ -286,9 +335,25 @@ export function ActiveWorkoutScreen({
         >
           <PlusGlyph aria-hidden="true" /> Exercise
         </Button>
-        <Button size="xl" variant="primary" onClick={finish} disabled={exercises.length === 0}>
-          Finish
-        </Button>
+        {logged ? (
+          <Button size="xl" variant="primary" onClick={finish}>
+            Finish
+          </Button>
+        ) : (
+          /*
+           * Finishing needs something to save, so with nothing logged the primary
+           * action is to clear up instead. No confirmation: there is nothing to lose,
+           * which is exactly the condition that put us in this branch.
+           */
+          <Button
+            size="xl"
+            variant="secondary"
+            onClick={startNext}
+            disabled={exercises.length === 0}
+          >
+            Clear session
+          </Button>
+        )}
       </div>
 
       {timer.rest === null ? null : (
