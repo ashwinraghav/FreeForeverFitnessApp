@@ -479,11 +479,18 @@ service cloud.firestore {
     // the user ticks that box specifically.
     // -------------------------------------------------------------------------
 
+    // The prefix is the one storage.rules actually serves — `users/{uid}/photos/`,
+    // not merely `users/{uid}/`. Two rulesets that disagree about where the bytes
+    // live are two places for someone to look, and only one of them is enforcing.
+    function ownPhotoPrefix(uid) {
+      return 'users/' + uid + '/photos/';
+    }
+
     function isOwnStoragePath(uid, value) {
       return value is string
         && value.size() <= 512
-        && value.size() > ('users/' + uid + '/').size()
-        && value[0:('users/' + uid + '/').size()] == 'users/' + uid + '/';
+        && value.size() > ownPhotoPrefix(uid).size()
+        && value[0:ownPhotoPrefix(uid).size()] == ownPhotoPrefix(uid);
     }
 
     function validProgressPhoto(uid) {
@@ -498,7 +505,7 @@ service cloud.firestore {
         && isOwnStoragePath(uid, data().storagePath)
         && isCount(data().widthPx, 20000)
         && isCount(data().heightPx, 20000)
-        && isCount(data().byteSize, 50000000)
+        && isCount(data().byteSize, 10485760)
         && optText('blurhash', 64)
         && optQuantity('weightKg', 1000)
         && optText('note', 280);
@@ -736,6 +743,19 @@ service cloud.firestore {
     //     could edit a client's log could hide what they did to it.
     // -------------------------------------------------------------------------
 
+    // When a grant becomes revoked, the moment is stamped by the server, not chosen
+    // by the client. `revokedAt` is only an audit field — no read path consults it —
+    // but an audit field a client can backdate is not an audit field. An update that
+    // leaves an already-revoked grant's stamp alone is still allowed, so editing a
+    // note on a dead grant does not rewrite when it died.
+    //
+    // On create this short-circuits: a grant may not be created already revoked.
+    function validRevocationStamp() {
+      return data().status != 'revoked'
+        || data().revokedAt == request.time
+        || (resource != null && data().revokedAt == resource.data.get('revokedAt', null));
+    }
+
     function validGrantShape(grantId) {
       return data().keys().hasAll(['sv', 'id', 'ownerUid', 'coachUid', 'status', 'scopes',
                                    'createdAt', 'updatedAt'])
@@ -758,6 +778,7 @@ service cloud.firestore {
         && (!('expiresAt' in data()) || data().expiresAt is timestamp)
         && (!('revokedAt' in data()) || data().revokedAt is timestamp)
         && (data().status != 'revoked' || 'revokedAt' in data())
+        && validRevocationStamp()
         && optText('note', 280);
     }
 
