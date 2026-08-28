@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "allowJs": true,
+    "outDir": "dist/types",
+    "rootDir": ".",
+    "emitDeclarationOnly": true,
+    "types": ["vitest/globals"]
+  },
+  "include": ["src", "test", "dist/tokens.ts", "tokens/tokens.json"],
+  "exclude": ["dist/types", "node_modules"]
+}

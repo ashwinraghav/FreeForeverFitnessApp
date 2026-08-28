@@ -1,0 +1,65 @@
+{
+  "name": "@freeforever/design-system",
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
+  "files": [
+    "dist",
+    "src",
+    "tokens",
+    "eslint",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./src/index.ts"
+    },
+    "./tokens": {
+      "types": "./dist/tokens.d.ts",
+      "default": "./dist/tokens.ts"
+    },
+    "./tokens.json": "./tokens/tokens.json",
+    "./tokens.css": "./dist/tokens.css",
+    "./theme.css": "./dist/theme.css",
+    "./styles.css": "./src/styles/primitives.css",
+    "./eslint": "./eslint/index.js"
+  },
+  "scripts": {
+    "build:tokens": "node scripts/build-tokens.mjs",
+    "prepare": "node scripts/build-tokens.mjs",
+    "build": "pnpm run build:tokens && tsc -b",
+    "test": "pnpm run build:tokens && vitest run",
+    "test:watch": "vitest",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "pnpm run build:tokens && storybook build"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@storybook/addon-a11y": "8.6.14",
+    "@storybook/addon-essentials": "8.6.14",
+    "@storybook/react": "8.6.14",
+    "@storybook/react-vite": "8.6.14",
+    "@testing-library/dom": "10.4.0",
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.2.0",
+    "@testing-library/user-event": "14.6.1",
+    "@types/react": "19.0.10",
+    "@types/react-dom": "19.0.4",
+    "@vitejs/plugin-react": "4.3.4",
+    "jsdom": "26.0.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "storybook": "8.6.14",
+    "typescript": "5.7.3",
+    "vite": "6.1.0",
+    "vitest": "4.1.11"
+  }
+}

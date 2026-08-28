@@ -1,0 +1,938 @@
+/*
+ * Primitive styles for @freeforever/design-system.
+ *
+ * This is the ONE file in the repository allowed to contain raw colour, spacing and
+ * duration values, and it barely uses that licence: everything below resolves to a
+ * custom property from dist/tokens.css (ADR-0021). Import order matters:
+ *
+ *   @import "@freeforever/design-system/tokens.css";
+ *   @import "@freeforever/design-system/styles.css";
+ *
+ * Two rules are handled globally here rather than per component, because a rule
+ * enforced in twenty-two places is a rule that will be missed in one of them:
+ *
+ *   1. The focus ring (.ff-focusable) - a two-tone ring, so it stays visible on an
+ *      accent fill as well as on the page behind it.
+ *   2. prefers-reduced-motion - a single block at the bottom of this file.
+ */
+
+:root {
+  /* Internal geometry. Deliberately NOT in tokens.json: these are implementation
+     details of the primitives, not vocabulary other teams should be reaching for.
+     They live on :root so a primitive works wherever it is mounted. */
+  --ff-border: 1px;
+  --ff-border-thick: 2px;
+  --ff-ring-inner: 2px;
+  --ff-ring-outer: 4px;
+}
+
+/* ------------------------------------------------------------------ foundations */
+
+.ff-focusable {
+  outline: none;
+}
+
+.ff-focusable:focus-visible {
+  /* Inner ring contrasts with the control's own fill, outer ring with the page.
+     Together they survive any background - see contrast.pairs in tokens.json. */
+  box-shadow:
+    0 0 0 var(--ff-ring-inner, 2px) var(--ff-color-focus-ring-inner),
+    0 0 0 var(--ff-ring-outer, 4px) var(--ff-color-focus-ring);
+  outline: none;
+  position: relative;
+  z-index: 1;
+}
+
+/* Forced-colors mode throws away box-shadow. Fall back to a real outline. */
+@media (forced-colors: active) {
+  .ff-focusable:focus-visible {
+    outline: var(--ff-border-thick, 2px) solid Highlight;
+    outline-offset: var(--ff-border-thick, 2px);
+  }
+}
+
+.ff-visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Every interactive primitive composes this. The 48px floor is not negotiable
+   (ADR-0013); `xl` raises it to 56 for anything tapped mid-set. */
+.ff-control {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ff-space-8);
+  min-block-size: var(--ff-hit-min);
+  font-family: var(--ff-font-sans);
+  font-variant-numeric: tabular-nums;
+  border: var(--ff-border) solid transparent;
+  border-radius: var(--ff-radius-md);
+  cursor: pointer;
+  transition:
+    background-color var(--ff-duration-fast) var(--ff-ease-standard),
+    border-color var(--ff-duration-fast) var(--ff-ease-standard),
+    color var(--ff-duration-fast) var(--ff-ease-standard);
+  user-select: none;
+}
+
+.ff-control:disabled,
+.ff-control[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ----------------------------------------------------------------------- Button */
+
+.ff-button {
+  padding-inline: var(--ff-space-16);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.ff-button--sm {
+  min-block-size: var(--ff-hit-min);
+  padding-inline: var(--ff-space-12);
+  font-size: var(--ff-text-body-sm);
+  line-height: var(--ff-leading-body-sm);
+  font-weight: var(--ff-weight-label);
+  letter-spacing: var(--ff-tracking-body-sm);
+}
+
+.ff-button--md {
+  min-block-size: var(--ff-hit-min);
+  font-size: var(--ff-text-body);
+  line-height: var(--ff-leading-body);
+  font-weight: var(--ff-weight-heading);
+  letter-spacing: var(--ff-tracking-body);
+}
+
+.ff-button--lg {
+  min-block-size: var(--ff-hit-min);
+  padding-inline: var(--ff-space-20);
+  font-size: var(--ff-text-heading);
+  line-height: var(--ff-leading-heading);
+  font-weight: var(--ff-weight-heading);
+  letter-spacing: var(--ff-tracking-heading);
+}
+
+/* The mid-set size. Bigger target, bigger type, because the user is out of breath
+   and holding a dumbbell in the other hand. */
+.ff-button--xl {
+  min-block-size: var(--ff-hit-mid-set);
+  padding-inline: var(--ff-space-24);
+  font-size: var(--ff-text-title);
+  line-height: var(--ff-leading-title);
+  font-weight: var(--ff-weight-title);
+  letter-spacing: var(--ff-tracking-title);
+}
+
+.ff-button--block {
+  display: flex;
+  inline-size: 100%;
+}
+
+.ff-button--primary {
+  background-color: var(--ff-color-accent);
+  color: var(--ff-color-on-accent);
+}
+.ff-button--primary:hover:not(:disabled) {
+  background-color: var(--ff-color-accent-hover);
+}
+.ff-button--primary:active:not(:disabled) {
+  background-color: var(--ff-color-accent-pressed);
+}
+
+.ff-button--secondary {
+  background-color: var(--ff-color-raised);
+  border-color: var(--ff-color-line-strong);
+  color: var(--ff-color-fg-primary);
+}
+.ff-button--secondary:hover:not(:disabled) {
+  background-color: var(--ff-color-sunken);
+}
+
+.ff-button--ghost {
+  background-color: transparent;
+  color: var(--ff-color-fg-primary);
+}
+.ff-button--ghost:hover:not(:disabled) {
+  background-color: var(--ff-color-raised);
+}
+
+.ff-button--danger {
+  background-color: var(--ff-color-danger);
+  color: var(--ff-color-on-danger);
+}
+.ff-button--danger:hover:not(:disabled) {
+  background-color: var(--ff-color-danger-hover);
+}
+.ff-button--danger:active:not(:disabled) {
+  background-color: var(--ff-color-danger-pressed);
+}
+
+/* ------------------------------------------------------------------- IconButton */
+
+.ff-icon-button {
+  min-inline-size: var(--ff-hit-min);
+  padding: 0;
+  aspect-ratio: 1;
+}
+
+.ff-icon-button--sm,
+.ff-icon-button--md,
+.ff-icon-button--lg {
+  min-block-size: var(--ff-hit-min);
+  min-inline-size: var(--ff-hit-min);
+}
+
+.ff-icon-button--xl {
+  min-block-size: var(--ff-hit-mid-set);
+  min-inline-size: var(--ff-hit-mid-set);
+}
+
+/* ----------------------------------------------------------------------- Fields */
+
+.ff-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-8);
+  font-family: var(--ff-font-sans);
+}
+
+.ff-field__label {
+  font-size: var(--ff-text-label);
+  line-height: var(--ff-leading-label);
+  font-weight: var(--ff-weight-label);
+  letter-spacing: var(--ff-tracking-label);
+  text-transform: uppercase;
+  color: var(--ff-color-fg-secondary);
+}
+
+.ff-field__hint {
+  font-size: var(--ff-text-body-sm);
+  line-height: var(--ff-leading-body-sm);
+  color: var(--ff-color-fg-muted);
+}
+
+.ff-field__error {
+  display: flex;
+  align-items: center;
+  gap: var(--ff-space-4);
+  font-size: var(--ff-text-body-sm);
+  line-height: var(--ff-leading-body-sm);
+  color: var(--ff-color-danger);
+}
+
+.ff-input {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: var(--ff-hit-min);
+  padding-inline: var(--ff-space-12);
+  background-color: var(--ff-color-sunken);
+  border: var(--ff-border) solid var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-md);
+  color: var(--ff-color-fg-primary);
+  font-family: var(--ff-font-sans);
+  font-size: var(--ff-text-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.ff-input::placeholder {
+  color: var(--ff-color-fg-muted);
+  opacity: 1;
+}
+
+.ff-input[aria-invalid='true'] {
+  border-color: var(--ff-color-danger);
+  border-width: var(--ff-border-thick);
+}
+
+.ff-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------------ NumberField */
+
+.ff-number {
+  display: flex;
+  align-items: stretch;
+  gap: var(--ff-space-8);
+}
+
+.ff-number__well {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--ff-space-4);
+  min-block-size: var(--ff-hit-mid-set);
+  padding-inline: var(--ff-space-8);
+  background-color: var(--ff-color-sunken);
+  border: var(--ff-border) solid var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-md);
+}
+
+.ff-number__input {
+  inline-size: 100%;
+  min-inline-size: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--ff-color-fg-primary);
+  font-family: var(--ff-font-numeric);
+  font-size: var(--ff-text-display-lg);
+  line-height: var(--ff-leading-display-lg);
+  font-weight: var(--ff-weight-display-lg);
+  letter-spacing: var(--ff-tracking-display-lg);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* A ghost value is the suggestion carried over from last session. It is NOT an
+   entered value, and the difference has to survive bad light and a greyscale
+   screen - so it is a different weight and a dashed underline, not just a colour. */
+.ff-number__input[data-ff-ghost='true'] {
+  color: var(--ff-color-fg-muted);
+  font-weight: var(--ff-weight-body);
+  text-decoration: underline dashed currentColor;
+  text-underline-offset: var(--ff-space-4);
+}
+
+.ff-number__input::-webkit-outer-spin-button,
+.ff-number__input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.ff-number__unit {
+  color: var(--ff-color-fg-secondary);
+  font-size: var(--ff-text-body-sm);
+  font-weight: var(--ff-weight-label);
+  letter-spacing: var(--ff-tracking-label);
+  text-transform: uppercase;
+}
+
+.ff-number__step {
+  flex: 0 0 auto;
+  min-inline-size: var(--ff-hit-mid-set);
+  min-block-size: var(--ff-hit-mid-set);
+  background-color: var(--ff-color-raised);
+  border: var(--ff-border) solid var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-md);
+  color: var(--ff-color-fg-primary);
+  font-size: var(--ff-text-title);
+}
+
+.ff-number__step:hover:not(:disabled) {
+  background-color: var(--ff-color-sunken);
+}
+
+/* ----------------------------------------------------------------------- Select */
+
+.ff-select {
+  appearance: none;
+  padding-inline-end: var(--ff-space-32);
+}
+
+.ff-select-wrap {
+  position: relative;
+  display: flex;
+}
+
+.ff-select-wrap__chevron {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--ff-space-12);
+  display: flex;
+  align-items: center;
+  color: var(--ff-color-fg-secondary);
+  pointer-events: none;
+}
+
+/* -------------------------------------------------- Toggle / Checkbox / Radio */
+
+.ff-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ff-space-12);
+  min-block-size: var(--ff-hit-min);
+  font-family: var(--ff-font-sans);
+  font-size: var(--ff-text-body);
+  color: var(--ff-color-fg-primary);
+  cursor: pointer;
+}
+
+.ff-choice--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ff-choice__control {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--ff-color-sunken);
+  border: var(--ff-border-thick) solid var(--ff-color-line-strong);
+  color: var(--ff-color-on-accent);
+  transition:
+    background-color var(--ff-duration-fast) var(--ff-ease-standard),
+    border-color var(--ff-duration-fast) var(--ff-ease-standard);
+}
+
+.ff-checkbox__control {
+  inline-size: var(--ff-space-24);
+  block-size: var(--ff-space-24);
+  border-radius: var(--ff-radius-sm);
+}
+
+.ff-radio__control {
+  inline-size: var(--ff-space-24);
+  block-size: var(--ff-space-24);
+  border-radius: var(--ff-radius-full);
+}
+
+.ff-choice input:checked + .ff-choice__control {
+  background-color: var(--ff-color-accent);
+  border-color: var(--ff-color-accent);
+}
+
+.ff-choice input:indeterminate + .ff-choice__control {
+  background-color: var(--ff-color-accent);
+  border-color: var(--ff-color-accent);
+}
+
+.ff-choice input:focus-visible + .ff-choice__control {
+  box-shadow:
+    0 0 0 var(--ff-ring-inner, 2px) var(--ff-color-focus-ring-inner),
+    0 0 0 var(--ff-ring-outer, 4px) var(--ff-color-focus-ring);
+}
+
+.ff-toggle__track {
+  position: relative;
+  flex: 0 0 auto;
+  inline-size: var(--ff-space-48);
+  block-size: var(--ff-space-24);
+  padding: 0;
+  border-radius: var(--ff-radius-full);
+}
+
+.ff-toggle__knob {
+  position: absolute;
+  inset-block-start: var(--ff-space-4);
+  inset-inline-start: var(--ff-space-4);
+  inline-size: var(--ff-space-16);
+  block-size: var(--ff-space-16);
+  background-color: var(--ff-color-fg-primary);
+  border-radius: var(--ff-radius-full);
+  transition: translate var(--ff-duration-fast) var(--ff-ease-standard);
+}
+
+.ff-choice input:checked + .ff-toggle__track .ff-toggle__knob {
+  background-color: var(--ff-color-on-accent);
+  translate: var(--ff-space-24) 0;
+}
+
+/* ------------------------------------------------------------- Chip / Badge */
+
+.ff-chip {
+  padding-inline: var(--ff-space-16);
+  background-color: var(--ff-color-raised);
+  border-color: var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-full);
+  color: var(--ff-color-fg-primary);
+  font-size: var(--ff-text-body-sm);
+  font-weight: var(--ff-weight-label);
+}
+
+.ff-chip[aria-pressed='true'],
+.ff-chip[aria-selected='true'] {
+  background-color: var(--ff-color-accent);
+  border-color: var(--ff-color-accent);
+  color: var(--ff-color-on-accent);
+}
+
+.ff-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ff-space-4);
+  padding-inline: var(--ff-space-8);
+  padding-block: var(--ff-space-4);
+  border-radius: var(--ff-radius-sm);
+  font-family: var(--ff-font-sans);
+  font-size: var(--ff-text-label);
+  line-height: var(--ff-leading-label);
+  font-weight: var(--ff-weight-label);
+  letter-spacing: var(--ff-tracking-label);
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+.ff-badge__glyph {
+  font-size: var(--ff-text-caption);
+}
+
+.ff-badge--neutral {
+  background-color: var(--ff-color-raised);
+  color: var(--ff-color-fg-secondary);
+}
+.ff-badge--info {
+  background-color: var(--ff-color-info);
+  color: var(--ff-color-on-info);
+}
+.ff-badge--success {
+  background-color: var(--ff-color-success);
+  color: var(--ff-color-on-success);
+}
+.ff-badge--attention {
+  background-color: var(--ff-color-attention);
+  color: var(--ff-color-on-attention);
+}
+.ff-badge--danger {
+  background-color: var(--ff-color-danger);
+  color: var(--ff-color-on-danger);
+}
+
+/* ------------------------------------------------------- ProgressBar / Meter */
+
+.ff-track {
+  inline-size: 100%;
+  block-size: var(--ff-space-8);
+  background-color: var(--ff-color-sunken);
+  border-radius: var(--ff-radius-full);
+  overflow: hidden;
+}
+
+.ff-track__fill {
+  block-size: 100%;
+  background-color: var(--ff-color-accent);
+  border-radius: var(--ff-radius-full);
+  transition: inline-size var(--ff-duration-base) var(--ff-ease-standard);
+}
+
+.ff-track__fill--indeterminate {
+  inline-size: 40%;
+  animation: ff-slide var(--ff-duration-slow) var(--ff-ease-standard) infinite alternate;
+}
+
+@keyframes ff-slide {
+  from {
+    translate: -60% 0;
+  }
+  to {
+    translate: 250% 0;
+  }
+}
+
+.ff-meter__fill--low {
+  background-color: var(--ff-color-danger);
+}
+.ff-meter__fill--medium {
+  background-color: var(--ff-color-attention);
+}
+.ff-meter__fill--optimum {
+  background-color: var(--ff-color-success);
+}
+
+.ff-meter__scale {
+  display: flex;
+  justify-content: space-between;
+  margin-block-start: var(--ff-space-4);
+  color: var(--ff-color-fg-muted);
+  font-family: var(--ff-font-sans);
+  font-size: var(--ff-text-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------- Skeleton / Divider / List */
+
+.ff-skeleton {
+  display: block;
+  background-color: var(--ff-color-skeleton-base);
+  border-radius: var(--ff-radius-sm);
+  background-image: linear-gradient(
+    90deg,
+    var(--ff-color-skeleton-base),
+    var(--ff-color-skeleton-sheen),
+    var(--ff-color-skeleton-base)
+  );
+  background-size: 200% 100%;
+  animation: ff-sheen var(--ff-duration-slow) var(--ff-ease-standard) infinite;
+}
+
+@keyframes ff-sheen {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.ff-divider {
+  border: 0;
+  border-block-start: var(--ff-border) solid var(--ff-color-hairline);
+  margin-block: var(--ff-space-16);
+}
+
+.ff-divider--labelled {
+  display: flex;
+  align-items: center;
+  gap: var(--ff-space-12);
+  border: 0;
+  color: var(--ff-color-fg-muted);
+  font-family: var(--ff-font-sans);
+  font-size: var(--ff-text-label);
+  font-weight: var(--ff-weight-label);
+  letter-spacing: var(--ff-tracking-label);
+  text-transform: uppercase;
+}
+
+.ff-divider--labelled::before,
+.ff-divider--labelled::after {
+  content: '';
+  flex: 1;
+  border-block-start: var(--ff-border) solid var(--ff-color-hairline);
+}
+
+.ff-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--ff-font-sans);
+}
+
+.ff-list__item {
+  display: flex;
+  align-items: center;
+  gap: var(--ff-space-12);
+  min-block-size: var(--ff-hit-min);
+  padding-block: var(--ff-space-8);
+  padding-inline: var(--ff-space-16);
+  border-block-end: var(--ff-border) solid var(--ff-color-hairline);
+  color: var(--ff-color-fg-primary);
+  font-size: var(--ff-text-body);
+}
+
+.ff-list__item:last-child {
+  border-block-end: 0;
+}
+
+.ff-list__button {
+  inline-size: 100%;
+  justify-content: flex-start;
+  text-align: start;
+  background: transparent;
+  border-radius: var(--ff-radius-none);
+}
+
+.ff-list__button:hover {
+  background-color: var(--ff-color-raised);
+}
+
+.ff-list__primary {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.ff-list__secondary {
+  color: var(--ff-color-fg-secondary);
+  font-size: var(--ff-text-body-sm);
+}
+
+/* --------------------------------------------------- Sheet / Dialog / Toast */
+
+.ff-scrim {
+  position: fixed;
+  inset: 0;
+  background-color: var(--ff-color-overlay);
+  animation: ff-fade var(--ff-duration-base) var(--ff-ease-standard);
+}
+
+@keyframes ff-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.ff-sheet {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  max-block-size: 90dvh;
+  overflow-y: auto;
+  padding: var(--ff-space-20);
+  padding-block-end: max(var(--ff-space-20), env(safe-area-inset-bottom));
+  background-color: var(--ff-color-raised);
+  border-start-start-radius: var(--ff-radius-lg);
+  border-start-end-radius: var(--ff-radius-lg);
+  border-block-start: var(--ff-border) solid var(--ff-color-hairline);
+  color: var(--ff-color-fg-primary);
+  font-family: var(--ff-font-sans);
+  animation: ff-rise var(--ff-duration-slow) var(--ff-ease-standard);
+}
+
+@keyframes ff-rise {
+  from {
+    translate: 0 100%;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+
+.ff-sheet__grabber {
+  inline-size: var(--ff-space-40);
+  block-size: var(--ff-space-4);
+  margin-inline: auto;
+  margin-block-end: var(--ff-space-16);
+  background-color: var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-full);
+}
+
+.ff-sheet__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ff-space-12);
+}
+
+.ff-sheet__title,
+.ff-dialog__title {
+  margin: 0 0 var(--ff-space-12);
+  font-size: var(--ff-text-title);
+  line-height: var(--ff-leading-title);
+  font-weight: var(--ff-weight-title);
+  letter-spacing: var(--ff-tracking-title);
+}
+
+.ff-dialog {
+  inline-size: min(90vw, 28rem);
+  padding: var(--ff-space-24);
+  background-color: var(--ff-color-raised);
+  border: var(--ff-border) solid var(--ff-color-hairline);
+  border-radius: var(--ff-radius-lg);
+  color: var(--ff-color-fg-primary);
+  font-family: var(--ff-font-sans);
+}
+
+.ff-dialog::backdrop {
+  background-color: var(--ff-color-overlay);
+}
+
+.ff-dialog__actions,
+.ff-sheet__actions {
+  display: flex;
+  gap: var(--ff-space-12);
+  margin-block-start: var(--ff-space-24);
+}
+
+.ff-toast-region {
+  position: fixed;
+  inset-inline: var(--ff-space-16);
+  inset-block-end: max(var(--ff-space-16), env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-8);
+  pointer-events: none;
+}
+
+.ff-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--ff-space-12);
+  padding: var(--ff-space-12) var(--ff-space-16);
+  background-color: var(--ff-color-raised);
+  border: var(--ff-border) solid var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-md);
+  color: var(--ff-color-fg-primary);
+  font-family: var(--ff-font-sans);
+  font-size: var(--ff-text-body-sm);
+  pointer-events: auto;
+  animation: ff-rise var(--ff-duration-base) var(--ff-ease-standard);
+}
+
+.ff-toast__glyph {
+  flex: 0 0 auto;
+}
+
+.ff-toast--success .ff-toast__glyph {
+  color: var(--ff-color-success);
+}
+.ff-toast--danger .ff-toast__glyph {
+  color: var(--ff-color-danger);
+}
+.ff-toast--info .ff-toast__glyph {
+  color: var(--ff-color-info);
+}
+
+.ff-toast__body {
+  flex: 1;
+}
+
+/* ------------------------------------------------- Tabs / SegmentedControl */
+
+.ff-tabs__list {
+  display: flex;
+  gap: var(--ff-space-4);
+  border-block-end: var(--ff-border) solid var(--ff-color-hairline);
+}
+
+.ff-tab {
+  padding-inline: var(--ff-space-16);
+  background: transparent;
+  border-radius: var(--ff-radius-none);
+  border-block-end: var(--ff-border-thick) solid transparent;
+  color: var(--ff-color-fg-secondary);
+  font-size: var(--ff-text-body);
+  font-weight: var(--ff-weight-heading);
+}
+
+.ff-tab[aria-selected='true'] {
+  border-block-end-color: var(--ff-color-accent);
+  color: var(--ff-color-fg-primary);
+}
+
+.ff-tabs__panel {
+  padding-block-start: var(--ff-space-16);
+  font-family: var(--ff-font-sans);
+  color: var(--ff-color-fg-primary);
+}
+
+.ff-segmented {
+  display: inline-flex;
+  gap: var(--ff-space-4);
+  padding: var(--ff-space-4);
+  background-color: var(--ff-color-sunken);
+  border-radius: var(--ff-radius-md);
+}
+
+.ff-segmented__option {
+  flex: 1;
+  padding-inline: var(--ff-space-16);
+  background: transparent;
+  color: var(--ff-color-fg-secondary);
+  font-size: var(--ff-text-body-sm);
+  font-weight: var(--ff-weight-label);
+}
+
+.ff-segmented__option[aria-checked='true'] {
+  background-color: var(--ff-color-accent);
+  color: var(--ff-color-on-accent);
+}
+
+/* ------------------------------------------------------- EmptyState / Avatar */
+
+.ff-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ff-space-16);
+  padding: var(--ff-space-64) var(--ff-space-24);
+  text-align: center;
+  font-family: var(--ff-font-sans);
+  color: var(--ff-color-fg-secondary);
+}
+
+.ff-empty__glyph {
+  color: var(--ff-color-fg-muted);
+  font-size: var(--ff-text-display-lg);
+}
+
+.ff-empty__title {
+  margin: 0;
+  color: var(--ff-color-fg-primary);
+  font-size: var(--ff-text-heading);
+  line-height: var(--ff-leading-heading);
+  font-weight: var(--ff-weight-heading);
+}
+
+.ff-empty__body {
+  margin: 0;
+  max-inline-size: 34ch;
+  font-size: var(--ff-text-body-sm);
+  line-height: var(--ff-leading-body-sm);
+}
+
+.ff-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-color: var(--ff-color-raised);
+  border: var(--ff-border) solid var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-full);
+  color: var(--ff-color-fg-secondary);
+  font-family: var(--ff-font-sans);
+  font-weight: var(--ff-weight-label);
+  font-size: var(--ff-text-body-sm);
+  text-transform: uppercase;
+}
+
+.ff-avatar--sm {
+  inline-size: var(--ff-space-24);
+  block-size: var(--ff-space-24);
+  font-size: var(--ff-text-caption);
+}
+.ff-avatar--md {
+  inline-size: var(--ff-space-40);
+  block-size: var(--ff-space-40);
+}
+.ff-avatar--lg {
+  inline-size: var(--ff-space-64);
+  block-size: var(--ff-space-64);
+  font-size: var(--ff-text-heading);
+}
+
+.ff-avatar__image {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+/* --------------------------------------------------------- reduced motion */
+
+/*
+ * Handled once, globally, rather than in each component. Every primitive above
+ * animates through `transition` or `animation`, so this single block covers all
+ * of them - including any future primitive, which is the point (ADR-0013). It is
+ * deliberately unscoped: a primitive dropped anywhere in the app is covered, and
+ * so is app-level motion the design system never sees. That is the intent - this
+ * stylesheet is the app's reduced-motion policy, not just the primitives'.
+ *
+ * Durations collapse to 1ms rather than 0 so that transitionend/animationend
+ * still fire and components waiting on them do not hang.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* A sweeping skeleton is the one animation that is purely decorative and also
+     the most likely to cause discomfort. Remove it outright rather than speed it up. */
+  .ff-skeleton {
+    animation: none !important;
+    background-image: none !important;
+  }
+}
