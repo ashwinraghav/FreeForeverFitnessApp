@@ -53,6 +53,25 @@ Security Policy, the service worker, App Check enforcement, auth and account-lin
 (from Phase 3) the AI proxy and its quotas. **An artefact with no owner is a defect in this
 map, not an oversight by a team.**
 
+## Two jsdom traps that make tests pass for the wrong reason
+
+Both found the hard way. A test that passes because it never exercised anything is
+worse than a failing one, so check for these before trusting a green DOM suite.
+
+**1. `import.meta.url` is rewritten under the jsdom project.** Vite prefixes it with
+`/@fs`, so a fixture path built from it silently misses every file. A stubbed `fetch`
+then 404s, and assertions about "not found" behaviour pass against an index that never
+loaded. **Make your fetch stub throw on a missing fixture rather than returning a 404** —
+then a broken path fails loudly instead of quietly confirming what you expected.
+
+**2. jsdom defines `DecompressionStream` but its `Blob` has no `.stream()`.** Feature
+detection therefore says gunzip is available and the call throws. Serve
+pre-decompressed bytes in tests; the datasets reader supports that path explicitly.
+
+The general rule: when a DOM test asserts a negative — not found, unsupported,
+degraded — prove the positive case works in the same file. Otherwise you cannot tell a
+real negative from a harness that never ran.
+
 ## Accessibility is not negotiable
 
 WCAG 2.2 AA. 48px minimum hit targets, 56px for anything tapped mid-set. Never colour as the
