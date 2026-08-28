@@ -1,0 +1,19 @@
+{
+  // Solution file. Holds no sources — its only job is to make `tsc -b` at the
+  // repository root walk every project in dependency order.
+  //
+  // This exists because it did not, and its absence was invisible: the root
+  // `typecheck` script ran `tsc -b` with nothing to build and exited 0. CI's
+  // verify job called it on every pull request and would have passed a codebase
+  // that did not compile. A deliberately broken file was not caught.
+  //
+  // A check that cannot fail is worse than no check, because it is reported as
+  // a pass. If you add a package, add it here.
+  "files": [],
+  "references": [
+    { "path": "packages/design-system" },
+    { "path": "packages/core" },
+    { "path": "packages/data" },
+    { "path": "apps/web" }
+  ]
+}
