@@ -28,6 +28,8 @@ New decision: `pnpm adr "Short title"`.
 | [0020](./0020-publish-monthly-costs.md) | Publish the monthly cloud bill in-repo | Accepted |
 | [0021](./0021-no-raw-literals.md) | No raw colour, spacing or duration literals outside the design system | Accepted |
 | [0022](./0022-product-name.md) | Product name: TheFreeForeverFitnessApp | Accepted |
+| [0023](./0023-storage-rules-are-security-surface.md) | Cloud Storage rules are part of the security surface | Accepted |
+| [0024](./0024-coach-photo-access-deferred.md) | Coach access to progress-photo bytes is deferred to Phase 4 | Accepted |
 
 ## Reading order for newcomers
 
