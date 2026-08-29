@@ -13,8 +13,20 @@ import { availableSites, change, measurementSeries, weightSeries } from '../sele
 import { formatDateShort, formatLength, formatMass } from '../select/format';
 import { PhotoGallery } from './PhotoGallery';
 
-const MISSING_AGGREGATE_MESSAGE =
-  'Body metrics are not materialised yet. This screen reads a locally computed aggregate and never queries the server, so it stays empty until that aggregate exists.';
+/*
+ * Empty-state copy.
+ *
+ * One message per chart, whether the underlying numbers have not been computed yet
+ * or simply have not been logged. That distinction is ours, not the reader's — from
+ * where they are standing, "the aggregate has not been materialised" and "you have
+ * not weighed yourself" produce the same blank chart and the same next action. Saying
+ * so in our words instead of theirs explains nothing and sounds like a fault.
+ */
+const NO_WEIGHT_MESSAGE =
+  'Log a weigh-in and the trend starts here. Nothing is charted but the numbers you enter yourself.';
+
+const NO_MEASUREMENTS_MESSAGE =
+  'Log a tape measurement and it starts tracking here. Waist, chest, arms — whichever you choose to record.';
 
 /**
  * Bodyweight and measurements.
@@ -106,8 +118,6 @@ export function BodyView() {
     [measurement, lengthUnit],
   );
 
-  const missing = snapshot.bodyMetrics === null;
-
   return (
     <>
       {weightChange !== null && (
@@ -135,7 +145,7 @@ export function BodyView() {
         subtitle="Smoothed trend in the accent line, individual weigh-ins as dots behind it"
         rebuilding={snapshot.rebuilding}
         empty={weight.smoothed.length === 0}
-        emptyMessage={missing ? MISSING_AGGREGATE_MESSAGE : 'Log a weigh-in and the trend starts here.'}
+        emptyMessage={NO_WEIGHT_MESSAGE}
         table={
           <TableView
             caption="Bodyweight, most recent first"
@@ -160,7 +170,7 @@ export function BodyView() {
         subtitle="Tape measurements, smoothed over three weeks"
         rebuilding={snapshot.rebuilding}
         empty={measurement === null || measurement.smoothed.length === 0}
-        emptyMessage={missing ? MISSING_AGGREGATE_MESSAGE : 'No tape measurements logged yet.'}
+        emptyMessage={NO_MEASUREMENTS_MESSAGE}
         action={
           sites.length > 1 ? (
             <Select

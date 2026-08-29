@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Button,
   Divider,
@@ -133,10 +133,25 @@ export function DayScreen() {
           energyUnit={state.preferences.energyUnit}
         />
         {target === undefined ? (
-          <p className="ffn-muted" style={{ marginBlockStart: 'var(--ff-space-12)' }}>
-            No target set. <Link to="targets">Work one out</Link> — it takes four numbers and
-            runs on this device.
-          </p>
+          /*
+           * A real button, not an inline link.
+           *
+           * An inline link inside a sentence is a fair exception to the 48px
+           * floor — but this is not a "learn more". It is the only route to
+           * setting a target, and until one exists the ring above has nothing
+           * to measure against, so every number on this screen is inert. A
+           * primary action dressed as prose at 17px is the wrong shape for it,
+           * doubly so in an app whose brief is chalky hands and bad light.
+           */
+          <div className="ffn-no-target">
+            <p className="ffn-muted">
+              No target set yet, so the ring has nothing to measure against. It takes four
+              numbers and runs entirely on this device.
+            </p>
+            <Button variant="secondary" size="lg" onClick={() => navigate('targets')}>
+              Work out my target
+            </Button>
+          </div>
         ) : null}
       </section>
 

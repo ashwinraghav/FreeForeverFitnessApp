@@ -258,12 +258,14 @@ describe('missing aggregates', () => {
         </MemoryRouter>,
       );
     });
-    // The body screens say why they are empty, without offering to go and fetch.
-    expect(host.textContent).toMatch(/never queries the server/i);
+    // The body screens say what to do next, in the reader's terms.
+    expect(host.textContent).toMatch(/Log a weigh-in/i);
   });
 });
 
 describe('the entry point', () => {
+  // Navigation between tabs is covered end-to-end in `navigation.test.tsx`, which
+  // mounts this behind the shell's splat route and clicks every ordered pair.
   it('mounts with no data source at all', async () => {
     await act(async () => {
       root.render(

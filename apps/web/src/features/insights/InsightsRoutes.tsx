@@ -1,6 +1,7 @@
 import { useMemo, type CSSProperties } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import type { LocalDate } from '@freeforever/data';
+import { ROUTES } from '../../app/routes';
 import './insights.css';
 import { heatVariables } from './charts/palette';
 import { InsightsProvider, emptyInsightsSource } from './data/context';
@@ -51,11 +52,25 @@ function todayFromDevice(): LocalDate {
   return formatLocalDate(new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())));
 }
 
+/**
+ * Absolute paths, built from the route manifest.
+ *
+ * NOT relative. React Router resolves a relative `to` against the current location,
+ * so `to="exercises"` clicked from `/insights/muscles` navigates to
+ * `/insights/muscles/exercises` — which matches nothing, falls through to the splat,
+ * and redirects to itself. The page goes blank on the *second* navigation, which is
+ * why rendering each view in isolation never caught it. `to="."` has the mirror
+ * problem: it resolves to whatever the location already is, so with `end` it matches
+ * exactly every time and Overview stays lit on every tab.
+ *
+ * The base comes from `ROUTES.insights` rather than a literal, so if the integrator
+ * ever moves the mount point these follow it instead of silently breaking again.
+ */
 const TABS = [
-  { to: '.', end: true, label: 'Overview' },
-  { to: 'muscles', end: false, label: 'Muscles' },
-  { to: 'exercises', end: false, label: 'Lifts' },
-  { to: 'body', end: false, label: 'Body' },
+  { to: ROUTES.insights, end: true, label: 'Overview' },
+  { to: `${ROUTES.insights}/muscles`, end: false, label: 'Muscles' },
+  { to: `${ROUTES.insights}/exercises`, end: false, label: 'Lifts' },
+  { to: `${ROUTES.insights}/body`, end: false, label: 'Body' },
 ] as const;
 
 export default function InsightsRoutes({ source, photos }: InsightsRoutesProps = {}) {
@@ -77,7 +92,7 @@ export default function InsightsRoutes({ source, photos }: InsightsRoutesProps =
           <Route path="muscles" element={<MusclesView />} />
           <Route path="exercises" element={<ExercisesView />} />
           <Route path="body" element={<BodyView />} />
-          <Route path="*" element={<Navigate to="." replace />} />
+          <Route path="*" element={<Navigate to={ROUTES.insights} replace />} />
         </Routes>
       </div>
     </InsightsProvider>

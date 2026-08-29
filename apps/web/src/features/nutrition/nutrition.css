@@ -176,6 +176,14 @@
 
 /* ── Macro rows ──────────────────────────────────────────────────────────── */
 
+/* The empty-target call to action: a sentence, then a real control. */
+.ffn-no-target {
+  display: grid;
+  justify-items: start;
+  gap: var(--ff-space-12);
+  margin-block-start: var(--ff-space-12);
+}
+
 .ffn-macros {
   display: grid;
   gap: var(--ff-space-12);
@@ -491,7 +499,14 @@
 
 .ffn-attribution a {
   color: var(--ff-color-info);
-  min-block-size: var(--ff-hit-compact);
+  /*
+   * `hit-min` (48px), not `hit-compact` (44px). This one is a genuine inline
+   * link in a sentence and would be a defensible exception, but 44px is below
+   * the ADR-0013 floor and the extra four pixels cost nothing. It also only
+   * appears inside the portion sheet, so a screen-level sweep never sees it —
+   * which is a reason to be stricter here, not more relaxed.
+   */
+  min-block-size: var(--ff-hit-min);
   display: inline-flex;
   align-items: center;
 }

@@ -40,7 +40,11 @@ const cspDirectives = (dev: boolean) => ({
   'object-src': "'none'",
   'base-uri': "'self'",
   'form-action': "'self'",
-  'frame-ancestors': "'none'",
+  // 'self' in dev only, so the app can be framed at an exact device viewport
+  // (e.g. 412x915 for a Pixel 8a) for layout inspection. jsdom has no layout
+  // engine, so a real framed viewport is the only way to check a phone layout
+  // without a phone. Production stays 'none'.
+  'frame-ancestors': dev ? "'self'" : "'none'",
 });
 
 const csp = (dev: boolean) =>
