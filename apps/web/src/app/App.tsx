@@ -10,7 +10,10 @@ import { Booting } from '../shell/Booting';
 // between sets — never waits on the nutrition or insights bundle.
 const WorkoutRoutes = lazy(() => import('../features/workout/WorkoutRoutes'));
 const NutritionRoutes = lazy(() => import('../features/nutrition/NutritionRoutes'));
-const InsightsRoutes = lazy(() => import('../features/insights/InsightsRoutes'));
+// Progress mounts through `data/InsightsScreen`, which injects the locally
+// materialised aggregates the tab reads. Splitting on that module rather than on
+// the feature keeps the reducers and the schema package inside this chunk.
+const InsightsScreen = lazy(() => import('../data/InsightsScreen'));
 
 export function App() {
   return (
@@ -28,7 +31,7 @@ export function App() {
             />
             <Route path={`${ROUTES.workout}/*`} element={<WorkoutRoutes />} />
             <Route path={`${ROUTES.nutrition}/*`} element={<NutritionRoutes />} />
-            <Route path={`${ROUTES.insights}/*`} element={<InsightsRoutes />} />
+            <Route path={`${ROUTES.insights}/*`} element={<InsightsScreen />} />
             <Route path={ROUTES.more} element={<MoreScreen />} />
             <Route path="*" element={<Navigate to={ROUTES.workout} replace />} />
           </Routes>
