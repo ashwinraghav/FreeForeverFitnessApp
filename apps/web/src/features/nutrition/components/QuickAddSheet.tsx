@@ -93,14 +93,15 @@ export function QuickAddSheet({
         />
 
         <div className="ffn-fields-2">
-          <NumberField label="Protein" unit="g" value={protein} onValueChange={setProtein} step={1} min={0} />
-          <NumberField label="Carbs" unit="g" value={carbs} onValueChange={setCarbs} step={1} min={0} />
-          <NumberField label="Fat" unit="g" value={fat} onValueChange={setFat} step={1} min={0} />
+          <NumberField label="Protein" unit="g" value={protein} onValueChange={setProtein} step={1} min={0} placeholder="0" />
+          <NumberField label="Carbs" unit="g" value={carbs} onValueChange={setCarbs} step={1} min={0} placeholder="0" />
+          <NumberField label="Fat" unit="g" value={fat} onValueChange={setFat} step={1} min={0} placeholder="0" />
           <NumberField
             label="Energy"
             unit={energyUnit}
             value={energy}
             onValueChange={setEnergy}
+            placeholder="0"
             /* The ghost is the Atwater sum: visibly not entered, and the value
                used if the user leaves the field alone. */
             ghostValue={impliedKcal > 0 ? Math.round(impliedKcal) : null}

@@ -238,6 +238,7 @@ export function TargetsScreen() {
           onValueChange={setProteinPerKg}
           step={0.1}
           min={0}
+          placeholder="—"
           hint="Optional. Leave blank to use the figure for your goal."
         />
       </div>

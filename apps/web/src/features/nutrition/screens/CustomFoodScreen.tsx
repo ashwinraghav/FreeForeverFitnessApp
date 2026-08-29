@@ -151,6 +151,7 @@ export function CustomFoodScreen() {
             onValueChange={setServingGrams}
             step={5}
             min={0}
+            placeholder="0"
             {...(needsServingMass ? { error: 'Needed to convert per-serving figures.' } : {})}
           />
           <TextField
@@ -163,18 +164,18 @@ export function CustomFoodScreen() {
 
         <h2 className="ffn-h2">Nutrition {basis === 'per100' ? 'per 100 g' : 'per serving'}</h2>
         <div className="ffn-fields-2">
-          <NumberField label="Energy" unit="kcal" value={energy} onValueChange={setEnergy} step={10} min={0} ghostValue={impliedKcal > 0 ? Math.round(impliedKcal) : null} />
-          <NumberField label="Protein" unit="g" value={protein} onValueChange={setProtein} step={0.5} min={0} />
-          <NumberField label="Carbs" unit="g" value={carbs} onValueChange={setCarbs} step={0.5} min={0} />
-          <NumberField label="Fat" unit="g" value={fat} onValueChange={setFat} step={0.5} min={0} />
+          <NumberField label="Energy" unit="kcal" value={energy} onValueChange={setEnergy} step={10} min={0} placeholder="0" ghostValue={impliedKcal > 0 ? Math.round(impliedKcal) : null} />
+          <NumberField label="Protein" unit="g" value={protein} onValueChange={setProtein} step={0.5} min={0} placeholder="0" />
+          <NumberField label="Carbs" unit="g" value={carbs} onValueChange={setCarbs} step={0.5} min={0} placeholder="0" />
+          <NumberField label="Fat" unit="g" value={fat} onValueChange={setFat} step={0.5} min={0} placeholder="0" />
         </div>
 
         <h2 className="ffn-h2">Optional — leave blank if the label does not say</h2>
         <div className="ffn-fields-2">
-          <NumberField label="Fibre" unit="g" value={fibre} onValueChange={setFibre} step={0.5} min={0} />
-          <NumberField label="Sugars" unit="g" value={sugar} onValueChange={setSugar} step={0.5} min={0} />
-          <NumberField label="Saturated fat" unit="g" value={satFat} onValueChange={setSatFat} step={0.5} min={0} />
-          <NumberField label="Sodium" unit="mg" value={sodium} onValueChange={setSodium} step={10} min={0} />
+          <NumberField label="Fibre" unit="g" value={fibre} onValueChange={setFibre} step={0.5} min={0} placeholder="—" />
+          <NumberField label="Sugars" unit="g" value={sugar} onValueChange={setSugar} step={0.5} min={0} placeholder="—" />
+          <NumberField label="Saturated fat" unit="g" value={satFat} onValueChange={setSatFat} step={0.5} min={0} placeholder="—" />
+          <NumberField label="Sodium" unit="mg" value={sodium} onValueChange={setSodium} step={10} min={0} placeholder="—" />
         </div>
 
         {hasSomething && discrepancy > 0.25 && per100g.energyKcal > 0 ? (

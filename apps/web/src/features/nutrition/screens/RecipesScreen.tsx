@@ -165,6 +165,7 @@ export function RecipesScreen() {
             onValueChange={setCookedMass}
             step={10}
             min={0}
+            placeholder="—"
             hint="Optional. Weigh the finished dish and the per-100 g figures account for what boiled off."
           />
         </div>
