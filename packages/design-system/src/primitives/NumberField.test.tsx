@@ -108,6 +108,37 @@ describe('NumberField', () => {
     );
   });
 
+  it('makes the whole well a label, so no part of the control is dead', () => {
+    // The well is 56px and the input inside it is shorter. As a <div> the difference
+    // was dead: a tap landing in the padding did nothing, and the control read as
+    // ADR-0013-compliant while only part of it responded.
+    render(<Harness />);
+    const input = screen.getByLabelText('Weight');
+    const well = input.closest('.ff-number__well');
+    expect(well?.tagName).toBe('LABEL');
+    expect(well).toHaveAttribute('for', input.id);
+  });
+
+  it('focuses the input when the well itself is clicked', async () => {
+    // The behavioural version of the assertion above. jsdom reports every element as
+    // zero-sized, so the 19px dead strip cannot be measured here - but label
+    // activation can be, and that is what was missing.
+    render(<Harness />);
+    const input = screen.getByLabelText('Weight');
+    const well = input.closest('.ff-number__well') as HTMLLabelElement;
+    expect(input).not.toHaveFocus();
+    await userEvent.click(well);
+    expect(input).toHaveFocus();
+  });
+
+  it('does not let the unit leak into the accessible name', () => {
+    // A second <label> around the input would otherwise make the name "Weight kg".
+    // The unit is a description; the name is the name.
+    render(<Harness unit="kg" />);
+    expect(screen.getByRole('textbox', { name: 'Weight' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /kg/ })).not.toBeInTheDocument();
+  });
+
   it('keeps a hidden label available to assistive technology', () => {
     render(<Harness labelHidden />);
     expect(screen.getByLabelText('Weight')).toBeInTheDocument();

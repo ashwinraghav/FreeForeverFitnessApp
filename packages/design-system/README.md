@@ -205,7 +205,9 @@ Every one has a test and a Storybook story showing both themes — enforced by
 
 - **48px minimum hit target, 56px for `xl`.** Button sizes differ in type size and
   padding, never in how easy they are to hit. `xl` is the mid-set size, for anything
-  tapped between sets with one hand.
+  tapped between sets with one hand. The *control* must fill that box, not just its
+  wrapper - a 56px well around a 37px input is a 19px dead strip that still looks
+  tappable, and it is the one hit-target bug that passes a casual audit.
 - **A visible focus ring on everything interactive.** Two-tone — an inner ring that
   contrasts with the control's own fill and an outer ring that contrasts with the
   page — so it stays visible on an accent button. There is a `forced-colors`
@@ -243,6 +245,33 @@ The most important control in the product. Three things it gets right:
 
 `null` is not `0`. An empty set and a set of 0 reps are different facts, and the
 component keeps them different.
+
+#### It needs more room than you think
+
+Measured at a 412px viewport, default text size:
+
+| Part | Width |
+|---|---|
+| Two 56px steppers + two 8px gaps | **128px, before the value gets a single pixel** |
+| Value floor (5 tabular digits, `--ff-number-min-value: 5ch`) | 111px |
+| Well padding, border and unit gap | ~19px |
+| Unit label | 14px (`%`) to 68px (`kg/week`) |
+| **Total minimum** | **276–329px, depending on the unit** |
+
+Give a NumberField at least **330px** of inline space, or drop the unit and the
+steppers if you genuinely cannot. A 128px column is not "a bit tight" - it is exactly
+the steppers with nothing left for the number.
+
+The value has a real minimum width rather than `min-inline-size: 0`, so a container
+that is too narrow **overflows horizontally**, which is loud and obvious. It used to
+collapse the value to zero width instead, which renders as no number at all and reads
+like missing data rather than a layout bug.
+
+The whole well is a `<label>`, so every pixel of the 56px control activates the input
+- padding included. Verified in a real browser against both controls: with the well
+as a `<div>` the bottom 19px resolves to the div and a click there leaves focus on
+`<body>`; as a `<label>` the same point resolves to the input, fires a trusted
+`focusin`, and focus lands on the field.
 
 ### Sheet vs Dialog
 

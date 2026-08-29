@@ -30,6 +30,10 @@
   --ff-ring-inner: 2px;
   --ff-ring-outer: 4px;
 
+  /* NumberField's minimum value width - five tabular digits. Component-internal, not
+     public vocabulary; the resulting layout budget is documented in the README. */
+  --ff-number-min-value: 5ch;
+
   /*
    * DEPRECATED aliases, kept so existing `var(--ff-border, 1px)` usage keeps working
    * during integration. Migrate to --ff-border-hairline / --ff-border-strong; these
@@ -286,7 +290,9 @@
 .ff-number__well {
   display: flex;
   flex: 1;
-  align-items: baseline;
+  /* `center`, not `baseline`: baseline parked the input at the top of the well and
+     left 19px of dead space beneath it. */
+  align-items: center;
   justify-content: center;
   gap: var(--ff-space-4);
   min-block-size: var(--ff-hit-mid-set);
@@ -294,11 +300,28 @@
   background-color: var(--ff-color-sunken);
   border: var(--ff-border-hairline) solid var(--ff-color-line-strong);
   border-radius: var(--ff-radius-md);
+  /* It is a <label> for a text field, so it should read as one. */
+  cursor: text;
 }
 
 .ff-number__input {
   inline-size: 100%;
-  min-inline-size: 0;
+  /*
+   * A real floor, not 0.
+   *
+   * `min-inline-size: 0` let the input collapse to zero width rather than force its
+   * container to overflow, so a container whose column minimum was too small for the
+   * control rendered the value as *nothing at all* - which looks like missing data,
+   * not like a layout bug. A floor makes the same mistake produce horizontal
+   * overflow instead, which is loud and immediately obvious.
+   *
+   * `ch` rather than px: with tabular-nums one ch is exactly one digit, so this
+   * guarantees five characters ("102.5") at whatever size the type scale is set to,
+   * including at a 200% text setting.
+   */
+  min-inline-size: var(--ff-number-min-value);
+  /* Fill the well's full height so the live area matches the apparent target. */
+  align-self: stretch;
   padding: 0;
   background: transparent;
   border: 0;

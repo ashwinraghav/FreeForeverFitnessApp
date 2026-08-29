@@ -143,6 +143,57 @@ describe('hit targets', () => {
   });
 });
 
+describe('a control must fill the target it appears to occupy', () => {
+  it('the NumberField input stretches to the full height of its well', () => {
+    // The well is 56px. If the input does not stretch, the remainder is dead space
+    // that still looks tappable - the defect this assertion exists to prevent.
+    const rule = allRules.find((r) => r.selector === '.ff-number__input');
+    expect(rule?.body).toContain('align-self: stretch');
+  });
+
+  it('the well centres its contents rather than baselining them to the top', () => {
+    const rule = allRules.find((r) => r.selector === '.ff-number__well');
+    expect(rule?.body).toContain('align-items: center');
+    expect(rule?.body).not.toContain('align-items: baseline');
+  });
+
+  /*
+   * A zero minimum is correct for a text container that is allowed to wrap, and a
+   * trap for anything holding a value the user must read or hit. So it is allowed by
+   * exception, and each exception has to say why - the same shape as the decorative
+   * colour exemption in the contrast suite.
+   */
+  const MAY_COLLAPSE: Record<string, string> = {
+    '.ff-list__primary':
+      'Wrapping text, not a value. Shrinking is how a long exercise name avoids forcing the whole list to scroll sideways.',
+  };
+
+  it('no primitive holding a value may collapse to zero on either axis', () => {
+    // `min-inline-size: 0` let the NumberField input shrink to nothing instead of
+    // overflowing its container, so a layout bug rendered as missing data.
+    const offenders = allRules
+      .filter((rule) => /min-(?:inline|block)-size:\s*0(?:px)?\s*;/.test(rule.body))
+      .map((rule) => rule.selector)
+      .filter((selector) => !(selector in MAY_COLLAPSE));
+    expect(offenders).toEqual([]);
+  });
+
+  it('every collapse exception still exists and is justified', () => {
+    // Otherwise the allowlist silently becomes a list of selectors nobody deleted.
+    for (const [selector, why] of Object.entries(MAY_COLLAPSE)) {
+      expect(allRules.some((rule) => rule.selector === selector), `${selector} is gone`).toBe(true);
+      expect(why.length).toBeGreaterThan(40);
+    }
+  });
+
+  it('the NumberField value keeps room for five tabular digits', () => {
+    const rule = allRules.find((r) => r.selector === '.ff-number__input');
+    expect(rule?.body).toContain('min-inline-size: var(--ff-number-min-value)');
+    // Expressed in ch so it holds at a 200% text setting too.
+    expect(css).toMatch(/--ff-number-min-value:\s*\d+ch;/);
+  });
+});
+
 describe('focus visibility', () => {
   it('there is exactly one focus-ring definition, so it cannot drift', () => {
     const ringRules = allRules.filter((rule) => rule.body.includes('--ff-color-focus-ring)'));

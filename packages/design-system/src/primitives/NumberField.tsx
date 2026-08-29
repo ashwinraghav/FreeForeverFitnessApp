@@ -127,7 +127,19 @@ export function NumberField({
           disabled={disabled ?? false}
         />
 
-        <div className="ff-number__well">
+        {/*
+          A <label>, not a <div>. As a div, only the input responded to a tap: the
+          well was 56px but the input inside it was 37px, so 19px of an apparently
+          compliant target did nothing at all. A thumb landing slightly low got no
+          feedback whatsoever - which is the exact failure ADR-0013's 48px floor
+          exists to prevent, wearing the appearance of compliance.
+
+          The label makes the whole padded area activate the input. The input is
+          also stretched to fill the well (see .ff-number__input), so that a
+          hit-target audit measuring the *input* and one measuring the *well* now
+          agree - previously they disagreed by 19px and both were right.
+        */}
+        <label className="ff-number__well" htmlFor={inputId}>
           <input
             ref={inputRef}
             id={inputId}
@@ -163,12 +175,23 @@ export function NumberField({
             }}
             {...rest}
           />
+          {/*
+            Hidden from assistive technology: a second <label> for this input would
+            otherwise fold the unit into the accessible name ("Weight kg"). The unit
+            is a description, not part of the name - the visually-hidden span below
+            carries it, and aria-describedby points there.
+          */}
           {unit ? (
-            <span className="ff-number__unit" id={unitId}>
+            <span className="ff-number__unit" aria-hidden="true">
               {unit}
             </span>
           ) : null}
-        </div>
+        </label>
+        {unit ? (
+          <span className="ff-visually-hidden" id={unitId}>
+            {unit}
+          </span>
+        ) : null}
 
         <IconButton
           className="ff-number__step"
