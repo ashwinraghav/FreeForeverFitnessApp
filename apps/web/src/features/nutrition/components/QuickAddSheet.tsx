@@ -117,7 +117,7 @@ export function QuickAddSheet({
 
         <fieldset style={{ border: 'none', margin: 0, padding: 0 }}>
           <legend className="ffn-h2">Meal</legend>
-          <div className="ffn-scope">
+          <div className="ffn-chips">
             {MEAL_SLOTS.map((option) => (
               <Chip key={option} selected={slot === option} onClick={() => setSlot(option)}>
                 {option.replace('_', ' ')}

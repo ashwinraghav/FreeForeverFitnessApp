@@ -17,6 +17,14 @@ import {
  * The numeric value is always printed next to the bar. A bar alone is a
  * comparison the user cannot make precisely, and precision is the entire point
  * of logging food.
+ *
+ * **With no target set there is no bar at all.** The previous version fell back
+ * to `max = consumed`, which made every macro render as a full amber bar the
+ * moment anything was logged — one pickle spear filled the carbohydrate meter
+ * to 100%. Directly above it the ring correctly said "no target set yet, so the
+ * ring has nothing to measure against", so the screen contradicted itself and
+ * the bar was the more alarming half. A meter against no range is not a
+ * measurement; the number alone is the honest rendering.
  */
 
 function MacroLine({
@@ -38,18 +46,16 @@ function MacroLine({
         {progress.target > 0 ? ` / ${format(progress.target)}` : ''} {unit}
         {progress.isOver ? ` · ${format(progress.overBy)} over` : ''}
       </span>
-      <div className="ffn-macro-meter">
-        <Meter
-          label={name}
-          value={progress.consumed}
-          max={progress.target > 0 ? progress.target : Math.max(1, progress.consumed)}
-          valueText={
-            progress.target > 0
-              ? `${format(progress.consumed)} of ${format(progress.target)} ${unit}`
-              : `${format(progress.consumed)} ${unit}`
-          }
-        />
-      </div>
+      {progress.target > 0 ? (
+        <div className="ffn-macro-meter">
+          <Meter
+            label={name}
+            value={progress.consumed}
+            max={progress.target}
+            valueText={`${format(progress.consumed)} of ${format(progress.target)} ${unit}`}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

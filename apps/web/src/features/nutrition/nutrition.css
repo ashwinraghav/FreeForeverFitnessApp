@@ -113,7 +113,8 @@
   background: var(--ff-color-surface);
   position: sticky;
   inset-block-start: 0;
-  z-index: 2;
+  /* Same reasoning as `.ffn-actions`: no explicit z-index, so a Sheet or
+     Dialog is never painted underneath it. */
 }
 
 .ffn-daybar-label {
@@ -179,6 +180,7 @@
 /* The empty-target call to action: a sentence, then a real control. */
 .ffn-no-target {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: start;
   gap: var(--ff-space-12);
   margin-block-start: var(--ff-space-12);
@@ -186,12 +188,14 @@
 
 .ffn-macros {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--ff-space-12);
 }
 
 .ffn-macro {
   display: grid;
-  grid-template-columns: 1fr auto;
+  /* `minmax(0, …)`: a long food name must wrap, not widen the row. */
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--ff-space-4) var(--ff-space-12);
   align-items: baseline;
 }
@@ -238,7 +242,15 @@
   inset-block-end: 0;
   background: var(--ff-color-surface);
   border-block-start: thin solid var(--ff-color-hairline);
-  z-index: 2;
+  /*
+   * NO explicit z-index.
+   *
+   * `z-index: 2` here put this bar above every `Sheet`, which is `position:
+   * fixed; z-index: auto`. The result: with Quick add open, its meal chips sat
+   * under this bar, and tapping "breakfast" opened the barcode scanner. Sticky
+   * already paints above in-flow content, and leaving z-index alone lets DOM
+   * order decide against the sheet — which renders after this bar, so it wins.
+   */
 }
 
 /* ── Repeat strip: the two-tap path ──────────────────────────────────────── */
@@ -304,7 +316,7 @@
 
 .ffn-food {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--ff-space-4) var(--ff-space-12);
   align-items: center;
   inline-size: 100%;
@@ -343,7 +355,8 @@
 .ffn-searchbar {
   position: sticky;
   inset-block-start: 0;
-  z-index: 2;
+  /* No explicit z-index — a portion sheet opens over this screen and must not
+     be painted underneath the search bar. See `.ffn-actions`. */
   padding: var(--ff-space-12) var(--ff-space-16);
   background: var(--ff-color-surface);
   border-block-end: thin solid var(--ff-color-hairline);
@@ -351,10 +364,28 @@
   gap: var(--ff-space-8);
 }
 
+/* A horizontal scroller for a SHORT list (the four search scopes). It needs
+ * `min-inline-size: 0` or it refuses to shrink inside a grid or flex parent
+ * and grows the container instead of scrolling. */
 .ffn-scope {
   display: flex;
   gap: var(--ff-space-8);
   overflow-x: auto;
+  min-inline-size: 0;
+}
+
+/*
+ * Chip groups that must be fully visible, never scrolled: the seven meal slots
+ * and the seven weekdays. A horizontal scroller hid three meal slots and put
+ * Sunday off-screen entirely — someone who trains on Sunday would silently
+ * mis-configure their targets and never see the option. Wrapping costs a line
+ * of vertical space and cannot hide a choice.
+ */
+.ffn-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ff-space-8);
+  min-inline-size: 0;
 }
 
 /* ── Scanner ─────────────────────────────────────────────────────────────── */
@@ -413,8 +444,23 @@
 
 /* ── Forms and sheets ────────────────────────────────────────────────────── */
 
+/*
+ * `minmax(0, 1fr)`, never a bare implicit column.
+ *
+ * A grid with no `grid-template-columns` gets one `auto` track, and `auto`
+ * means max-content: a single wide child sizes the whole grid. A seven-chip
+ * meal row did exactly that, computing this container to 626px inside a 372px
+ * phone and pushing the fat figure, three quarters of the serving select and
+ * three meal chips off the right edge of the screen. The sheet was technically
+ * scrollable sideways, which nobody would ever discover.
+ *
+ * `minmax(0, 1fr)` caps the track at the container, so overflow becomes the
+ * child's problem to handle (by wrapping or scrolling) instead of silently
+ * becoming the page's width.
+ */
 .ffn-fields {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--ff-space-16);
 }
 
@@ -446,7 +492,7 @@
 
 .ffn-portion-summary {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--ff-space-8);
   padding: var(--ff-space-12);
   background: var(--ff-color-sunken);

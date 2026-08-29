@@ -299,7 +299,7 @@ export function TargetsScreen() {
               Moves energy onto the days you train and off the days you do not, keeping the week
               the same. Carbohydrate absorbs the swing; protein and fat stay put.
             </p>
-            <div className="ffn-scope" style={{ marginBlock: 'var(--ff-space-12)' }}>
+            <div className="ffn-chips" style={{ marginBlock: 'var(--ff-space-12)' }}>
               {ISO_WEEKDAYS.map((day, index) => (
                 <Chip
                   key={day}
