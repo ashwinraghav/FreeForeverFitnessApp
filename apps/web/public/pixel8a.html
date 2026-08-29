@@ -11,10 +11,54 @@
   b{color:#eee;font-weight:600}
 </style>
 <div id="row"></div>
+<!--
+  READ THIS BEFORE CLICKING INTO A FRAME.
+
+  The iframes lay out at a true 412x915 — measurements taken *inside* a frame
+  (getBoundingClientRect, innerWidth, computed styles) are exact and unaffected
+  by the scale below. Trust those.
+
+  But the frames are CSS-scaled to fit a capture, so page-level coordinates do
+  NOT map 1:1 into a frame. A screenshot-derived click lands somewhere else, and
+  the result is silently wrong rather than obviously wrong — that already
+  produced one confidently reported non-finding.
+
+  So: drive the UI through `ffClick(route, selector)` below, which dispatches on
+  the element itself and needs no coordinates. Or read `window.FF_SCALE` and map
+  by hand. Never click a frame from a screenshot coordinate.
+-->
 <script>
   const routes = (new URLSearchParams(location.search).get('r') || '/workout').split(',');
   document.getElementById('row').outerHTML = routes.map(r =>
     `<div class="dev"><b>${r}</b><div class="wrap"><iframe src="http://localhost:5173${r}"></iframe></div></div>`
   ).join('');
   document.body.style.display='flex';
+
+  // Exposed so a caller can map coordinates if it really must.
+  window.FF_SCALE = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s'));
+
+  /** Click inside a framed app by selector — no coordinates, so no scale bug. */
+  window.ffClick = (route, selector) => {
+    const f = [...document.querySelectorAll('iframe')].find(x => x.src.includes(route));
+    if (!f) return {error: 'no frame for ' + route};
+    const el = f.contentDocument.querySelector(selector);
+    if (!el) return {error: 'no element ' + selector};
+    el.click();
+    return {clicked: selector, focused: f.contentDocument.activeElement?.tagName ?? 'none'};
+  };
+
+  /** Dispatch a real pointer sequence at an element's own centre, inside the frame. */
+  window.ffTap = (route, selector) => {
+    const f = [...document.querySelectorAll('iframe')].find(x => x.src.includes(route));
+    const d = f.contentDocument, w = f.contentWindow;
+    const el = d.querySelector(selector);
+    if (!el) return {error: 'no element ' + selector};
+    const r = el.getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const at = d.elementFromPoint(x, y);
+    for (const type of ['pointerdown','mousedown','pointerup','mouseup','click']) {
+      at?.dispatchEvent(new w.MouseEvent(type, {bubbles:true, clientX:x, clientY:y}));
+    }
+    return {target: selector, hit: at?.tagName + '.' + (at?.className||''), focused: d.activeElement?.tagName ?? 'none'};
+  };
 </script>
