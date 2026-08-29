@@ -234,6 +234,24 @@ describe('the load column adapts to how the exercise is loaded', () => {
   });
 });
 
+describe('mid-set hit targets', () => {
+  it('gives the editor controls the mid-set size, not the 48px floor', () => {
+    // ADR-0013 asks for 56px for anything tapped mid-set, and the set editor is the
+    // most tapped surface in the app. Remove and Close were `lg` (48px) while the
+    // steppers beside them were already `xl`.
+    const row = setup({ openField: 'weight' });
+    for (const name of [/^Remove/, /^Close editor/]) {
+      expect(row.getByRole('button', { name })).toHaveAttribute('data-ff-size', 'xl');
+    }
+  });
+
+  it('gives the log button the mid-set size too', () => {
+    const row = setup();
+    // The log button is not an IconButton, so its size is the CSS class contract.
+    expect(row.logButton(/^Log as made/).className).toContain('ffw-log');
+  });
+});
+
 describe('warmups', () => {
   it('are marked with a letter, not a number', () => {
     const row = setup({ set: { type: 'warmup' } });

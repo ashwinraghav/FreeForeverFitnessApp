@@ -171,11 +171,17 @@ export function SetRow({
             {editorExtra}
 
             <div className="ffw-editor__quick">
+              {/*
+                * `xl`, not `lg`. These sit inside the set editor, which is the most
+                * tapped surface in the app and is tapped mid-set — 56px, not the 48px
+                * floor (ADR-0013). They were the only controls in the editor below
+                * the mid-set size, next to steppers that were already 56.
+                */}
               <IconButton
                 icon={<CloseGlyph />}
                 aria-label={`Remove ${rowLabel}`}
                 variant="danger"
-                size="lg"
+                size="xl"
                 onClick={onRemove}
               />
               <span className="ffw-editor__spacer" />
@@ -183,7 +189,7 @@ export function SetRow({
                 icon={<CheckGlyph />}
                 aria-label={`Close editor for ${rowLabel}`}
                 variant="secondary"
-                size="lg"
+                size="xl"
                 onClick={() => onOpenField(null)}
               />
             </div>

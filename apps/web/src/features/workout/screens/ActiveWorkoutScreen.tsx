@@ -335,49 +335,58 @@ export function ActiveWorkoutScreen({
       )}
 
       {/*
-        The action bar is fixed to the bottom, and lifts above the rest bar when one is
-        showing. Frequent actions live in the reachable third; there is never a
-        top-right "Done" (ADR-0013).
+        Everything docked at the bottom, in one element, inside the scrolling main
+        area — never fixed to the viewport, whose bottom edge belongs to the shell's
+        tab bar (see `.ffw-dock`).
+
+        The rest bar sits *above* the action bar rather than below it. Frequency would
+        argue the other way, but the action bar is always present and the rest bar
+        comes and goes: putting the intermittent one underneath would shift Finish up
+        and down under the lifter's thumb every time a rest started or ended, and a
+        moving target next to a session-ending button is a mis-tap waiting to happen.
+        Stable beats marginally closer.
       */}
-      <div className={timer.rest === null ? 'ffw-actions' : 'ffw-actions ffw-actions--stacked'}>
-        <Button
-          size="xl"
-          variant="secondary"
-          disabled={!canAddExercise(state.workout)}
-          onClick={() => setPickerOpen(true)}
-        >
-          <PlusGlyph aria-hidden="true" /> Exercise
-        </Button>
-        {logged ? (
-          <Button size="xl" variant="primary" onClick={finish}>
-            Finish
-          </Button>
-        ) : (
-          /*
-           * Finishing needs something to save, so with nothing logged the primary
-           * action is to clear up instead. No confirmation: there is nothing to lose,
-           * which is exactly the condition that put us in this branch.
-           */
+      <div className="ffw-dock">
+        {timer.rest === null ? null : (
+          <RestBar
+            rest={timer.rest}
+            now={timer.now}
+            forLabel={restingExercise?.exercise.name ?? 'your last set'}
+            onAdjust={timer.adjust}
+            onSkip={() => timer.stop()}
+          />
+        )}
+
+        <div className="ffw-actions">
           <Button
             size="xl"
             variant="secondary"
-            onClick={startNext}
-            disabled={exercises.length === 0}
+            disabled={!canAddExercise(state.workout)}
+            onClick={() => setPickerOpen(true)}
           >
-            Clear session
+            <PlusGlyph aria-hidden="true" /> Exercise
           </Button>
-        )}
+          {logged ? (
+            <Button size="xl" variant="primary" onClick={finish}>
+              Finish
+            </Button>
+          ) : (
+            /*
+             * Finishing needs something to save, so with nothing logged the primary
+             * action is to clear up instead. No confirmation: there is nothing to
+             * lose, which is exactly the condition that put us in this branch.
+             */
+            <Button
+              size="xl"
+              variant="secondary"
+              onClick={startNext}
+              disabled={exercises.length === 0}
+            >
+              Clear session
+            </Button>
+          )}
+        </div>
       </div>
-
-      {timer.rest === null ? null : (
-        <RestBar
-          rest={timer.rest}
-          now={timer.now}
-          forLabel={restingExercise?.exercise.name ?? 'your last set'}
-          onAdjust={timer.adjust}
-          onSkip={() => timer.stop()}
-        />
-      )}
 
       <ExercisePicker
         open={pickerOpen}

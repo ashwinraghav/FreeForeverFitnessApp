@@ -21,9 +21,8 @@
   display: flex;
   flex-direction: column;
   min-block-size: 100%;
-  /* Clear the rest bar and the action bar, both of which are fixed to the bottom.
-     Without this the last exercise's "add set" sits underneath them. */
-  padding-block-end: calc(var(--ff-hit-mid-set) * 2 + var(--ff-space-32));
+  /* No bottom padding to reserve: the dock is in the flow and occupies its own
+     space, so nothing can end up underneath it. */
 }
 
 .ffw-screen__header {
@@ -348,10 +347,6 @@
  * so nothing below it jumps, and never takes the session away from the lifter.
  */
 .ffw-restbar {
-  position: fixed;
-  inset-inline: 0;
-  bottom: 0;
-  z-index: 20;
   display: grid;
   gap: var(--ff-space-8);
   padding: var(--ff-space-8) var(--ff-space-12);
@@ -423,23 +418,54 @@
   background: var(--ff-color-attention);
 }
 
+/* -------------------------------------------------------------------- dock */
+
+/*
+ * The rest bar and the action bar, docked to the bottom of the *scroll container*
+ * rather than to the viewport.
+ *
+ * They used to be `position: fixed; bottom: 0`, which positions against the viewport
+ * — and the viewport's bottom belongs to the shell's tab bar. The two action rows
+ * painted straight over Train/Eat/Progress, so the screen the app opens on had no
+ * visible navigation at all and there was no way to reach any other section. The tabs
+ * were present, in the DOM, reporting as in-viewport, and completely covered.
+ *
+ * `sticky` inside `.ff-main` cannot make that mistake: the scroll container ends
+ * exactly where the tab bar begins, so the dock has no way to reach past it. Nothing
+ * in this feature may be `position: fixed` — the shell owns the viewport edges, and a
+ * feature that fixes to them is reaching outside its own layout.
+ */
+.ffw-dock {
+  position: sticky;
+  bottom: 0;
+  /* Pushes the dock to the bottom when the session is short enough not to scroll. */
+  margin-block-start: auto;
+
+  /*
+   * Deliberately no `z-index`.
+   *
+   * `sticky` already makes this a positioned element, so it paints above the
+   * non-positioned exercise cards without help. A `z-index` here does more than
+   * that: it outranks `.ff-sheet`, which the design system leaves at `z-index:
+   * auto`. With one, the action bar painted over the bottom of the open exercise
+   * picker — about a set-row and a half of the list visible and untappable, so
+   * tapping the exercise you could see re-opened the picker instead.
+   *
+   * Paint order here is DOM order among positioned siblings, which is the order
+   * the screen already renders them in: dock, then picker, then toasts. That is
+   * also the order they should stack in, so it needs no numbers.
+   */
+}
+
 /* ------------------------------------------------------------- action bar */
 
 .ffw-actions {
-  position: fixed;
-  inset-inline: 0;
-  bottom: 0;
-  z-index: 10;
   display: flex;
   gap: var(--ff-space-8);
   padding: var(--ff-space-8) var(--ff-space-12);
   padding-bottom: calc(var(--ff-space-8) + env(safe-area-inset-bottom));
   background: var(--ff-color-surface);
   border-top: var(--ff-border, 1px) solid var(--ff-color-hairline);
-}
-
-.ffw-actions--stacked {
-  bottom: calc(var(--ff-hit-mid-set) + var(--ff-space-24));
 }
 
 .ffw-actions > * {
@@ -548,7 +574,8 @@
   flex-direction: column;
   gap: var(--ff-space-16);
   padding: var(--ff-space-32) var(--ff-space-16);
-  padding-block-end: calc(var(--ff-hit-mid-set) + var(--ff-space-48));
+  /* The dock is in the flow, so there is no fixed bar to reserve space for. */
+  min-block-size: 100%;
 }
 
 .ffw-summary-screen__title {

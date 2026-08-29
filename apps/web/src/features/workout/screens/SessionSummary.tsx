@@ -122,11 +122,15 @@ export function SessionSummary({ workout, priorSessions, onStartNext }: SessionS
         })}
       </ul>
 
-      {/* Bottom third, like everything else that gets tapped. */}
-      <div className="ffw-actions">
-        <Button size="xl" variant="primary" onClick={onStartNext}>
-          Start next session
-        </Button>
+      {/* Bottom third, like everything else that gets tapped — and docked inside
+          the scroll container, so it sits above the shell's tab bar rather than
+          over it. */}
+      <div className="ffw-dock">
+        <div className="ffw-actions">
+          <Button size="xl" variant="primary" onClick={onStartNext}>
+            Start next session
+          </Button>
+        </div>
       </div>
     </div>
   );
