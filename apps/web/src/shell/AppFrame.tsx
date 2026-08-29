@@ -15,6 +15,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
         <NavLink to={ROUTES.workout} className="ff-tab">Train</NavLink>
         <NavLink to={ROUTES.nutrition} className="ff-tab">Eat</NavLink>
         <NavLink to={ROUTES.insights} className="ff-tab">Progress</NavLink>
+        <NavLink to={ROUTES.more} className="ff-tab">More</NavLink>
       </nav>
     </div>
   );

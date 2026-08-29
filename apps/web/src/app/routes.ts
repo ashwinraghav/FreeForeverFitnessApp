@@ -11,7 +11,7 @@ export const ROUTES = {
   workout: '/workout',
   nutrition: '/nutrition',
   insights: '/insights',
-  settings: '/settings',
+  more: '/more',
 } as const;
 
 export type RouteKey = keyof typeof ROUTES;

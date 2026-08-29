@@ -53,3 +53,72 @@ body {
   height: 100%;
   color: var(--ff-color-fg-muted);
 }
+
+/* ── More: the fourth tab ─────────────────────────────────────────────────
+ *
+ * Plain links in grouped lists, not cards. This screen exists to be scanned
+ * once by someone who does not know what the app contains, then rarely
+ * visited — so legibility beats decoration, and every row is a 56px target
+ * because a list of links is exactly where a thumb goes wide.
+ */
+.ff-more {
+  padding: var(--ff-space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-32);
+  max-inline-size: calc(var(--ff-space-64) * 9);
+  margin-inline: auto;
+}
+
+.ff-more__head { padding-block-start: var(--ff-space-8); }
+
+.ff-more__title {
+  margin: 0;
+  font-size: var(--ff-text-title);
+  font-weight: var(--ff-weight-title);
+  color: var(--ff-color-fg-primary);
+}
+
+.ff-more__group { display: flex; flex-direction: column; gap: var(--ff-space-8); }
+
+.ff-more__grouptitle {
+  margin: 0;
+  font-size: var(--ff-text-label);
+  font-weight: var(--ff-weight-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ff-color-fg-muted);
+}
+
+.ff-more__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+
+.ff-more__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-block-size: var(--ff-hit-mid-set);
+  padding-block: var(--ff-space-12);
+  border-block-end: var(--ff-border-hairline) solid var(--ff-color-hairline);
+  text-decoration: none;
+}
+
+.ff-more__label { color: var(--ff-color-fg-primary); font-size: var(--ff-text-body); }
+.ff-more__hint  { color: var(--ff-color-fg-muted);   font-size: var(--ff-text-body-sm); }
+
+.ff-more__prose { display: flex; flex-direction: column; gap: var(--ff-space-12); }
+
+.ff-more__prose p {
+  margin: 0;
+  color: var(--ff-color-fg-secondary);
+  font-size: var(--ff-text-body-sm);
+  line-height: var(--ff-leading-body-sm);
+}
+
+.ff-more__prose strong { color: var(--ff-color-fg-primary); }
+
+/* The free-forever promise, stated once where someone looking for the catch
+ * will actually find it. */
+.ff-more__note {
+  border-inline-start: 2px solid var(--ff-color-accent);
+  padding-inline-start: var(--ff-space-12);
+}
