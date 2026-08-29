@@ -186,8 +186,18 @@ export default tseslint.config(
   },
 
   // Tests may reach for things application code may not.
+  //
+  // no-raw-literals is off here because ADR-0021 exists to keep *shipped styling*
+  // coherent across parallel teams, and a test file produces no styles. It was
+  // also flagging prose: a test named "…not the 48px floor" is a description, not
+  // a value, and the rule cannot tell a test title from a literal. Keeping it on
+  // would train people to reword their test names to satisfy a linter, which is
+  // exactly the kind of compliance that teaches everyone to stop believing it.
   {
     files: ['**/*.test.{ts,tsx}', '**/test/**', '**/__tests__/**'],
-    rules: { '@typescript-eslint/no-explicit-any': 'off' },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      'freeforever/no-raw-literals': 'off',
+    },
   },
 );
