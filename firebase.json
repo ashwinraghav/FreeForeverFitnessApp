@@ -34,7 +34,8 @@
       "firebase.json",
       "**/.*",
       "**/node_modules/**",
-      "pixel8a.html"
+      "pixel8a.html",
+      "demo.html"
     ],
     "rewrites": [
       {

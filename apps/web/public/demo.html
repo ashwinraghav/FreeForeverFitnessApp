@@ -1,0 +1,13 @@
+<!doctype html><meta charset="utf-8"><title>Walkthrough</title>
+<style>
+  /* Recording view: unscaled, so click coordinates map 1:1 into the frame.
+     412px wide is Pixel 8a; the height is trimmed to fit a capture. */
+  body{margin:0;background:#1b1b1f;display:flex;justify-content:center;
+       align-items:flex-start;padding:8px;font:11px ui-sans-serif,system-ui;color:#999}
+  iframe{width:412px;height:764px;border:0;border-radius:10px;box-shadow:0 0 0 5px #111;background:#000}
+</style>
+<iframe id="f"></iframe>
+<script>
+  document.getElementById('f').src =
+    'http://localhost:5173' + (new URLSearchParams(location.search).get('r') || '/more');
+</script>
