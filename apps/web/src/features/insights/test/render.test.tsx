@@ -355,3 +355,61 @@ describe('the chart cursor', () => {
     expect(recorded?.ops('roundRect').length).toBeGreaterThan(0);
   });
 });
+
+describe('one number per glance', () => {
+  /*
+   * A structural guard, and honest about its limits: jsdom has no layout engine, so
+   * nothing here proves anything fits. The 412px measurements live in the Pixel 8a
+   * harness and are recorded in the review notes.
+   *
+   * What this *can* hold is the rule that made the layout fail in the first place —
+   * four equal display-size figures across a phone. These assertions fail if a view
+   * grows a second hero or brings the tile grid back, which is the shape of the
+   * regression rather than one instance of it.
+   */
+  for (const [name, View] of [
+    ['overview', OverviewView],
+    ['muscles', MusclesView],
+    ['exercises', ExercisesView],
+    ['body', BodyView],
+  ] as const) {
+    it(`${name} leads with at most one headline figure`, async () => {
+      await mount(<View />);
+      expect(host.querySelectorAll('.ff-in-hero').length).toBeLessThanOrEqual(1);
+      // The grid of equal tiles is gone and does not come back.
+      expect(host.querySelector('.ff-in-tiles')).toBeNull();
+      expect(host.querySelector('.ff-in-tile')).toBeNull();
+    });
+  }
+
+  it('keeps the unit as its own element so it cannot break onto another line', async () => {
+    await mount(<OverviewView />);
+    const value = host.querySelector('.ff-in-hero__value');
+    const unit = value?.querySelector('.ff-in-hero__unit');
+    expect(unit).not.toBeNull();
+    // The number is a bare text node beside the unit span, not concatenated into it:
+    // that split is what lets the unit be set a size down and stay glued to the number.
+    expect(value?.firstChild?.nodeType).toBe(Node.TEXT_NODE);
+    expect(value?.firstChild?.textContent).not.toMatch(/kg|lb/);
+    expect(unit?.textContent?.trim()).toBe('kg');
+  });
+
+  it('states the supporting numbers as a definition list, not as more figures', async () => {
+    await mount(<OverviewView />);
+    const list = host.querySelector('.ff-in-facts');
+    expect(list?.tagName).toBe('DL');
+    const terms = list?.querySelectorAll('dt') ?? [];
+    const values = list?.querySelectorAll('dd') ?? [];
+    expect(terms.length).toBe(values.length);
+    expect(terms.length).toBeGreaterThan(0);
+    // Every value is announced with the thing it measures, never as a loose number.
+    for (const term of terms) expect(term.textContent?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it('does not restate the selected window three times over', async () => {
+    await mount(<OverviewView />);
+    const label = host.querySelector('.ff-in-hero__label')?.textContent ?? '';
+    // The range control above and the chart subtitle below both name the window.
+    expect(label).not.toMatch(/\d+ weeks/);
+  });
+});

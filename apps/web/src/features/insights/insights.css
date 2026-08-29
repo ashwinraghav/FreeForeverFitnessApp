@@ -135,43 +135,86 @@
   color: var(--ff-color-fg-secondary);
 }
 
-/* -- Stat tiles ---------------------------------------------------------- */
-.ff-in-tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(var(--ff-space-64), 1fr));
-  gap: var(--ff-space-12);
+/* -- Headline figure ----------------------------------------------------- */
+.ff-in-headline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-8);
 }
 
-.ff-in-tile {
+.ff-in-hero {
   display: flex;
   flex-direction: column;
   gap: var(--ff-space-4);
-  background: var(--ff-color-surface);
-  border: 1px solid var(--ff-color-hairline);
-  border-radius: var(--ff-radius-lg);
-  padding: var(--ff-space-12);
 }
 
-.ff-in-tile__label {
+.ff-in-hero__label {
   font-size: var(--ff-text-label);
   letter-spacing: var(--ff-tracking-label);
   font-weight: var(--ff-weight-label);
   color: var(--ff-color-fg-secondary);
 }
 
-.ff-in-tile__value {
-  font-size: var(--ff-text-display-lg);
-  line-height: var(--ff-leading-display-lg);
-  font-weight: var(--ff-weight-display-lg);
+.ff-in-hero__value {
+  /*
+   * Capped against the viewport as well as the scale. At the default text size the
+   * token wins outright; at a 200% setting on a 412px phone the cap keeps the figure
+   * growing (44px to ~54px) instead of growing until it is cut off. Measured, not
+   * guessed — an uncapped display-xl at 200% runs a long value out of the box.
+   */
+  font-size: min(var(--ff-text-display-xl), 13vw);
+  line-height: var(--ff-leading-display-xl);
+  font-weight: var(--ff-weight-display-xl);
+  letter-spacing: var(--ff-tracking-display-xl);
   color: var(--ff-color-fg-primary);
-  /* Proportional figures: tabular digits make a display-size number look loose. */
+  /*
+   * Proportional figures: tabular digits give every digit the width of a zero, which
+   * makes a number look loose at display size. Tabular is for columns that align.
+   * `nowrap` keeps the unit on the number's line — "0" above "kg" was the exact
+   * failure at 412px that started all this.
+   */
   font-variant-numeric: proportional-nums;
+  white-space: nowrap;
 }
 
-.ff-in-tile__delta,
-.ff-in-tile__detail {
+.ff-in-hero__unit {
+  font-size: var(--ff-text-title);
+  font-weight: var(--ff-weight-heading);
+  color: var(--ff-color-fg-secondary);
+}
+
+.ff-in-hero__meta {
   font-size: var(--ff-text-body-sm);
   color: var(--ff-color-fg-muted);
+}
+
+/*
+ * Supporting numbers as a wrapping definition list, not as more display figures.
+ * No fixed track width anywhere: it reflows at any viewport and at 200% text.
+ */
+.ff-in-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ff-space-4) var(--ff-space-16);
+  margin: 0;
+  font-size: var(--ff-text-body-sm);
+}
+
+.ff-in-fact {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ff-space-4);
+  white-space: nowrap;
+}
+
+.ff-in-fact dt {
+  color: var(--ff-color-fg-secondary);
+}
+
+.ff-in-fact dd {
+  margin: 0;
+  font-weight: var(--ff-weight-heading);
+  color: var(--ff-color-fg-primary);
 }
 
 /* -- Bar list ------------------------------------------------------------ */

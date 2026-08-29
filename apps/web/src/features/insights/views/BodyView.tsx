@@ -3,14 +3,14 @@ import { Select } from '@freeforever/design-system';
 import { CanvasChart } from '../charts/Canvas';
 import type { ChartCursor } from '../charts/Canvas';
 import { ChartFrame } from '../charts/ChartFrame';
-import { StatTile } from '../charts/StatTile';
+import { FactRow, Headline, HeroFigure } from '../charts/Headline';
 import { TableView } from '../charts/TableView';
 import { CHART_HEIGHT } from '../charts/sizes';
 import { drawLine } from '../charts/draw';
 import { useInsights } from '../data/context';
 import { MEASUREMENT_LABELS } from '../data/proposed';
 import { availableSites, change, measurementSeries, weightSeries } from '../select/body';
-import { formatDateShort, formatLength, formatMass } from '../select/format';
+import { formatDateShort, formatLength, formatMass, measureMass } from '../select/format';
 import { PhotoGallery } from './PhotoGallery';
 
 /*
@@ -121,23 +121,22 @@ export function BodyView() {
   return (
     <>
       {weightChange !== null && (
-        <div className="ff-in-tiles">
-          <StatTile
+        <Headline>
+          <HeroFigure
             label="Weight"
-            value={formatMass(weightChange.last.value, massUnit)}
+            value={measureMass(weightChange.last.value, massUnit).value}
+            unit={massUnit}
             delta={{
               text: `${formatMass(Math.abs(weightChange.change), massUnit)} over ${weightChange.days} days`,
-              direction:
-                weightChange.change > 0 ? 'up' : weightChange.change < 0 ? 'down' : 'flat',
+              direction: weightChange.change > 0 ? 'up' : weightChange.change < 0 ? 'down' : 'flat',
             }}
             detail="7-day weighted mean"
           />
-          <StatTile
-            label="Weigh-ins"
-            value={String(weight.raw.length)}
-            detail="logged"
+          <FactRow
+            label="Body summary"
+            facts={[{ key: 'weighins', label: 'Weigh-ins', value: String(weight.raw.length) }]}
           />
-        </div>
+        </Headline>
       )}
 
       <ChartFrame

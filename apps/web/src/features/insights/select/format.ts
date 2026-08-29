@@ -25,9 +25,28 @@ function round(value: number, places: number): number {
   return Math.round(value * factor) / factor;
 }
 
+export interface Measure {
+  readonly value: string;
+  readonly unit: string;
+}
+
+/**
+ * A measure split into its number and its unit.
+ *
+ * The split exists for the headline figure. Set at display size, "185.4 lb" is about
+ * a third wider than "185.4" — enough that at a 200% text setting it ran out of a
+ * 412px phone and had to either clip or break, putting "lb" on its own line. Setting
+ * the unit a size down keeps them on one line at every text size, and reads better:
+ * the number is the thing, the unit is the annotation.
+ */
+export function measureMass(kg: number, unit: MassDisplayUnit, places = 1): Measure {
+  return { value: round(toDisplayMass(kg, unit), places).toLocaleString(), unit };
+}
+
 /** A load or bodyweight, converted and rounded to the precision anyone can perceive. */
 export function formatMass(kg: number, unit: MassDisplayUnit, places = 1): string {
-  return `${round(toDisplayMass(kg, unit), places).toLocaleString()} ${unit}`;
+  const parts = measureMass(kg, unit, places);
+  return `${parts.value} ${parts.unit}`;
 }
 
 export function formatLength(cm: number, unit: LengthDisplayUnit): string {
@@ -46,9 +65,14 @@ export function formatCompact(value: number): string {
   return Math.round(value).toLocaleString();
 }
 
+export function measureVolume(kg: number, unit: MassDisplayUnit): Measure {
+  return { value: formatCompact(toDisplayMass(kg, unit)), unit };
+}
+
 /** Volume for an axis tick or a tile: compacted, unit-suffixed, never a raw float. */
 export function formatVolume(kg: number, unit: MassDisplayUnit): string {
-  return `${formatCompact(toDisplayMass(kg, unit))} ${unit}`;
+  const parts = measureVolume(kg, unit);
+  return `${parts.value} ${parts.unit}`;
 }
 
 export function formatDurationHours(seconds: number): string {

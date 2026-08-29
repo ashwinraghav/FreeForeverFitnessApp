@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { CanvasChart } from '../charts/Canvas';
 import type { ChartCursor } from '../charts/Canvas';
 import { ChartFrame } from '../charts/ChartFrame';
-import { StatTile } from '../charts/StatTile';
+import { FactRow, Headline, HeroFigure } from '../charts/Headline';
 import { TableView } from '../charts/TableView';
 import { CHART_HEIGHT } from '../charts/sizes';
 import { drawColumns } from '../charts/draw';
@@ -13,6 +13,7 @@ import {
   formatDurationHours,
   formatSignedPercent,
   formatVolume,
+  measureVolume,
   formatWeekLabel,
   percentChange,
 } from '../select/format';
@@ -107,36 +108,31 @@ export function OverviewView() {
         <RangePicker value={range} onChange={setRange} />
       </div>
 
-      <div className="ff-in-tiles">
-        <StatTile
+      <Headline>
+        <HeroFigure
           label="Weekly volume"
-          value={summary === null ? '—' : formatVolume(summary.meanWeeklyVolumeKg, unit)}
-          {...(volumeDelta === null
-            ? {}
-            : {
-                delta: {
-                  text: `${formatSignedPercent(volumeDelta)} vs previous ${weeks} weeks`,
-                  direction: volumeDelta > 0 ? ('up' as const) : volumeDelta < 0 ? ('down' as const) : ('flat' as const),
-                },
-              })}
-          detail={summary === null ? undefined : `mean over ${weeks} weeks`}
+          value={summary === null ? '—' : measureVolume(summary.meanWeeklyVolumeKg, unit).value}
+          unit={summary === null ? undefined : unit}
+          delta={
+            volumeDelta === null
+              ? undefined
+              : {
+                  text: `${formatSignedPercent(volumeDelta)} on the previous ${weeks} weeks`,
+                  direction: volumeDelta > 0 ? 'up' : volumeDelta < 0 ? 'down' : 'flat',
+                }
+          }
+          detail="mean per week"
         />
-        <StatTile
-          label="Sessions"
-          value={String(adherence.sessionsInWindow)}
-          detail={`${adherence.sessionsPerWeek.toFixed(1)} per week`}
+        <FactRow
+          label="Training summary"
+          facts={[
+            { key: 'sessions', label: 'Sessions', value: String(adherence.sessionsInWindow) },
+            { key: 'perweek', label: 'Per week', value: adherence.sessionsPerWeek.toFixed(1) },
+            { key: 'streak', label: 'Streak', value: formatCount(adherence.currentStreakDays, 'day') },
+            { key: 'records', label: 'Records (90d)', value: String(counts.last90Days) },
+          ]}
         />
-        <StatTile
-          label="Current streak"
-          value={formatCount(adherence.currentStreakDays, 'day')}
-          detail={`longest ${formatCount(adherence.longestStreakDays, 'day')}`}
-        />
-        <StatTile
-          label="Records"
-          value={String(counts.last90Days)}
-          detail="in the last 90 days"
-        />
-      </div>
+      </Headline>
 
       <ChartFrame
         title="Training volume"

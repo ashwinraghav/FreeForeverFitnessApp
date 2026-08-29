@@ -418,9 +418,23 @@
   gap: var(--ff-space-16);
 }
 
+/*
+ * Paired fields, but only when a pair actually fits.
+ *
+ * The minimum was 128px, which is nowhere near enough: a `NumberField` spends
+ * 112px on its two 56px steppers before the number gets a single pixel. At a
+ * 412px phone this produced two 184px columns, and the value was clipped to
+ * one digit on bodyweight and rendered at ZERO width on height and age — the
+ * user could not see the number they were typing, on the screen that sets
+ * their calorie target.
+ *
+ * 256px is sized from the control rather than guessed: 112px of steppers, plus
+ * a unit label, plus room for a real number. Below that the grid drops to one
+ * column, which is the right answer on a phone anyway.
+ */
 .ffn-fields-2 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(calc(var(--ff-space-64) * 2), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--ff-space-64) * 4), 1fr));
   gap: var(--ff-space-12);
 }
 

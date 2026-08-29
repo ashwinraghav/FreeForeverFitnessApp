@@ -3,13 +3,13 @@ import { Select } from '@freeforever/design-system';
 import { CanvasChart } from '../charts/Canvas';
 import type { ChartCursor } from '../charts/Canvas';
 import { ChartFrame } from '../charts/ChartFrame';
-import { StatTile } from '../charts/StatTile';
+import { FactRow, Headline, HeroFigure } from '../charts/Headline';
 import { TableView } from '../charts/TableView';
 import { CHART_HEIGHT } from '../charts/sizes';
 import { drawLine } from '../charts/draw';
 import { useInsights } from '../data/context';
 import { findSeries, orderedSeries, progressChartSeries, progressSummary } from '../select/e1rm';
-import { formatDateShort, formatMass } from '../select/format';
+import { formatDateShort, formatMass, measureMass } from '../select/format';
 import { prTimeline } from '../select/prs';
 import { PrTimeline } from './PrTimeline';
 
@@ -103,26 +103,30 @@ export function ExercisesView() {
       </div>
 
       {summary !== null && (
-        <div className="ff-in-tiles">
-          <StatTile
+        <Headline>
+          <HeroFigure
             label="Estimated 1RM"
-            value={formatMass(summary.last.e1rmKg, unit)}
+            value={measureMass(summary.last.e1rmKg, unit).value}
+            unit={unit}
             delta={{
               text: `${formatMass(Math.abs(summary.changeKg), unit)} over ${summary.sessions} sessions`,
               direction: summary.changeKg > 0 ? 'up' : summary.changeKg < 0 ? 'down' : 'flat',
             }}
-          />
-          <StatTile
-            label="Best"
-            value={formatMass(summary.best.e1rmKg, unit)}
-            detail={formatDateShort(summary.best.localDate)}
-          />
-          <StatTile
-            label="Last top set"
-            value={`${formatMass(summary.last.topSetLoadKg, unit)} × ${summary.last.topSetReps}`}
             detail={formatDateShort(summary.last.localDate)}
           />
-        </div>
+          <FactRow
+            label="Exercise summary"
+            facts={[
+              { key: 'best', label: 'Best', value: formatMass(summary.best.e1rmKg, unit) },
+              {
+                key: 'top',
+                label: 'Last top set',
+                value: `${formatMass(summary.last.topSetLoadKg, unit)} × ${summary.last.topSetReps}`,
+              },
+              { key: 'sessions', label: 'Sessions', value: String(summary.sessions) },
+            ]}
+          />
+        </Headline>
       )}
 
       <ChartFrame
