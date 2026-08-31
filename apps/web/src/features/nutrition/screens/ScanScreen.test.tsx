@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { FoodIndex } from '@freeforever/datasets';
+import { gtinCheckDigit } from '../scan/barcode.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -63,10 +64,14 @@ function serveRealIndex(): void {
  * step further. Any barcode written down here is a fact about one build, so the
  * test reads one out of the build in front of it instead.
  */
-function aBarcodeInTheIndex(): string {
+function offIndex(): FoodIndex {
   const read = (role: string) =>
     new Uint8Array(gunzipSync(readFileSync(`${BUILD}food-off-${role}-2026.08.1.bin.gz`)));
-  const index = new FoodIndex({ records: read('records'), barcodes: read('barcodes') });
+  return new FoodIndex({ records: read('records'), barcodes: read('barcodes') });
+}
+
+function aBarcodeInTheIndex(): string {
+  const index = offIndex();
   for (let i = 0; i < index.length; i++) {
     const food = index.get(i);
     // Needs an attribution URL too: the assertion below is a licence
@@ -74,6 +79,29 @@ function aBarcodeInTheIndex(): string {
     if (food?.barcode != null && food.attributionUrl !== null) return food.barcode;
   }
   throw new Error('no Open Food Facts record in the build carries a barcode');
+}
+
+/**
+ * A check-digit-valid GTIN-13 the catalogue genuinely does not have, found by
+ * asking it rather than by writing one down.
+ *
+ * The mirror of `aBarcodeInTheIndex`, and it needs to be derived for the same
+ * reason: a hardcoded "absent" barcode is a fact about one build. The OFF
+ * barcode table has grown with every rebuild and several barcodes now resolve
+ * to one record, so a number that is absent today can be present tomorrow —
+ * at which point this test fails claiming the app mishandles an unknown
+ * barcode, when in fact the barcode stopped being unknown.
+ */
+function aBarcodeNotInTheIndex(): string {
+  const index = offIndex();
+  // A deterministic walk, not a random one: a flaky fixture is worse than a
+  // stale one. 999-prefixed codes are not issued to real products.
+  for (let n = 0; n < 5_000; n++) {
+    const payload = `999${String(n).padStart(9, '0')}`;
+    const candidate = `${payload}${gtinCheckDigit(payload)}`;
+    if (index.byBarcode(candidate) === null) return candidate;
+  }
+  throw new Error('could not find a GTIN-13 absent from the build');
 }
 
 function setSecureContext(value: boolean): void {
@@ -167,16 +195,27 @@ describe('an unknown barcode', () => {
     // tables land the control reads "Loading catalogue". That is the fix for a
     // lookup racing the load and reporting a food as missing when it is not.
     const lookUp = await screen.findByRole('button', { name: /^look up$/i }, { timeout: 5000 });
-    // A valid GTIN-13 that is genuinely not in the catalogue.
-    await user.type(screen.getByRole('textbox', { name: /barcode/i }), '4006381333931');
+    // Read out of the artefacts rather than written down — see the note on
+    // `aBarcodeNotInTheIndex`.
+    const absent = aBarcodeNotInTheIndex();
+    await user.type(screen.getByRole('textbox', { name: /barcode/i }), absent);
     await user.click(lookUp);
 
-    expect(await screen.findByText(/not in the catalogue yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/not in the catalogue yet/i, {}, { timeout: 5000 })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /add this food/i }));
 
     // Not a dead end: the custom-food form, carrying the scanned number.
-    expect(await screen.findByRole('heading', { name: /add a food/i })).toBeInTheDocument();
-    expect(screen.getByText(/4006381333931 will be saved with this food/i)).toBeInTheDocument();
+    //
+    // The explicit timeout matters here and nowhere else in this file: this is a
+    // router transition, and `findBy`'s default one second is not enough under
+    // a parallel jsdom run. It flaked exactly once, in a full-suite run where
+    // fifty-five sibling tests were also failing and competing for the CPU —
+    // which is the only condition under which a one-second budget for a route
+    // change is thin. The assertion is that the app navigates, not how fast.
+    expect(
+      await screen.findByRole('heading', { name: /add a food/i }, { timeout: 5000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`${absent} will be saved with this food`, 'iu'))).toBeInTheDocument();
   });
 });
 
