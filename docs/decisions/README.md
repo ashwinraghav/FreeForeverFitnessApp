@@ -35,6 +35,7 @@ New decision: `pnpm adr "Short title"`.
 | [0027](./0027-calorie-safety-floors.md) | Calorie targets have hard, explained safety floors | Accepted |
 | [0028](./0028-account-link-merges-rather-than-refuses.md) | Account linking merges rather than refuses, and leaves orphans alone | Accepted |
 | [0029](./0029-hard-deletes-under-delta-sync.md) | The domain soft-deletes; hard deletes are best-effort | Accepted |
+| [0030](./0030-bundled-food-index-is-a-cache-not-the-catalogue.md) | The bundled food index is a cache, not the catalogue | Accepted |
 
 ## Reading order for newcomers
 
