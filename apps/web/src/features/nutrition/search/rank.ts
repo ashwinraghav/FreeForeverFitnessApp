@@ -4,8 +4,8 @@ import { fold, tokenise } from '@freeforever/datasets';
  * Query classification and client-side re-ranking.
  *
  * Every figure quoted in this file was measured against the shipped index —
- * version 2026.08.1, 95,996 records (core 32,123 + off 63,873), manifest
- * 2026-08-31T15:40Z — by `recall.test.ts`, which refuses to report a number if
+ * version 2026.08.1, 96,043 records (core 32,213 + off 63,830), manifest
+ * 2026-08-31T16:32Z — by `recall.test.ts`, which refuses to report a number if
  * the build directory holds a sample. **The corpus identity is stated wherever a number is, on
  * purpose:** an earlier version of these comments carried figures from the
  * pre-dedupe 98,267-record build and there was no way to tell by reading them.
@@ -27,7 +27,7 @@ import { fold, tokenise } from '@freeforever/datasets';
  * the index only materialises the records it returns.
  *
  * **3. A common word surfaced the wrong *kind* of food.** This is the one the
- * corpus growing 122-fold exposed. Over 784 records "milk" returned a handful
+ * corpus growing 123-fold exposed. Over 784 records "milk" returned a handful
  * of rows and the plain one was visible; over 97,000 it returned three
  * supermarket own-brand cartons followed by milk crackers, milk chocolate
  * candies and a milkshake — while the record that *is* milk sat inside the
@@ -299,7 +299,7 @@ export function hitFeatures(food: RankableFood, tokens: readonly string[]): HitF
  * Weights, in one object so they can be swept rather than argued about.
  *
  * Every number here was chosen by measuring recall and top-8 precision against
- * the shipped 95,996-record index — see `recall.test.ts`, which reports both
+ * the shipped 96,043-record index — see `recall.test.ts`, which reports both
  * and fails if the corpus it opens is not the one we ship. The previous set was
  * tuned against 784 records and did not survive the corpus growing 122-fold;
  * that is the whole reason this object is exported.
@@ -326,7 +326,7 @@ export const DEFAULT_WEIGHTS: RankWeights = {
    *
    * This was 1.0, against a 784-record sample where the index's popularity prior
    * — `0.5 / (1 + doc / 500)`, with 500 hard-coded — spanned 0.5 down to 0.31
-   * and carried real information. Over 95,996 records that form collapsed to ~0
+   * and carried real information. Over 96,000 records that form collapsed to ~0
    * by record 5,000, so a third of the score was being spent on a number that
    * was flat across most of the corpus.
    *
@@ -542,7 +542,7 @@ export function dedupeHits<F extends RankableFood>(
  * name, are one row's worth of information occupying a whole screen — and they
  * were pushing the plain USDA record off it entirely.
  *
- * **Five, measured, not guessed.** Against the shipped index (95,996 records),
+ * **Five, measured, not guessed.** Against the shipped index (96,043 records),
  * over 31 generic staple queries and an 800-record recall sample:
  *
  * | cap | plain food on the first screen | the name typed out, @8 |

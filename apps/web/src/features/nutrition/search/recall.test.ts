@@ -15,8 +15,8 @@ import { DATASETS_BUILD_DIR } from '../test/fixturePath.js';
  * 98,000. A loose match that returns a handful of rows shows you the right one;
  * the same loose match over 98,000 returns thousands and buries it.
  *
- * Every figure quoted below was measured on index 2026.08.1, **95,996 records**
- * (core 32,123 + off 63,873), manifest 2026-08-31T15:40Z. The corpus is named
+ * Every figure quoted below was measured on index 2026.08.1, **96,043 records**
+ * (core 32,213 + off 63,830), manifest 2026-08-31T16:32Z. The corpus is named
  * next to the numbers deliberately: these comments once carried figures from a
  * pre-dedupe 98,267-record build and nothing in them said so.
  *
@@ -43,7 +43,7 @@ import { DATASETS_BUILD_DIR } from '../test/fixturePath.js';
  *   good *page*, not a specific row, which is what `STAPLES` below measures.
  */
 
-/** Under 4 MB gzipped, 95,996 records. Well under this means the sample index. */
+/** Under 4 MB gzipped, 96,043 records. Well under this means the sample index. */
 const MIN_SHIP_CORPUS = 50_000;
 
 const VERSION = '2026.08.1';
@@ -238,7 +238,7 @@ describe('recall at the limits a phone actually shows', () => {
     // screen, not on page three.
     const k8 = recall(records, BRAND_AND_PRODUCT, 8);
     const k20 = recall(records, BRAND_AND_PRODUCT, 20);
-    // Measured 98.5% at k=8, 99.4% at k=20. Down from 99.2%/99.8% on the
+    // Measured 98.5% at k=8, 99.8% at k=20. Down from 99.2%/99.8% on the
     // previous build, and the cause is upstream rather than here: the adapter
     // now nulls a brand field that merely repeated the product name, so 5,305
     // records that used to be findable *by that junk brand* no longer are.
@@ -260,11 +260,11 @@ describe('recall at the limits a phone actually shows', () => {
     // defers the third and later identical-looking rows so the first screen is
     // not one word repeated eight times. Naming the brand recovers them, which
     // is what the probe above measures.
-    // Measured 96.5% at k=8, 97.0% at k=20. The gap to a no-diversification
+    // Measured 96.6% at k=8, 97.1% at k=20. The gap to a no-diversification
     // ranking is what a first screen which is not one word repeated eight times
     // costs, and it is recoverable by naming the brand — the probe above. It
     // has narrowed from four points to about one as the upstream defects were
-    // fixed: 91.0% two builds ago, 94.9% one build ago, 96.5% now.
+    // fixed: 91.0%, then 94.9%, then 96.5%, and 96.6% now.
     expect(k8, `the name typed out @8 = ${(k8 * 100).toFixed(1)}%`).toBeGreaterThan(0.90);
     expect(k20, `the name typed out @20 = ${(k20 * 100).toFixed(1)}%`).toBeGreaterThan(0.92);
   });
@@ -276,8 +276,9 @@ describe('recall at the limits a phone actually shows', () => {
     // file. What *is* worth guarding is that it has not collapsed to nothing,
     // which would mean the leading word had stopped mattering at all.
     // For the record, since it is the number that raised the alarm: it was
-    // reported as 39.6% at k=20 on the pre-dedupe build, and measures 37.8%
-    // here. It stays below what a ranking tuned *for* it would score, and that
+    // reported as 39.6% at k=20 on the pre-dedupe build, and measures 31.1%
+    // here — it fell as the index started shipping more plain foods, because
+    // more of them compete for the same common word. It stays below what a ranking tuned *for* it would score, and that
     // is the trade working — recall of one arbitrary record for a common word
     // is anti-correlated with putting the right food first.
     expect(k8, `leading word @8 = ${(k8 * 100).toFixed(1)}%`).toBeGreaterThan(0.15);
@@ -398,7 +399,7 @@ describe('a stopword-only query is an unfinished query, not a missing food', () 
     // probe artefact: those records open with a word the index does not index.
     //
     // This used to probe by the food's *first* indexed term, which was a fair
-    // demonstration over 784 records and is meaningless over 95,996 — "beef"
+    // demonstration over 784 records and is meaningless over 96,043 — "beef"
     // alone matches five hundred unbranded USDA rows before the branded ones,
     // so a top-N search cannot hold them all however large N is. Probing by the
     // whole token sequence tests what the claim was always about: that the
