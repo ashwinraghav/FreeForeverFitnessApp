@@ -119,6 +119,32 @@ off the element instead. Note also that a `showModal`/`close` shim buys content 
 assertions and **none** of the modality: focus trapping and Escape are platform behaviour, and
 only a real browser sees them.
 
+**4. An element is never its own container query container.** A `@container` condition is
+evaluated against the nearest *ancestor* container, so a selector matching the container itself
+resolves against its parent — and with no ancestor container, never matches. This fails silently
+and asymmetrically: overriding `--ffw-cols` on `.ffw-card` inside `@container (inline-size <
+18em)` did nothing, while the rule beside it hiding a *descendant* matched fine. The result was a
+column hidden with its grid track still in place, so the value cells got **narrower** (34px) than
+the 47px bug being fixed. Every test stayed green. Set the property on the descendants that read
+it, and assert that no container-class selector appears inside the query block.
+
+Worth pairing with why that query was in `em` at all: at 200% text the viewport is not narrow,
+the *text* is large. `em` inside `@container` resolves against font size, so 412px reads as
+25.8em at 100% and 12.9em at 200%. A `max-width` media query would punish the 412px phone this
+app is designed for and miss the case that is actually broken.
+
+**5. A CSS guard only guards the package it parses.** `hit-targets.test.ts` reads
+`primitives.css` and fails the build on a `min-inline-size: 0` that would let a value collapse to
+nothing. It cannot see a rule in `apps/web` overriding the same property on the same class, so a
+scoped override in another package reintroduces the regression invisibly. If you find yourself
+writing another package's class name into your stylesheet, that is the signal — and the fix
+belongs upstream, not in a permanent local override.
+
+**And read the owning package's tests before proposing a change to it.** A fix that looks
+obviously right from outside may be one the owner already tried and removed, with the reason
+recorded in a test rather than in the CSS. The absent declaration is invisible; only the guard
+explains it.
+
 The general rule: when a DOM test asserts a negative — not found, unsupported,
 degraded — prove the positive case works in the same file. Otherwise you cannot tell a
 real negative from a harness that never ran.
