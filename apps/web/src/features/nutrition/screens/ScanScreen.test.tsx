@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
+import { FoodIndex } from '@freeforever/datasets';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -50,6 +51,29 @@ function serveRealIndex(): void {
       return new Response(body, { status: 200 });
     }),
   );
+}
+
+/**
+ * A barcode that is really in the artefacts on disk, read from them.
+ *
+ * This used to be a hard-coded GTIN, picked by reading the fixture build — and
+ * it broke the moment the index was rebuilt, because record selection changed
+ * and that particular product was no longer shipped. The comment on it already
+ * explained why a *famous* barcode would be wrong; the same reasoning goes one
+ * step further. Any barcode written down here is a fact about one build, so the
+ * test reads one out of the build in front of it instead.
+ */
+function aBarcodeInTheIndex(): string {
+  const read = (role: string) =>
+    new Uint8Array(gunzipSync(readFileSync(`${BUILD}food-off-${role}-2026.08.1.bin.gz`)));
+  const index = new FoodIndex({ records: read('records'), barcodes: read('barcodes') });
+  for (let i = 0; i < index.length; i++) {
+    const food = index.get(i);
+    // Needs an attribution URL too: the assertion below is a licence
+    // obligation, not incidental.
+    if (food?.barcode != null && food.attributionUrl !== null) return food.barcode;
+  }
+  throw new Error('no Open Food Facts record in the build carries a barcode');
 }
 
 function setSecureContext(value: boolean): void {
@@ -168,11 +192,9 @@ describe('a barcode that is in the catalogue', () => {
 
     const lookUp = await screen.findByRole('button', { name: /^look up$/i }, { timeout: 5000 });
 
-    // A real Open Food Facts record in the committed fixture build. Picked by
-    // reading the artefact rather than from the docs: the fixture is a
-    // byte-range prefix of the OFF dump, so the famous example barcodes are
-    // not in it and a test using one would fail for the wrong reason.
-    await user.type(screen.getByRole('textbox', { name: /barcode/i }), '0009300003346');
+    // Read out of the artefacts rather than written down — see the note on
+    // `aBarcodeInTheIndex`.
+    await user.type(screen.getByRole('textbox', { name: /barcode/i }), aBarcodeInTheIndex());
     await user.click(lookUp);
 
     await waitFor(

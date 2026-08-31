@@ -145,7 +145,12 @@ export function ScanScreen() {
 
       teardown();
       setPortionFor(
-        snapshotFromIndexFood(resolved.match, { imperial: state.preferences.massUnit === 'oz' }),
+        snapshotFromIndexFood(resolved.match, {
+          imperial: state.preferences.massUnit === 'oz',
+          // The number on this packet, which is not always the record's own —
+          // see `snapshotFromIndexFood`.
+          scannedBarcode: resolved.matchedBarcode,
+        }),
       );
     },
     [catalogue, state.customFoods, state.preferences.massUnit, teardown],

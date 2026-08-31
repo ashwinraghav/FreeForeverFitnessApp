@@ -477,15 +477,29 @@
  * 256px is sized from the control rather than guessed: 112px of steppers, plus
  * a unit label, plus room for a real number. Below that the grid drops to one
  * column, which is the right answer on a phone anyway.
+ *
+ * The `min(…, 100%)` is what keeps that true at 200% text. The minimum is in
+ * rem, so at 200% it doubles to 512px — wider than a 412px phone — and a track
+ * wider than its container does not wrap, it overflows: the whole sheet
+ * scrolled sideways and the serving picker ran off the right edge. `min()`
+ * caps the track at the container, so the grid collapses to one column instead
+ * of pushing the page. Found by opening a browser and turning the text up;
+ * jsdom reports every element as zero-sized and cannot see it.
  */
 .ffn-fields-2 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(calc(var(--ff-space-64) * 4), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(calc(var(--ff-space-64) * 4), 100%), 1fr));
   gap: var(--ff-space-12);
 }
 
+/*
+ * Wraps, because at 200% text two buttons side by side are 500px inside a
+ * 412px sheet and the primary action — the one that logs the food — is the one
+ * that goes off the right edge. Nothing here is testable in jsdom.
+ */
 .ffn-sheet-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--ff-space-8);
   justify-content: flex-end;
 }

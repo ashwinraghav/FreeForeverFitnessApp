@@ -11,6 +11,8 @@ import {
   gramsForPortion,
   gramsToMillilitres,
   gramsToOunces,
+  hasStatedServing,
+  defaultPortion,
   HUNDRED_GRAM_SERVING,
   isPlausibleDensity,
   MILLILITRES_PER_US_CUP,
@@ -212,14 +214,85 @@ describe('servingsForFood', () => {
       statedServingLabel: '1 slice',
       basis: 'g',
     });
-    expect(list[0]).toMatchObject({ name: '1 slice', gramsPerServing: 28 });
+    expect(list[0]).toMatchObject({ name: 'slice', gramsPerServing: 28 });
     expect(defaultServing(list)).toBe(list[0]);
   });
 
-  it('falls back to 100 g when the food states no serving', () => {
+  it('opens a whey protein on one scoop, not on 100 g of powder', () => {
+    // The user's own test case. USDA states this one as `1 Scoop`; Open Food
+    // Facts states it as `1 scoop (31 g)`. Both must land on the same serving.
+    for (const label of ['1 Scoop', '1 scoop (31 g)']) {
+      const list = servingsForFood({
+        statedServingGrams: 31,
+        statedServingLabel: label,
+        basis: 'g',
+      });
+      expect(defaultServing(list)).toMatchObject({ name: 'scoop', gramsPerServing: 31 });
+      expect(hasStatedServing(list)).toBe(true);
+    }
+  });
+
+  it('keeps no wording at all when the label is only the mass again', () => {
+    // Open Food Facts is full of these: `"33g"`, `"177.441g"`. Carried through
+    // as a name they give `1 serving — 33g (33 g)` and an amount field reading
+    // `1 · 33g`. There is nothing here the index has not already told us.
+    for (const label of ['33g', '36 g', '177.441g', '250 ml']) {
+      const list = servingsForFood({
+        statedServingGrams: 33,
+        statedServingLabel: label,
+        basis: 'g',
+      });
+      expect(list[0]).toMatchObject({ name: 'serving', gramsPerServing: 33 });
+    }
+  });
+
+  it('keeps a serving whose label carries its own count whole', () => {
+    // "one serving is two tablespoons". Reducing this to a `tbsp` serving would
+    // halve every amount the user logs, silently and forever.
+    const list = servingsForFood({
+      statedServingGrams: 32,
+      statedServingLabel: '2 tbsp',
+      basis: 'g',
+    });
+    expect(list[0]).toMatchObject({ name: '2 tbsp', gramsPerServing: 32 });
+  });
+
+  it('opens on 100 grams — never 1 gram — when the food states no serving', () => {
+    // This is the bug the user hit: the sheet opened on `1 g` of chicken breast,
+    // because grams led the list and the quantity was hard-coded to 1.
     const list = servingsForFood({ basis: 'g' });
-    expect(defaultServing(list).gramsPerServing).toBe(1); // grams first, then 100 g
-    expect(list.map((s) => s.name)).toEqual(['g', '100 g']);
+    expect(hasStatedServing(list)).toBe(false);
+    expect(defaultPortion(list)).toEqual({ serving: GRAM_SERVING, quantity: 100 });
+  });
+
+  it('opens a drink on 100 millilitres', () => {
+    const list = servingsForFood({ basis: 'ml' });
+    expect(list.map((s) => s.name)).toEqual(['ml', 'g']);
+    expect(defaultPortion(list)).toMatchObject({ quantity: 100 });
+    expect(defaultPortion(list).serving.name).toBe('ml');
+  });
+
+  it('opens a food that states a serving on exactly one of them', () => {
+    const list = servingsForFood({
+      statedServingGrams: 31,
+      statedServingLabel: '1 scoop',
+      basis: 'g',
+    });
+    expect(defaultPortion(list)).toEqual({ serving: list[0], quantity: 1 });
+  });
+
+  it('lets the packet’s own cup win over the one we would compute', () => {
+    // A stated 240 g cup beside a computed 243.7 g cup, both reading "cup", is
+    // a choice nobody can make. The packet is the better authority.
+    const list = servingsForFood({
+      statedServingGrams: 240,
+      statedServingLabel: '1 cup',
+      basis: 'ml',
+      densityGPerMl: 1.03,
+      imperial: true,
+    });
+    expect(list.filter((s) => s.name === 'cup')).toHaveLength(1);
+    expect(list[0]).toMatchObject({ name: 'cup', gramsPerServing: 240 });
   });
 
   it('offers volumetric units only for a liquid', () => {
@@ -240,9 +313,10 @@ describe('servingsForFood', () => {
     );
   });
 
-  it('does not list a stated 100 g serving twice', () => {
+  it('accepts a packet whose serving really is 100 g, without calling it "100 g"', () => {
     const list = servingsForFood({ statedServingGrams: 100, statedServingLabel: '100 g', basis: 'g' });
-    expect(list.filter((s) => s.gramsPerServing === 100 && s.name === '100 g')).toHaveLength(1);
+    expect(list.map((s) => s.name)).toEqual(['serving', 'g']);
+    expect(defaultPortion(list)).toEqual({ serving: list[0], quantity: 1 });
   });
 
   it('gives a liquid serving its millilitre equivalent', () => {

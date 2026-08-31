@@ -3,10 +3,14 @@ import { Button, Chip, NumberField, Select, Sheet } from '@freeforever/design-sy
 import {
   computePortionNutrition,
   convertQuantityBetweenServings,
+  defaultPortion,
   defaultServing,
   formatEnergy,
   formatGrams,
+  formatPortionSubtitle,
+  hasStatedServing,
   MEAL_SLOTS,
+  servingChoices,
   type MealSlot,
   type Serving,
 } from '@freeforever/core/src/nutrition/index.js';
@@ -20,7 +24,7 @@ import type { FoodSnapshot } from '../data/types.js';
  * user already entered. A modal in a logging flow is the failure mode
  * CLAUDE.md names outright.
  *
- * Two behaviours worth stating, both from `packages/core`:
+ * Three behaviours worth stating, all from `packages/core`:
  *
  * - **Switching unit does not change how much you ate.** Going from "2 slices"
  *   to grams shows 56 g, not 2 g. The mass is held constant and the quantity is
@@ -28,7 +32,30 @@ import type { FoodSnapshot } from '../data/types.js';
  * - **Every quantity change re-derives from the per-100 g profile.** Tapping
  *   `+` twelve times lands exactly where typing 12 lands, with no accumulated
  *   rounding.
+ * - **The food opens on its own serving.** One scoop of whey, not 100 g of
+ *   powder. A food that states no serving opens on 100 g and says so, rather
+ *   than dressing 100 g up as "one serving" — for anything dense that is a
+ *   threefold logging error the user has no way to spot.
+ *
+ * The line under the amount is text, never a control. The user asked for that
+ * in those words: "not an editable thing, just a subtitle or subtext". It is
+ * the `hint` of the amount field, so it is also what a screen reader reads out
+ * as the field's description.
  */
+
+/**
+ * Said out loud, rather than left to the absence of an option.
+ *
+ * A caveat, not a warning: roughly six foods in ten in today's index state no
+ * serving, and a solid badge on every one of them would shout past the button
+ * that logs the food. It sits under the picker it explains, as that field's
+ * description, so a screen reader reaches it by moving to the control rather
+ * than by hunting for a paragraph.
+ *
+ * What it must never become is silence. Treating 100 g as one serving is how
+ * someone logs a third of the whey they actually drank.
+ */
+const MISSING_SERVING_HINT = 'No serving size on this food, so amounts are by weight.';
 
 const SLOT_LABELS: Record<MealSlot, string> = {
   breakfast: 'Breakfast',
@@ -83,14 +110,19 @@ export function PortionSheet({
     const index = initialServing
       ? Math.max(0, servings.findIndex((s) => s.name === initialServing.name))
       : 0;
+    const opening = defaultPortion(servings);
     setServingIndex(index);
-    setQuantity(initialQuantity ?? 1);
+    // `defaultPortion`, not a hard-coded 1: a food with no stated serving opens
+    // on 100 g, and a food with one opens on exactly one of them.
+    setQuantity(initialQuantity ?? (initialServing ? 1 : opening.quantity));
     setSlot(initialSlot);
     // `snapshot.key` rather than the object: a re-render with an equal snapshot
     // must not reset a portion the user is part-way through editing.
   }, [open, snapshot?.key, initialSlot, initialQuantity, initialServing?.name]);
 
   const serving = servings[servingIndex] ?? defaultServing(servings);
+  const choices = servingChoices(servings, { massUnit });
+  const stated = hasStatedServing(servings);
 
   const portion = useMemo(() => {
     if (!snapshot || !serving) return null;
@@ -115,6 +147,25 @@ export function PortionSheet({
 
   // A gram-denominated serving steps by 5 g; a "slice" steps by half of one.
   const step = serving.gramsPerServing <= 1 ? 5 : 0.5;
+
+  /**
+   * The read-only line under the amount.
+   *
+   * Rounding is stated once, here and in `formatPortionSubtitle`: whole
+   * kilocalories with a `~`, and the app's standard macro rule for grams. This
+   * is supporting text, not an audit trail — the exact figures logged are the
+   * ones in the summary below it.
+   */
+  const subtitle =
+    portion !== null
+      ? formatPortionSubtitle({
+          quantity: quantity ?? 0,
+          serving,
+          nutrients: portion.nutrients,
+          energyUnit,
+          massUnit,
+        })
+      : undefined;
 
   return (
     <Sheet
@@ -155,15 +206,20 @@ export function PortionSheet({
             step={step}
             min={0}
             unit={serving.name}
+            {...(subtitle !== undefined ? { hint: subtitle } : {})}
           />
           <Select
             label="Serving"
             value={String(servingIndex)}
             onChange={(event) => changeServing(Number(event.currentTarget.value))}
+            {...(stated ? {} : { hint: MISSING_SERVING_HINT })}
           >
-            {servings.map((option, index) => (
-              <option key={`${option.name}:${option.gramsPerServing}`} value={index}>
-                {option.name}
+            {choices.map((choice, index) => (
+              <option
+                key={`${choice.serving.name}:${choice.serving.gramsPerServing}`}
+                value={index}
+              >
+                {choice.label}
               </option>
             ))}
           </Select>
@@ -188,13 +244,6 @@ export function PortionSheet({
               <span>fat</span>
             </div>
           </div>
-        ) : null}
-
-        {portion ? (
-          <p className="ffn-muted">
-            {formatGrams(portion.massG, massUnit)} {massUnit}
-            {portion.millilitresMl !== undefined ? ` · ${Math.round(portion.millilitresMl)} ml` : ''}
-          </p>
         ) : null}
 
         <fieldset style={{ border: 'none', margin: 0, padding: 0 }}>

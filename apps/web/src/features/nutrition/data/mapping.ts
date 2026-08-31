@@ -54,8 +54,29 @@ export function profileFromIndex(food: Food): NutrientProfile {
  */
 export const ASSUMED_INDEX_DENSITY_G_PER_ML = 1.0;
 
-export function snapshotFromIndexFood(food: Food, opts: { imperial?: boolean } = {}): FoodSnapshot {
+export function snapshotFromIndexFood(
+  food: Food,
+  opts: {
+    imperial?: boolean;
+    /**
+     * The GTIN the user actually scanned, when it differs from the record's own.
+     *
+     * Several barcodes can resolve to one `Food`: the index merges near-
+     * duplicate regional SKUs and keeps the losers' barcodes pointing at the
+     * survivor (`alsoBarcodes`), so `byBarcode(x).barcode` is not necessarily
+     * `x`. Storing the survivor's primary would mean a user who saved their own
+     * corrections against this packet would not be found by re-scanning it —
+     * `ScanScreen` matches their custom foods on the scanned number.
+     *
+     * `resolveBarcode` already separates `matchedBarcode` from the food it
+     * found, for the GTIN-12-versus-13 case; this is the same distinction one
+     * layer up.
+     */
+    scannedBarcode?: string;
+  } = {},
+): FoodSnapshot {
   const isLiquid = food.basis === 'ml';
+  const barcode = opts.scannedBarcode ?? food.barcode;
   return {
     key: food.id,
     ref: {
@@ -73,7 +94,7 @@ export function snapshotFromIndexFood(food: Food, opts: { imperial?: boolean } =
       ...(opts.imperial === true ? { imperial: true } : {}),
     }),
     ...(isLiquid ? { densityGPerMl: ASSUMED_INDEX_DENSITY_G_PER_ML } : {}),
-    ...(food.barcode !== null ? { barcode: food.barcode } : {}),
+    ...(barcode !== null ? { barcode } : {}),
     // Rendering this for an Open Food Facts row is a licence obligation, not a
     // nicety (packages/datasets/NOTICE.md §2.2).
     ...(food.attributionUrl !== null ? { attributionUrl: food.attributionUrl } : {}),
@@ -126,7 +147,6 @@ export function snapshotFromRecipe(recipe: Recipe): FoodSnapshot {
   const servings: Serving[] = [
     { name: 'serving', gramsPerServing: Math.max(0.01, perServingMass) },
     { name: 'g', gramsPerServing: 1 },
-    { name: '100 g', gramsPerServing: 100 },
   ];
 
   return {
