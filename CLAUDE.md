@@ -112,6 +112,13 @@ hand, and **make your fetch stub throw on a missing fixture rather than returnin
 detection therefore says gunzip is available and the call throws. Serve
 pre-decompressed bytes in tests; the datasets reader supports that path explicitly.
 
+**3. A closed `<dialog>` is still in the DOM.** The browser hides it with a UA stylesheet
+jsdom does not apply, so `queryByText('Delete this session?')` finds the heading whether the
+dialog is open or shut — and an assertion built on it passes in both states. Read `dialog.open`
+off the element instead. Note also that a `showModal`/`close` shim buys content and behaviour
+assertions and **none** of the modality: focus trapping and Escape are platform behaviour, and
+only a real browser sees them.
+
 The general rule: when a DOM test asserts a negative — not found, unsupported,
 degraded — prove the positive case works in the same file. Otherwise you cannot tell a
 real negative from a harness that never ran.

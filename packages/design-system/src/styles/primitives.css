@@ -285,6 +285,17 @@
   display: flex;
   align-items: stretch;
   gap: var(--ff-space-8);
+  /* At 200% text the two steppers plus the well exceed a 412px phone, and a
+     flex row that cannot wrap puts the increment button 144px off the right
+     edge — unreachable, which is loss of functionality under WCAG 1.4.4 on the
+     most-tapped control in the product.
+     
+     Wrap, and deliberately NOT `min-inline-size: 0` on the well. A zero minimum
+     also removes the overflow, but by letting the input shrink to nothing — the
+     bug hit-targets.test.ts already pins, where a layout fault rendered as
+     missing data. Wrapping drops the stepper to a second line instead, so the
+     value stays readable at its min-content width. */
+  flex-wrap: wrap;
 }
 
 .ff-number__well {
@@ -851,6 +862,9 @@
 
 .ff-segmented {
   display: inline-flex;
+  /* Identical shape to `.ff-number` above, and it pushed "Not yet" off the same
+     edge at 200% text. */
+  flex-wrap: wrap;
   gap: var(--ff-space-4);
   padding: var(--ff-space-4);
   background-color: var(--ff-color-sunken);
