@@ -338,6 +338,20 @@
  */
 .ffw-editor {
   display: grid;
+  /*
+   * `minmax(0, 1fr)`, not the implicit `auto` track.
+   *
+   * An implicit grid track is `auto`, which is sized by its content and is free to grow
+   * past the container. At 200% text the stepper row's min-content is about 483px, so
+   * inside a 412px phone the track became 483px and the field, the state control and
+   * both buttons hung 103px off the right edge — the "+" stepper and half of "Done"
+   * simply unreachable. `minmax(0, 1fr)` pins the track to the container and lets the
+   * children shrink, which is the same fix the shell needed for its tab bar.
+   *
+   * Measured before and after in Chrome at 412px with a 32px root, because jsdom reports
+   * every one of these boxes as zero-sized and cannot tell the two states apart.
+   */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--ff-space-12);
   padding: var(--ff-space-12) var(--ff-space-16) var(--ff-space-16);
   background: var(--ff-color-raised);
@@ -700,6 +714,9 @@
 
 .ffw-editor__spacer {
   flex: 1;
+  /* Never the reason a control gets pushed off the edge: a spacer that refuses to
+     shrink is not a spacer. */
+  min-inline-size: 0;
 }
 
 /* A chevron pointing the other way. Half a turn, no second glyph to keep in sync. */
@@ -813,4 +830,390 @@
   color: var(--ff-color-fg-muted);
   font-size: var(--ff-text-body-sm);
   font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------- session history */
+
+/*
+ * The history screen, and the one place in this feature that is allowed to breathe.
+ *
+ * The live screen's austerity is a response to a physical situation — one chalky hand,
+ * bad light, ninety seconds — and none of it applies here. This is read sitting down,
+ * with two hands, with nothing in flight to lose to a mis-tap. So dates, a disclosure
+ * and prose are all fine. The hit sizes are the part that is not situational.
+ */
+.ffw-history-screen {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100%;
+  padding-block-end: var(--ff-space-24);
+}
+
+.ffw-history-screen__back {
+  margin: 0;
+  padding: var(--ff-space-8) var(--ff-space-8) 0;
+}
+
+.ffw-history-screen__cap {
+  margin: 0;
+  padding: var(--ff-space-16);
+  color: var(--ff-color-fg-muted);
+  font-size: var(--ff-text-body-sm);
+}
+
+.ffw-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/*
+ * Grouped so the screen header is two flex items and not three.
+ *
+ * A third element in a tight header is how the shell's tab bar came to be 498px inside a
+ * 412px phone at 200% text and scrolled the whole document sideways. Both the header and
+ * this group wrap, so the failure mode at large text is an extra line rather than a
+ * control off the right edge.
+ */
+.ffw-screen__header {
+  flex-wrap: wrap;
+}
+
+.ffw-screen__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ff-space-8) var(--ff-space-12);
+  min-inline-size: 0;
+}
+
+/* A navigation link at the 48px floor. Not tapped mid-set, so not the 56px. */
+.ffw-headerlink {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--ff-hit-min);
+  padding-inline: var(--ff-space-8);
+  border-radius: var(--ff-radius-md);
+  color: var(--ff-color-accent);
+  font-size: var(--ff-text-body-sm);
+  font-weight: var(--ff-weight-label);
+  text-decoration: underline;
+  /* Underlined as well as coloured: a link that is only a colour is a link a lot of
+     people cannot see (ADR-0013, never colour alone). */
+  text-underline-offset: var(--ff-space-4);
+}
+
+/* ------------------------------------------------------ one past session */
+
+.ffw-past {
+  border-block-end: var(--ff-border, 1px) solid var(--ff-color-hairline);
+  background: var(--ff-color-surface);
+}
+
+/*
+ * The whole summary row is the disclosure control.
+ *
+ * `align-items: center` and `text-align: start` because this is a button being used as a
+ * row: without them the browser's own button centring puts the date in the middle of the
+ * card, which reads as a heading rather than as something you can open.
+ */
+.ffw-past__summary {
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ff-space-8) var(--ff-space-12);
+  inline-size: 100%;
+  min-block-size: var(--ff-hit-min);
+  padding: var(--ff-space-12) var(--ff-space-16);
+  background: none;
+  border: 0;
+  color: var(--ff-color-fg-primary);
+  text-align: start;
+  cursor: pointer;
+}
+
+.ffw-past__when {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.ffw-past__date {
+  font-size: var(--ff-text-body);
+  font-weight: var(--ff-weight-heading);
+}
+
+.ffw-past__full {
+  font-size: var(--ff-text-caption);
+  color: var(--ff-color-fg-muted);
+}
+
+/*
+ * The three figures. `1fr` on the group and `wrap` on the row, so at large text they
+ * drop under the date rather than pushing the chevron off the edge.
+ */
+.ffw-past__figures {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: var(--ff-space-4) var(--ff-space-12);
+  min-inline-size: 0;
+  font-size: var(--ff-text-body-sm);
+  color: var(--ff-color-fg-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ffw-past__figure-value {
+  color: var(--ff-color-fg-primary);
+  font-weight: var(--ff-weight-heading);
+}
+
+.ffw-past__figure-label {
+  color: var(--ff-color-fg-muted);
+}
+
+/*
+ * "edited", quietly.
+ *
+ * A caption, not a warning. Correcting your own log is legitimate; this is here because
+ * personal records are derived from history, so an edit rewrites an all-time number and
+ * a number that changes with no explanation is the honesty problem this category fails
+ * at. Muted and lower-case on purpose — it is a fact, not an accusation.
+ */
+.ffw-past__edited {
+  flex: none;
+  font-size: var(--ff-text-caption);
+  color: var(--ff-color-fg-muted);
+  font-style: italic;
+}
+
+.ffw-past__chevron {
+  flex: none;
+  color: var(--ff-color-fg-muted);
+  transition: transform var(--ff-duration-fast) var(--ff-ease-standard);
+}
+
+.ffw-past__detail {
+  padding-block-end: var(--ff-space-12);
+  background: var(--ff-color-ground);
+}
+
+.ffw-past__exercise {
+  margin-block-end: var(--ff-space-8);
+  border-block: 0;
+}
+
+.ffw-past__name {
+  margin: 0;
+  padding: var(--ff-space-12) var(--ff-space-16) var(--ff-space-4);
+  font-size: var(--ff-text-body);
+  font-weight: var(--ff-weight-heading);
+}
+
+.ffw-past__empty {
+  margin: 0;
+  padding: var(--ff-space-12) var(--ff-space-16);
+  color: var(--ff-color-fg-muted);
+  font-size: var(--ff-text-body-sm);
+}
+
+.ffw-past__tools,
+.ffw-past__addset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ff-space-8);
+  padding: var(--ff-space-8) var(--ff-space-16) 0;
+}
+
+.ffw-past__spacer {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+/* Danger by ink and border, never a filled slab — same reasoning as the row's MISSED. */
+.ffw-past__delete {
+  border-color: var(--ff-color-danger);
+  color: var(--ff-color-danger);
+}
+
+/* --------------------------------------------- a logged set, read-only */
+
+/*
+ * Reading is the common case, so it does not look like a form.
+ *
+ * One line per set: position, what was done, and the outcome as a word. The editable
+ * version is a real `SetRow` one tap away and shares this vocabulary exactly, so
+ * switching into edit mode moves nothing the eye was already tracking.
+ */
+.ffw-pastset {
+  display: grid;
+  grid-template-columns: var(--ff-space-32) minmax(0, 1fr) max-content;
+  gap: var(--ff-space-8);
+  align-items: baseline;
+  padding: var(--ff-space-4) var(--ff-space-16);
+  font-size: var(--ff-text-body-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.ffw-pastset[data-ff-state='failed'] {
+  background: color-mix(in srgb, var(--ff-color-danger) 10%, transparent);
+}
+
+.ffw-pastset__index {
+  color: var(--ff-color-fg-muted);
+  text-align: center;
+}
+
+.ffw-pastset__value {
+  min-inline-size: 0;
+  color: var(--ff-color-fg-primary);
+}
+
+.ffw-pastset__state {
+  font-size: var(--ff-text-caption);
+  color: var(--ff-color-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--ff-tracking-caption);
+}
+
+.ffw-pastset[data-ff-state='completed'] .ffw-pastset__state {
+  color: var(--ff-color-success);
+}
+
+.ffw-pastset[data-ff-state='failed'] .ffw-pastset__state {
+  color: var(--ff-color-danger);
+}
+
+/*
+ * No "last time" column on a past session.
+ *
+ * `SetRow` always renders it, and here it is always "—": the column answers "what did
+ * you do the time before this one?", which is a question about a set that has not
+ * happened yet. Permanently empty, and it was taking ~70px out of a 412px row that the
+ * two number cells can use instead.
+ *
+ * The track is dropped from the list rather than collapsed to zero, and the span is
+ * hidden, so four visible children sit in four tracks with no stray gap. The legend's
+ * centring rules still line up: they target children 1, 3, 4 and 5, which after hiding
+ * child 2 are exactly tracks 1 to 4. An unloaded movement (a plank) renders a second
+ * `.ffw-row__last` as a spacer in child position 3 — `:nth-child(2)` leaves it alone,
+ * which is what keeps that row on the grid too.
+ */
+.ffw-past__exercise {
+  --ffw-cols: var(--ff-space-32) minmax(0, 1.3fr) minmax(0, 1fr) var(--ffw-col-log);
+}
+
+.ffw-past__exercise .ffw-row > .ffw-row__last:nth-child(2),
+.ffw-past__exercise .ffw-sets__legend > span:nth-child(2) {
+  display: none;
+}
+
+/*
+ * MITIGATION, not a fix. The real bug is in `packages/design-system`.
+ *
+ * At 200% text, inside the 348px this editor has to give:
+ *
+ *   `.ff-number` is a flex row with no `flex-wrap`, and `.ff-number__well` is `flex: 1`
+ *   with no `min-inline-size: 0` — so a flex item cannot shrink below its min-content
+ *   and the row cannot break. The two steppers are 112px each at that size, the well
+ *   needs more than the 124px left, and the "+" button ends up 144px off the right edge
+ *   of the phone. Not clipped-but-scrollable: unreachable. `.ff-segmented__option` has
+ *   the identical shape and pushes "Not yet" off the same edge.
+ *
+ * That is loss of functionality under WCAG 1.4.4 on the two most-tapped controls in the
+ * product, and it is not confined to this screen — the live workout editor has it too,
+ * and so does anything else that renders a `NumberField` in a tight column.
+ *
+ * So this is scoped to `.ffw-editor` and does the least it can: let the rows wrap and
+ * let the well shrink. It is deliberately NOT a redesign of someone else's component.
+ * The proper fix is `min-inline-size: 0` on `.ff-number__well` and `.ff-segmented__option`
+ * plus `flex-wrap: wrap` on their rows, in `primitives.css` — reported to design-system
+ * via the integrator. Delete this block when that lands.
+ *
+ * Referencing their class names is the coupling this buys, and it is the reason this
+ * block is loud rather than quiet.
+ */
+.ffw-editor .ff-number {
+  flex-wrap: wrap;
+}
+
+.ffw-editor .ff-number__well {
+  min-inline-size: 0;
+}
+
+.ffw-editor__state {
+  flex-wrap: wrap;
+}
+
+.ffw-editor__state > button {
+  min-inline-size: 0;
+}
+
+/*
+ * At large text, the "last time" column gives way so the numbers keep their hit size.
+ *
+ * The arithmetic, measured at 412px with a 32px root: the spacing tokens are `rem`, so
+ * the index track and the log column double to 64px and 128px, the four gaps take
+ * another 64px, and what is left for three flexible tracks is 108px. The two value cells
+ * came out at 47px and 61px — under ADR-0013's 48px floor, on the control the whole
+ * screen exists to serve. (It was worse before the log column was widened: 33px and
+ * 40px. Improving it was not the same as fixing it.)
+ *
+ * Something has to give at that size, and `LAST` is the right thing: it is the least-read
+ * column, and it is context rather than the thing being entered. Dropping it leaves
+ * 124px for two tracks — 62px each, over the floor.
+ *
+ * **A container query in `em`, not a width media query, and that is the whole trick.**
+ * The viewport is not narrow; the *text* is large. `em` inside `@container` resolves
+ * against the font size, so 412px reads as 25.8em at 100% and 12.9em at 200% — the
+ * query fires on exactly the condition that matters and never on a small phone at
+ * normal text. A `max-width` media query would have punished the 412px phone this app is
+ * designed for while missing the case that is actually broken.
+ *
+ * Verified in Chrome at 412px at 100% (five columns, LAST present, cells 84px and 101px)
+ * and at 200% (four columns, cells 62px). jsdom reports every one of those as zero.
+ */
+.ffw-card {
+  container-type: inline-size;
+}
+
+@container (inline-size < 18em) {
+  /*
+   * The track list is restated on the rows, NOT as a `--ffw-cols` override on
+   * `.ffw-card`. That does not work and fails quietly: an element is never its own query
+   * container, so a `.ffw-card` selector inside this block is matched against the card's
+   * *ancestor* container — of which there is none. The first attempt hid the `LAST` span
+   * (a descendant, so its query resolved) while leaving the card's five tracks in place,
+   * which left a dead track and made the cells *narrower*: 34px and 36px, measured. Worse
+   * than the bug it was fixing, and green in every test.
+   */
+  .ffw-row,
+  .ffw-sets__legend,
+  .ffw-history__row {
+    grid-template-columns:
+      var(--ff-space-32) minmax(0, 1fr) minmax(0, 1fr) var(--ffw-col-log);
+  }
+
+  .ffw-row > .ffw-row__last:nth-child(2),
+  .ffw-sets__legend > span:nth-child(2) {
+    display: none;
+  }
+
+  /*
+   * The strip's spans, restated for four tracks. Without this the volume asks for a
+   * fifth column, grid invents an implicit one, and the strip stops agreeing with the
+   * table underneath it — which is the thing sharing a track list was for.
+   */
+  .ffw-history__date {
+    grid-column: 1 / 2;
+  }
+
+  .ffw-history__sets {
+    grid-column: 2 / 4;
+  }
+
+  .ffw-history__volume {
+    grid-column: 4;
+  }
 }

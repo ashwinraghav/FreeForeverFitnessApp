@@ -18,7 +18,13 @@ import type { DraftExercise, DraftSet, DraftWorkout } from './types.js';
  * numbers for a ghost, and the last three sessions of the current lift.
  */
 
-/** A finished session, as it is read back out of the cache. */
+/**
+ * A finished session, as it is read back out of the cache.
+ *
+ * `status` and `editedAt` are both optional so that the existing `{ v: 1 }` blob parses
+ * unchanged — there is no migration and no version bump, because two absent fields read
+ * correctly as "completed, never edited".
+ */
 export interface CompletedSession {
   readonly id: string;
   readonly localDate: LocalDate;
@@ -26,6 +32,24 @@ export interface CompletedSession {
   readonly endedAt?: number;
   readonly bodyweightKg?: number;
   readonly exercises: readonly DraftExercise[];
+  /**
+   * Absent means completed. `'discarded'` means retracted (ADR-0029) — the domain
+   * soft-deletes, because a hard delete matches no delta query and so can never reach
+   * another device. Retracted sessions live in their own storage key; see
+   * `storage/workoutStore.ts` for why they are not left inline.
+   */
+  readonly status?: 'completed' | 'discarded';
+  /**
+   * When the session was last changed after it was finished. Absent means as-logged.
+   *
+   * One number, not a revision trail. It is here because personal records are
+   * *derived* from history (`data/localAggregates.ts` calls `derivePersonalRecords`),
+   * so correcting a mistyped weight silently rewrites "heaviest ever" — and an all-time
+   * number that changes with no explanation is the honesty problem this category fails
+   * at. A trail of what changed would be unbounded growth inside a document with a
+   * 1 MiB ceiling, which constitution rule 1 forbids; a timestamp is bounded forever.
+   */
+  readonly editedAt?: number;
 }
 
 /** One past outing of a single lift, ready to render as a line of numbers. */

@@ -117,6 +117,52 @@ describe('the card is one table, not three layouts stacked', () => {
   });
 });
 
+describe('large text is a layout condition, not a screen-size one', () => {
+  /*
+   * At 200% text on a 412px phone the spacing tokens double — they are `rem` — so the
+   * index and log columns take 192px of the 348px a row has, and the two value cells
+   * came out at 47px and 61px, under ADR-0013's 48px floor on the control the screen
+   * exists to serve. Dropping the least-read column leaves 54px each. Measured in Chrome;
+   * jsdom reports all of it as zero, so what is asserted here is the mechanism.
+   */
+
+  it('reacts to text size with a container query in em, not a width media query', () => {
+    // The viewport is not narrow; the *text* is large. `em` inside `@container` resolves
+    // against the font size, so 412px reads as 25.8em at 100% and 12.9em at 200% — the
+    // query fires on the condition that is actually broken. A `max-width` media query
+    // would punish the 412px phone this app is designed for and miss the real case.
+    expect(DECLARATIONS).toMatch(/@container \(inline-size < \d+em\)/);
+    expect(DECLARATIONS).toMatch(/\.ffw-card\s*\{[^}]*container-type:\s*inline-size/);
+  });
+
+  it('restates the track list on the rows, never as a variable on the container', () => {
+    /*
+     * An element is never its own query container. A `.ffw-card` rule inside the block
+     * resolves against the card's *ancestor* container, of which there is none — so the
+     * first attempt hid the column while leaving five tracks in place, and the cells got
+     * narrower rather than wider: 34px, measured. It failed silently and every test
+     * stayed green, which is exactly why this one is here.
+     */
+    const query = /@container[^{]*\{([\s\S]*?)\n\}/.exec(DECLARATIONS)?.[1] ?? '';
+    expect(query).not.toMatch(/\.ffw-card\s*\{/);
+    expect(query).toMatch(/\.ffw-row,[\s\S]*?grid-template-columns/);
+  });
+
+  it('keeps the history strip on the same tracks when a column is dropped', () => {
+    // Otherwise the volume asks for a fifth column, grid invents an implicit one, and the
+    // strip stops agreeing with the table under it — which is what sharing tracks was for.
+    const query = /@container[^{]*\{([\s\S]*?)\n\}/.exec(DECLARATIONS)?.[1] ?? '';
+    expect(query).toMatch(/\.ffw-history__volume\s*\{\s*grid-column: 4/);
+  });
+
+  it('pins the set editor to its container rather than letting it size to content', () => {
+    // An implicit grid track is `auto` and free to grow past the container. At 200% the
+    // stepper row's min-content is ~483px, so inside 412px the "+" stepper and half of
+    // "Done" were off the right edge — unreachable, not merely clipped.
+    expect(blockFor('.ffw-editor')).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)/);
+  });
+});
+
 function blockFor(selector: string): string | null {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(DECLARATIONS);

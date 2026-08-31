@@ -1,0 +1,417 @@
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { STARTER_CATALOGUE } from '../catalogue/starter.js';
+import { toExerciseRef } from '../catalogue/types.js';
+import { toCompletedSession, type CompletedSession } from '../model/history.js';
+import { orderedSets, startWorkout, workoutReducer } from '../model/session.js';
+import {
+  MAX_LOCAL_HISTORY,
+  memoryWorkoutRepository,
+  type WorkoutRepository,
+} from '../storage/workoutStore.js';
+import { SessionHistoryScreen } from './SessionHistoryScreen.js';
+
+const bench = toExerciseRef(STARTER_CATALOGUE.find((entry) => entry.id === 'bench-press')!);
+const squat = toExerciseRef(STARTER_CATALOGUE.find((entry) => entry.id === 'back-squat')!);
+
+const NOW = 1_760_000_000_000;
+const DAY = 86_400_000;
+let clock = NOW;
+const now = () => clock;
+
+beforeAll(() => {
+  /*
+   * jsdom has no top layer, so `<dialog>` has neither `showModal` nor `close`, and the
+   * design system's `Dialog` calls both in an effect. Same shim as
+   * `design-system/src/primitives/Dialog.test.tsx`.
+   *
+   * Worth being explicit about what this does and does not buy, in the spirit of
+   * CLAUDE.md's warning about tests that pass for the wrong reason: it makes the
+   * dialog's *content and behaviour* assertable — the copy, the two buttons, what each
+   * one does to the store — and it verifies none of the modality. Focus trapping, the
+   * top layer and Escape all come from the platform and are checked in a browser.
+   */
+  if (!HTMLDialogElement.prototype.showModal) {
+    HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+      this.open = true;
+    };
+  }
+  if (!HTMLDialogElement.prototype.close) {
+    HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+      this.open = false;
+    };
+  }
+});
+
+beforeEach(() => {
+  clock = NOW;
+  vi.spyOn(console, 'error').mockImplementation(() => undefined);
+});
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+/** A finished session `daysAgo` back: two logged sets at 100x5 and one untouched. */
+function session(daysAgo: number, exercise = bench): CompletedSession {
+  const at = NOW - daysAgo * DAY;
+  const started = workoutReducer(startWorkout({ now: at }), {
+    type: 'add_exercise',
+    exercise,
+    sets: 3,
+    now: at,
+  });
+  const draft = started.workout.exercises[0]!;
+  const logged = orderedSets(draft)
+    .slice(0, 2)
+    .reduce(
+      (state, set) =>
+        workoutReducer(state, {
+          type: 'set_set_state',
+          exerciseId: draft.id,
+          setId: set.id,
+          state: 'completed',
+          commit: { weightKg: 100, reps: 5 },
+          now: at,
+        }),
+      started,
+    );
+  return toCompletedSession(workoutReducer(logged, { type: 'finish', now: at + 3600_000 }).workout);
+}
+
+function repositoryWith(...sessions: readonly CompletedSession[]): WorkoutRepository {
+  const repository = memoryWorkoutRepository();
+  for (const one of sessions) repository.putSession(one);
+  return repository;
+}
+
+function mount(repository: WorkoutRepository) {
+  return render(
+    <MemoryRouter initialEntries={['/workout/history']}>
+      <SessionHistoryScreen repository={repository} now={now} />
+    </MemoryRouter>,
+  );
+}
+
+const rows = () => screen.getAllByRole('listitem');
+const button = (name: string | RegExp) => screen.getByRole('button', { name });
+
+/**
+ * Is the confirmation actually open?
+ *
+ * Read off the element, not off whether its title is in the document. A closed
+ * `<dialog>` is still in the DOM — the browser hides it with a UA style that jsdom does
+ * not apply — so `queryByText('Delete this session?')` finds the heading whether the
+ * dialog is open or shut, and an assertion built on it passes in both states. That is
+ * the "test passes for the wrong reason" trap CLAUDE.md warns about, hit for real here.
+ */
+const dialogOpen = (): boolean => document.querySelector('dialog')?.open === true;
+
+/** Open the first session in the list, the way a thumb does. */
+function expandFirst(): void {
+  fireEvent.click(screen.getAllByRole('button', { expanded: false })[0]!);
+}
+
+describe('viewing sessions historically — the first thing the owner asked for', () => {
+  it('lists finished sessions, newest first', () => {
+    mount(repositoryWith(session(9), session(1), session(4)));
+    // Reverse chronological, because "what did I do last time" is the question this
+    // screen exists to answer and the answer is at the top.
+    const listed = within(screen.getByRole('list', { name: 'Past sessions' })).getAllByRole(
+      'listitem',
+    );
+    expect(listed).toHaveLength(3);
+    expect(listed[0]?.textContent).toContain('Yesterday');
+  });
+
+  it('shows each session as three figures without opening it', () => {
+    const view = mount(repositoryWith(session(1)));
+    const summary = view.container.querySelector('.ffw-past__summary')?.textContent ?? '';
+    expect(summary).toContain('2 sets');
+    expect(summary).toContain('1000 kg');
+    expect(summary).toContain('1h 0m');
+  });
+
+  it('never shows a set count that contradicts the volume beside it', () => {
+    /*
+     * The same trap the live header fell into and the reason this screen uses
+     * `hardSetCount` too: `completedSetCount` excludes a missed set while `volumeKg`
+     * includes it (ADR-0025), so the two printed side by side read as broken. It matters
+     * more here than on the live screen, because this is the screen someone opens
+     * specifically to check a number.
+     */
+    const one = session(1);
+    const exercise = one.exercises[0]!;
+    const missed: CompletedSession = {
+      ...one,
+      exercises: [
+        {
+          ...exercise,
+          sets: exercise.sets.map((set) =>
+            set.state === 'completed' ? { ...set, state: 'failed' as const } : set,
+          ),
+        },
+      ],
+    };
+    const view = mount(repositoryWith(missed));
+
+    const summary = view.container.querySelector('.ffw-past__summary')?.textContent ?? '';
+    expect(summary).toContain('2 sets');
+    expect(summary).toContain('1000 kg');
+    expect(summary).not.toContain('0 sets');
+  });
+
+  it('reads a logged set as one line, not as a form', () => {
+    // Reading is the common case. The editable version is a tap away.
+    const view = mount(repositoryWith(session(1)));
+    expandFirst();
+    const lines = [...view.container.querySelectorAll('.ffw-pastset')];
+    expect(lines).toHaveLength(3);
+    expect(lines[0]?.textContent).toContain('100 kg');
+    expect(lines[0]?.textContent).toContain('5 reps');
+    // A word for the state, not only a colour and not only a glyph (ADR-0013).
+    expect(lines[0]?.textContent).toContain('made');
+    expect(view.container.querySelector('.ffw-row')).toBeNull();
+  });
+
+  it('says nothing about the cap until the cap is actually reached', () => {
+    const view = mount(repositoryWith(session(1), session(2)));
+    expect(view.container.textContent).not.toContain('most recent sessions');
+  });
+
+  it('says where the list stops once it is full, without promising recovery', () => {
+    // A user editing their 61st-oldest session finds it gone. That should be a sentence,
+    // not a list that silently ends.
+    const many = Array.from({ length: MAX_LOCAL_HISTORY }, (_, index) => session(index + 1));
+    const view = mount(repositoryWith(...many));
+    expect(view.container.textContent).toContain(`${MAX_LOCAL_HISTORY} most recent sessions`);
+    expect(view.container.textContent).toContain('Older ones are not stored');
+  });
+
+  it('offers an empty state rather than a blank screen', () => {
+    mount(memoryWorkoutRepository());
+    expect(screen.getByText('No sessions yet')).toBeInTheDocument();
+  });
+});
+
+describe('editing a session that is already finished', () => {
+  it('does not show editable rows until Edit is asked for', () => {
+    const view = mount(repositoryWith(session(1)));
+    expandFirst();
+    expect(view.container.querySelector('.ffw-row')).toBeNull();
+
+    fireEvent.click(button('Edit session'));
+    expect(view.container.querySelector('.ffw-row')).not.toBeNull();
+  });
+
+  it('corrects a mistyped weight and persists it immediately', () => {
+    const repository = repositoryWith(session(1));
+    mount(repository);
+    expandFirst();
+    fireEvent.click(button('Edit session'));
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Weight:/ })[0]!);
+    fireEvent.change(screen.getByLabelText('Weight'), { target: { value: '102.5' } });
+
+    const saved = repository.loadHistory()[0]!;
+    expect(orderedSets(saved.exercises[0]!)[0]?.weightKg).toBe(102.5);
+  });
+
+  it('reuses the live set row, so editing history is the same interaction as logging it', () => {
+    // Same component, same labelled Made / Missed / Not yet, same 56px targets. A second
+    // implementation of set editing would drift from this one within a release.
+    mount(repositoryWith(session(1)));
+    expandFirst();
+    fireEvent.click(button('Edit session'));
+    fireEvent.click(screen.getAllByRole('button', { name: /, reps:/i })[0]!);
+
+    for (const name of ['Made', 'Missed', 'Not yet']) {
+      expect(screen.getByRole('radio', { name })).toBeInTheDocument();
+    }
+  });
+
+  it('offers no ghost, so an edit cannot overwrite what happened with what the app guessed', () => {
+    const view = mount(repositoryWith(session(1)));
+    expandFirst();
+    fireEvent.click(button('Edit session'));
+    // A ghost is a suggestion for a set that has not happened yet. Three weeks later
+    // there is nothing to suggest.
+    expect(view.container.querySelector('.ffw-cell[data-ff-source="ghost"]')).toBeNull();
+  });
+
+  it('marks a past set missed, in words', () => {
+    const repository = repositoryWith(session(1));
+    mount(repository);
+    expandFirst();
+    fireEvent.click(button('Edit session'));
+    fireEvent.click(screen.getAllByRole('button', { name: /, reps:/i })[0]!);
+    fireEvent.click(screen.getByRole('radio', { name: 'Missed' }));
+
+    const saved = repository.loadHistory()[0]!;
+    expect(orderedSets(saved.exercises[0]!)[0]?.state).toBe('failed');
+    // A failed set is real work: the numbers stay (ADR-0025).
+    expect(orderedSets(saved.exercises[0]!)[0]?.weightKg).toBe(100);
+  });
+
+  it('adds a set the lifter forgot', () => {
+    const repository = repositoryWith(session(1));
+    mount(repository);
+    expandFirst();
+    fireEvent.click(button('Edit session'));
+    fireEvent.click(button('Add a set'));
+
+    expect(orderedSets(repository.loadHistory()[0]!.exercises[0]!)).toHaveLength(4);
+  });
+
+  it('removes a set and offers it straight back', () => {
+    const repository = repositoryWith(session(1));
+    mount(repository);
+    expandFirst();
+    fireEvent.click(button('Edit session'));
+    fireEvent.click(screen.getAllByRole('button', { name: /Weight:/ })[0]!);
+    fireEvent.click(button(/^Remove set/));
+
+    expect(orderedSets(repository.loadHistory()[0]!.exercises[0]!)).toHaveLength(2);
+    fireEvent.click(button('Undo'));
+    expect(orderedSets(repository.loadHistory()[0]!.exercises[0]!)).toHaveLength(3);
+  });
+
+  it('undoes a corrected value too, not only a removal', () => {
+    /*
+     * This is why undo is a whole-session snapshot rather than the reducer's own undo
+     * stack: that stack only tracks removals, which is the right scope for a live session
+     * and the wrong one here. A mistyped correction is as worth undoing as a deletion.
+     */
+    const repository = repositoryWith(session(1));
+    mount(repository);
+    expandFirst();
+    fireEvent.click(button('Edit session'));
+    fireEvent.click(screen.getAllByRole('button', { name: /Weight:/ })[0]!);
+    fireEvent.change(screen.getByLabelText('Weight'), { target: { value: '999' } });
+    expect(orderedSets(repository.loadHistory()[0]!.exercises[0]!)[0]?.weightKg).toBe(999);
+
+    fireEvent.click(button('Undo'));
+    expect(orderedSets(repository.loadHistory()[0]!.exercises[0]!)[0]?.weightKg).toBe(100);
+  });
+
+  it('marks an edited session as edited, because records are derived from it', () => {
+    const view = mount(repositoryWith(session(1)));
+    expect(view.container.querySelector('.ffw-past__edited')).toBeNull();
+
+    expandFirst();
+    fireEvent.click(button('Edit session'));
+    fireEvent.click(screen.getAllByRole('button', { name: /Weight:/ })[0]!);
+    fireEvent.change(screen.getByLabelText('Weight'), { target: { value: '102.5' } });
+
+    expect(view.container.querySelector('.ffw-past__edited')?.textContent).toBe('edited');
+  });
+
+  it('warns when an edit has left a session with nothing logged in it', () => {
+    // An empty session in history is a phantom in the streak and the session count. It is
+    // said out loud rather than deleted out from under the lifter.
+    const repository = repositoryWith(session(1));
+    mount(repository);
+    expandFirst();
+    fireEvent.click(button('Edit session'));
+
+    for (const _ of [0, 1]) {
+      fireEvent.click(screen.getAllByRole('button', { name: /Weight:/ })[0]!);
+      fireEvent.click(button(/^Remove set/));
+    }
+    expect(document.querySelector('.ff-toast')?.textContent).toMatch(/nothing is logged/i);
+  });
+});
+
+describe('deleting a whole session', () => {
+  it('asks first — the one dialog in this feature', () => {
+    /*
+     * CLAUDE.md bans modals *during a workout*, where a dismissed dialog can take entered
+     * sets with it. This is a sofa activity with two hands and nothing in flight, and the
+     * action spans weeks of data, which is exactly what the design system says Dialog is
+     * for.
+     */
+    const repository = repositoryWith(session(1));
+    mount(repository);
+    expandFirst();
+    fireEvent.click(button('Delete session'));
+
+    expect(dialogOpen()).toBe(true);
+    expect(screen.getByText('Delete this session?')).toBeInTheDocument();
+    // Nothing has happened yet.
+    expect(repository.loadHistory()).toHaveLength(1);
+  });
+
+  it('says what will go, and what it will take with it', () => {
+    mount(repositoryWith(session(1)));
+    expandFirst();
+    fireEvent.click(button('Delete session'));
+    // Volume and records are derived from history, so deleting a session changes both.
+    // Saying so is the difference between a confirmation and a speed bump.
+    expect(document.querySelector('.ff-dialog')?.textContent).toMatch(/volume totals and your records/);
+  });
+
+  it('keeps the session when the lifter backs out', () => {
+    const repository = repositoryWith(session(1));
+    mount(repository);
+    expandFirst();
+    fireEvent.click(button('Delete session'));
+    fireEvent.click(button('Keep it'));
+
+    expect(repository.loadHistory()).toHaveLength(1);
+    expect(dialogOpen()).toBe(false);
+  });
+
+  it('retracts rather than erases, and offers an undo', () => {
+    const repository = repositoryWith(session(1), session(3));
+    mount(repository);
+    expandFirst();
+    fireEvent.click(button('Delete session'));
+    fireEvent.click(button('Delete'));
+
+    expect(repository.loadHistory()).toHaveLength(1);
+    fireEvent.click(button('Undo'));
+    expect(repository.loadHistory()).toHaveLength(2);
+  });
+
+  it('leaves the other sessions alone', () => {
+    const kept = session(3, squat);
+    const repository = repositoryWith(session(1), kept);
+    mount(repository);
+    expandFirst();
+    fireEvent.click(button('Delete session'));
+    fireEvent.click(button('Delete'));
+
+    expect(repository.loadHistory().map((one) => one.id)).toEqual([kept.id]);
+  });
+});
+
+describe('no dialog is ever opened over a live session', () => {
+  it('confirms nothing when deleting a single set', () => {
+    // One row, and the undo toast is the cheaper answer. A dialog per set would make
+    // correcting a session as slow as re-logging it.
+    mount(repositoryWith(session(1)));
+    expandFirst();
+    fireEvent.click(button('Edit session'));
+    fireEvent.click(screen.getAllByRole('button', { name: /Weight:/ })[0]!);
+    fireEvent.click(button(/^Remove set/));
+
+    expect(dialogOpen()).toBe(false);
+  });
+
+  it('closes edit mode when the session is collapsed', () => {
+    // Otherwise reopening it later lands the lifter in a state they did not ask for and
+    // never saw themselves enter.
+    const view = mount(repositoryWith(session(1)));
+    expandFirst();
+    fireEvent.click(button('Edit session'));
+    expect(view.container.querySelector('.ffw-row')).not.toBeNull();
+
+    fireEvent.click(screen.getAllByRole('button', { expanded: true })[0]!);
+    expandFirst();
+    expect(view.container.querySelector('.ffw-row')).toBeNull();
+    expect(rows().length).toBeGreaterThan(0);
+  });
+});

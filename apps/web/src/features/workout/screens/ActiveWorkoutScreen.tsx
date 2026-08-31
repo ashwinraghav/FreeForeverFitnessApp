@@ -2,7 +2,9 @@ import { Button, EmptyState, PlusGlyph, Toast, ToastRegion } from '@freeforever/
 import type { SetId, SetState, WorkoutExerciseId } from '@freeforever/data';
 import { hardSetCount, sessionTotals } from '@freeforever/core';
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { Link } from 'react-router-dom';
 
+import { notifyLocalDataChanged } from '../../../data/insightsSource.js';
 import { STARTER_CATALOGUE } from '../catalogue/starter.js';
 import { toExerciseRef, type CatalogueEntry } from '../catalogue/types.js';
 import { ExerciseCard } from '../components/ExerciseCard.js';
@@ -211,8 +213,19 @@ export function ActiveWorkoutScreen({
     // Snapshot the history *before* appending, so the summary's record detection
     // compares this session against what came before rather than against itself.
     setJustFinished({ workout: finished.workout, priorSessions: repository.loadHistory() });
-    repository.appendHistory(toCompletedSession(finished.workout));
+    repository.putSession(toCompletedSession(finished.workout));
     repository.saveActive(null);
+    /*
+     * Tell an open Progress tab, in this tab.
+     *
+     * `insightsSource` re-validates against the raw history string on every read, so
+     * Progress is correct without this — but only from its next render. The `storage`
+     * event that would otherwise wake it deliberately does not fire in the tab that
+     * wrote. `notifyLocalDataChanged` is that module's own exported call for exactly
+     * this, so using it is consuming their API rather than editing their file, which is
+     * the right side of the ADR-0018 line.
+     */
+    notifyLocalDataChanged();
     /*
      * Through the hook, not `repository.saveRest(null)`.
      *
@@ -265,11 +278,31 @@ export function ActiveWorkoutScreen({
     <div className="ffw-screen">
       <header className="ffw-screen__header">
         <h2 className="ffw-screen__title">{state.workout.title}</h2>
+        {/*
+          * The clock and the way into history, grouped so the header is two flex items
+          * rather than three.
+          *
+          * A third item in a tight header is how the shell's tab bar came to scroll the
+          * whole document sideways at 200% text, so this one is built to wrap: the group
+          * is its own flex line, and `.ffw-screen__header` wraps rather than overflowing.
+          * Verified in a browser at 412px and 200%, because nothing in the suite can see
+          * it.
+          */}
+        <span className="ffw-screen__meta">
         {/* `clockAt` wins over a raw `now()`: `endedAt` stops the clock on a finished
             session, and the idle cap stops it on one left open in a locker — a header
             reading 39:22:01 is how this screen most visibly lies. */}
-        <span className="ffw-elapsed">
-          {elapsed(state.workout.startedAt, clockAt(state.workout, now()))}
+          <span className="ffw-elapsed">
+            {elapsed(state.workout.startedAt, clockAt(state.workout, now()))}
+          </span>
+          {/*
+            A link, not a button: it navigates, so middle-click and long-press-to-open
+            should behave the way they do everywhere else. Sized to the 48px floor in
+            CSS — it is not tapped mid-set, so it does not need the 56px.
+          */}
+          <Link className="ffw-headerlink ff-focusable" to="history">
+            History
+          </Link>
         </span>
       </header>
 
@@ -529,7 +562,7 @@ export function resumeSession(
   }
 
   // Keyed by id, so a repeated resume replaces rather than duplicates.
-  repository.appendHistory(
+  repository.putSession(
     toCompletedSession(
       workoutReducer({ workout: active, undoStack: [] }, { type: 'finish', now: at }).workout,
     ),

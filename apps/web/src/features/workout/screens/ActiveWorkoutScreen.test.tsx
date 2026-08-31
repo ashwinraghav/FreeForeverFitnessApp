@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { STARTER_CATALOGUE } from '../catalogue/starter.js';
@@ -54,7 +55,7 @@ function repositoryWithHistory(): WorkoutRepository {
     past,
   );
   const finished = workoutReducer(logged, { type: 'finish', now: NOW - 7 * 86_400_000 + 3600_000 });
-  repository.appendHistory(toCompletedSession(finished.workout));
+  repository.putSession(toCompletedSession(finished.workout));
   return repository;
 }
 
@@ -71,9 +72,19 @@ function repositoryWithActiveSession(): WorkoutRepository {
   return repository;
 }
 
+/*
+ * Inside a router, because the screen is.
+ *
+ * The header now carries a `Link` to `/workout/history`, and react-router's `Link`
+ * throws outside a router context rather than degrading — which is the right behaviour
+ * and the reason this wrapper is here rather than the link being a button with a manual
+ * `navigate`. `MemoryRouter` keeps these tests free of the URL bar.
+ */
 function mountScreen(repository: WorkoutRepository) {
   return render(
-    <ActiveWorkoutScreen repository={repository} now={now} onFinished={() => undefined} />,
+    <MemoryRouter initialEntries={['/workout']}>
+      <ActiveWorkoutScreen repository={repository} now={now} onFinished={() => undefined} />
+    </MemoryRouter>,
   );
 }
 

@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom';
 
 import './workout.css';
 import { ActiveWorkoutScreen } from './screens/ActiveWorkoutScreen.js';
+import { SessionHistoryScreen } from './screens/SessionHistoryScreen.js';
 import { localWorkoutRepository } from './storage/workoutStore.js';
 
 /**
@@ -38,6 +39,17 @@ export default function WorkoutRoutes() {
         * the session did not change route, it changed phase.
         */}
       <Route index element={<ActiveWorkoutScreen repository={localWorkoutRepository} />} />
+      {/*
+        * `/workout/history` — a named sibling, not a branch of the wildcard below.
+        *
+        * `routes.ts` is integrator-owned and stays untouched: the shell already routes
+        * everything under `/workout` into this component, so a nested path needs no
+        * manifest entry. What it does need is its own name. Reaching it through the
+        * `*` fallback would work today and break silently the first time a route is
+        * added, which is the failure the manifest exists to prevent — so it is spelled
+        * out here, above the fallback, and resolves on itself.
+        */}
+      <Route path="history" element={<SessionHistoryScreen repository={localWorkoutRepository} />} />
       {/* Anything deeper falls back to the session rather than a dead end. */}
       <Route
         path="*"

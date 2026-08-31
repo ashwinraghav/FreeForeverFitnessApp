@@ -7,6 +7,7 @@ import { startWorkout, workoutReducer } from '../model/session.js';
 import { startRest } from '../timer/restTimer.js';
 import {
   localWorkoutRepository,
+  MAX_DISCARDED_SESSIONS,
   MAX_LOCAL_HISTORY,
   memoryWorkoutRepository,
   WORKOUT_STORAGE_KEYS,
@@ -132,8 +133,8 @@ describe('corrupt or foreign data never takes the screen down', () => {
 
 describe('history', () => {
   it('appends, newest last', () => {
-    localWorkoutRepository.appendHistory(toCompletedSession(loggedSession(NOW - 1000).workout));
-    localWorkoutRepository.appendHistory(toCompletedSession(loggedSession(NOW).workout));
+    localWorkoutRepository.putSession(toCompletedSession(loggedSession(NOW - 1000).workout));
+    localWorkoutRepository.putSession(toCompletedSession(loggedSession(NOW).workout));
     const stored = localWorkoutRepository.loadHistory();
     expect(stored).toHaveLength(2);
     expect(stored[1]?.startedAt).toBe(NOW);
@@ -141,14 +142,14 @@ describe('history', () => {
 
   it('replaces rather than duplicates when the same session is written twice', () => {
     const session = toCompletedSession(loggedSession().workout);
-    localWorkoutRepository.appendHistory(session);
-    localWorkoutRepository.appendHistory(session);
+    localWorkoutRepository.putSession(session);
+    localWorkoutRepository.putSession(session);
     expect(localWorkoutRepository.loadHistory()).toHaveLength(1);
   });
 
   it('is bounded, because free-forever rule 2 applies to bytes too', () => {
     for (let i = 0; i < MAX_LOCAL_HISTORY + 15; i += 1) {
-      localWorkoutRepository.appendHistory(toCompletedSession(loggedSession(NOW + i * 1000).workout));
+      localWorkoutRepository.putSession(toCompletedSession(loggedSession(NOW + i * 1000).workout));
     }
     const stored = localWorkoutRepository.loadHistory();
     expect(stored).toHaveLength(MAX_LOCAL_HISTORY);
@@ -164,15 +165,159 @@ describe('a browser with no storage at all', () => {
     const state = loggedSession();
     repository.saveActive(state.workout);
     expect(repository.loadActive()?.exercises[0]?.sets[0]?.weightKg).toBe(100);
-    repository.appendHistory(toCompletedSession(state.workout));
+    repository.putSession(toCompletedSession(state.workout));
     expect(repository.loadHistory()).toHaveLength(1);
   });
 
   it('bounds its history the same way', () => {
     const repository = memoryWorkoutRepository();
     for (let i = 0; i < MAX_LOCAL_HISTORY + 5; i += 1) {
-      repository.appendHistory(toCompletedSession(loggedSession(NOW + i * 1000).workout));
+      repository.putSession(toCompletedSession(loggedSession(NOW + i * 1000).workout));
     }
     expect(repository.loadHistory()).toHaveLength(MAX_LOCAL_HISTORY);
+  });
+});
+
+describe('retracting a session, and why tombstones live in their own key', () => {
+  /*
+   * The design this replaces put `status: 'discarded'` inline in the history array. It
+   * is not merely untidy — `data/workoutDocuments.ts` maps a session to a `Workout`
+   * with `status: 'completed'` hard-coded, so a build that predates the `status` field
+   * would read a retracted session straight back out of `history` and fold it into the
+   * user's volume totals and their all-time personal records. A workout they deleted
+   * would come back as a PR. `registerType: 'prompt'` means declining an update is not
+   * a narrow window.
+   */
+  function twoSessions() {
+    const older = toCompletedSession(
+      workoutReducer(loggedSession(NOW - 86_400_000), { type: 'finish', now: NOW - 86_000_000 })
+        .workout,
+    );
+    const newer = toCompletedSession(
+      workoutReducer(loggedSession(NOW), { type: 'finish', now: NOW + 3600_000 }).workout,
+    );
+    localWorkoutRepository.putSession(older);
+    localWorkoutRepository.putSession(newer);
+    return { older, newer };
+  }
+
+  it('takes a retracted session out of the list every consumer reads', () => {
+    const { older, newer } = twoSessions();
+    expect(localWorkoutRepository.discardSession(older.id)?.id).toBe(older.id);
+
+    const remaining = localWorkoutRepository.loadHistory();
+    expect(remaining.map((session) => session.id)).toEqual([newer.id]);
+  });
+
+  it('leaves the history key itself with no trace of it', () => {
+    // This is the assertion that matters for an old reader: not "loadHistory filters it"
+    // but "there is nothing there to filter". An old bundle never sees it at all.
+    const { older } = twoSessions();
+    localWorkoutRepository.discardSession(older.id);
+
+    const raw = localStorage.getItem('ff.workout.history.v1') ?? '';
+    expect(raw).not.toContain(older.id);
+    expect(raw).not.toContain('discarded');
+  });
+
+  it('keeps the tombstone where a future sync layer can find it', () => {
+    const { older } = twoSessions();
+    localWorkoutRepository.discardSession(older.id);
+
+    // Retraction is an update carrying `status: 'discarded'` (ADR-0029), not an erasure.
+    const found = localWorkoutRepository.findSession(older.id);
+    expect(found?.id).toBe(older.id);
+    expect(found?.status).toBe('discarded');
+  });
+
+  it('hands the session back un-retracted, so undo restores a workout not a deletion', () => {
+    const { older } = twoSessions();
+    const removed = localWorkoutRepository.discardSession(older.id);
+    expect(removed?.status).toBeUndefined();
+
+    localWorkoutRepository.putSession(removed!);
+    expect(localWorkoutRepository.loadHistory().map((s) => s.id)).toContain(older.id);
+  });
+
+  it('clears the tombstone on undo, so the session is not both present and deleted', () => {
+    const { older } = twoSessions();
+    localWorkoutRepository.putSession(localWorkoutRepository.discardSession(older.id)!);
+
+    const found = localWorkoutRepository.findSession(older.id);
+    expect(found?.status).toBeUndefined();
+    expect(localStorage.getItem('ff.workout.discarded.v1') ?? '').not.toContain(older.id);
+  });
+
+  it('returns null for a session that was never there', () => {
+    expect(localWorkoutRepository.discardSession('nope')).toBeNull();
+    expect(localWorkoutRepository.findSession('nope')).toBeNull();
+  });
+
+  it('does not let tombstones compete with the live session cap', () => {
+    // The two caps are independent, which is the other reason for the separate key:
+    // deleting sessions cannot evict the live ones the ghosts and the strip read.
+    for (let i = 0; i < MAX_LOCAL_HISTORY; i += 1) {
+      localWorkoutRepository.putSession(
+        toCompletedSession(
+          workoutReducer(loggedSession(NOW + i * 1000), { type: 'finish', now: NOW + i * 1000 })
+            .workout,
+        ),
+      );
+    }
+    const before = localWorkoutRepository.loadHistory();
+    expect(before).toHaveLength(MAX_LOCAL_HISTORY);
+
+    localWorkoutRepository.discardSession(before[0]!.id);
+    expect(localWorkoutRepository.loadHistory()).toHaveLength(MAX_LOCAL_HISTORY - 1);
+    expect(localWorkoutRepository.findSession(before[0]!.id)?.status).toBe('discarded');
+  });
+
+  it('bounds the tombstones too', () => {
+    const ids: string[] = [];
+    for (let i = 0; i < MAX_DISCARDED_SESSIONS + 3; i += 1) {
+      const session = toCompletedSession(
+        workoutReducer(loggedSession(NOW + i * 1000), { type: 'finish', now: NOW + i * 1000 })
+          .workout,
+      );
+      ids.push(session.id);
+      localWorkoutRepository.putSession(session);
+      localWorkoutRepository.discardSession(session.id);
+    }
+    // Free-forever rule 1: nothing per-user may grow without a bound.
+    const kept = ids.filter((id) => localWorkoutRepository.findSession(id) !== null);
+    expect(kept).toHaveLength(MAX_DISCARDED_SESSIONS);
+  });
+
+  it('behaves the same in memory as on disk', () => {
+    // The port exists so the Firestore-backed implementation drops in unchanged; a
+    // memory version that disagreed about retraction would make every test that uses it
+    // a test of something else.
+    const repository = memoryWorkoutRepository();
+    const session = toCompletedSession(
+      workoutReducer(loggedSession(NOW), { type: 'finish', now: NOW + 1000 }).workout,
+    );
+    repository.putSession(session);
+    expect(repository.discardSession(session.id)?.id).toBe(session.id);
+    expect(repository.loadHistory()).toHaveLength(0);
+    expect(repository.findSession(session.id)?.status).toBe('discarded');
+    repository.putSession(session);
+    expect(repository.loadHistory()).toHaveLength(1);
+    expect(repository.findSession(session.id)?.status).toBeUndefined();
+  });
+});
+
+describe('putSession is an upsert, which is what makes editing possible at all', () => {
+  it('replaces by id rather than appending a second copy', () => {
+    // The old name, `appendHistory`, said the opposite of what the body did — and that
+    // is why the project went months believing a past session could not be edited.
+    const session = toCompletedSession(
+      workoutReducer(loggedSession(NOW), { type: 'finish', now: NOW + 1000 }).workout,
+    );
+    localWorkoutRepository.putSession(session);
+    localWorkoutRepository.putSession({ ...session, bodyweightKg: 81 });
+
+    const history = localWorkoutRepository.loadHistory();
+    expect(history).toHaveLength(1);
+    expect(history[0]?.bodyweightKg).toBe(81);
   });
 });
