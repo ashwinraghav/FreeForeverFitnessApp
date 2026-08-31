@@ -84,7 +84,12 @@ It has already cost real bugs three times, each found only by opening a browser:
   segmented control — 32px a side at 200% text, leaving 39px of a 103px tab for a label
   needing 66px. Renamed to `.ff-navbar`/`.ff-navtab`.
 
-Two rules follow:
+Two rules follow, and a third habit that took three separate mistakes today to learn:
+**a mechanism that plausibly could fire is not evidence that it did, and a number moving in the
+right direction is not evidence it crossed the line.** Both were asserted here without
+measurement, in both directions — once to claim a bug was harmless, once to claim it was
+serious. The harness was open each time.
+
 
 1. **Check a real browser at more than one viewport before calling a screen done.**
    `pnpm dev` and resize. Four minutes found the second bug; nothing else would have.
@@ -136,9 +141,19 @@ app is designed for and miss the case that is actually broken.
 **5. A CSS guard only guards the package it parses.** `hit-targets.test.ts` reads
 `primitives.css` and fails the build on a `min-inline-size: 0` that would let a value collapse to
 nothing. It cannot see a rule in `apps/web` overriding the same property on the same class, so a
-scoped override in another package reintroduces the regression invisibly. If you find yourself
-writing another package's class name into your stylesheet, that is the signal — and the fix
-belongs upstream, not in a permanent local override.
+scoped override in another package reintroduces the regression invisibly. Same seam as the units
+correction in ADR-0032: the check and the thing being checked are in different packages, so the
+check is *silent* about the other side rather than wrong. If you find yourself writing another
+package's class name into your stylesheet, that is the signal — and the fix belongs upstream, not
+in a permanent local override.
+
+**And a static guard is deliberately blunter than the rendering.** That same rule pins the
+declaration regardless of context, which is correct for a shared primitive — but it means its
+verdict can be stricter than what the browser actually does. Measured: `min-inline-size: 0` is
+dangerous *alone*, because the well is `flex: 1` beside two steppers and is the only thing that
+can absorb the deficit; *paired with* `flex-wrap: wrap` the steppers take their own line and the
+zero minimum is close to inert (well 204px, input 206px, value still readable). So a guard firing
+is a reason to stop and measure, not proof of the harm it names.
 
 **And read the owning package's tests before proposing a change to it.** A fix that looks
 obviously right from outside may be one the owner already tried and removed, with the reason
