@@ -65,10 +65,49 @@ export default defineConfig({
       workbox: {
         // Precache the shell so a cold start in a basement gym works offline.
         globPatterns: ['**/*.{js,css,html,woff2,svg}'],
+        // The recording harnesses are built into dist but excluded from the
+        // deploy by firebase.json's `ignore`. Without this they land in the
+        // precache manifest, and because hosting rewrites `**` to /index.html
+        // they would resolve to the app's HTML cached under a harness URL, with
+        // a revision hash computed from a different file — so both entries get
+        // re-fetched on every worker update, forever, for nothing.
+        globIgnores: ['pixel8a.html', 'demo.html'],
         // Never cache Firestore or auth traffic — the SDK owns its own
         // offline persistence, and a stale cached response would fight it.
         navigateFallbackDenylist: [/^\/__/],
         runtimeCaching: [
+          {
+            // The food index. Version-stamped filenames, so CacheFirst is safe
+            // and a new index arrives as a new URL rather than a stale hit.
+            //
+            // This is not an optimisation. ADR-0030 rule 2 makes local-first
+            // non-negotiable and the design context is a basement gym; without
+            // this rule the 4.2 MB index is simply absent offline, which is the
+            // one situation the bundled index exists for. It also stops the
+            // same 4.2 MB being re-fetched on Hosting's default hour-long
+            // freshness — the per-user egress ADR-0031 is about.
+            urlPattern: /\/data\/.*\.bin\.gz$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'food-index',
+              // Two index versions' worth of shards, so an update does not
+              // evict the copy currently in use before the swap completes.
+              expiration: { maxEntries: 24, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // The manifest names the versioned shards, so it must be allowed to
+            // change — but it has to work offline too, hence NetworkFirst
+            // rather than CacheFirst or nothing.
+            urlPattern: /\/data\/.*manifest\.json$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'food-index-manifest',
+              networkTimeoutSeconds: 3,
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           {
             // Exercise media from jsDelivr (ADR-0007), immutable and versioned.
             urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/.*/,
