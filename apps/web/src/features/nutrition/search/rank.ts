@@ -4,8 +4,8 @@ import { fold, tokenise } from '@freeforever/datasets';
  * Query classification and client-side re-ranking.
  *
  * Every figure quoted in this file was measured against the shipped index —
- * version 2026.08.1, 95,885 records (core 32,117 + off 63,768), manifest
- * 2026-08-31T15:18Z — by `recall.test.ts`, which refuses to report a number if
+ * version 2026.08.1, 95,996 records (core 32,123 + off 63,873), manifest
+ * 2026-08-31T15:40Z — by `recall.test.ts`, which refuses to report a number if
  * the build directory holds a sample. **The corpus identity is stated wherever a number is, on
  * purpose:** an earlier version of these comments carried figures from the
  * pre-dedupe 98,267-record build and there was no way to tell by reading them.
@@ -203,6 +203,12 @@ export interface HitAnalysis {
  * it earns no brand bonus. Detected structurally rather than from a list of bad
  * brands, because the list would be endless and would go stale on every
  * rebuild. This only withholds a bonus — such a record still ranks on its name.
+ *
+ * **It now fires on zero shipped records**: the datasets adapter nulls such a
+ * brand upstream, on the same condition, so this is a guard rather than a fix.
+ * Kept because that upstream fix has no probe of its own, so a regression in
+ * the OFF adapter would otherwise arrive silently — and because it still
+ * applies to a user's own custom foods, which never pass through the pipeline.
  */
 function brandEchoesName(nameTokens: readonly string[], brandTokens: readonly string[]): boolean {
   if (nameTokens.length === 0 || brandTokens.length === 0) return false;
@@ -293,7 +299,7 @@ export function hitFeatures(food: RankableFood, tokens: readonly string[]): HitF
  * Weights, in one object so they can be swept rather than argued about.
  *
  * Every number here was chosen by measuring recall and top-8 precision against
- * the shipped 95,885-record index — see `recall.test.ts`, which reports both
+ * the shipped 95,996-record index — see `recall.test.ts`, which reports both
  * and fails if the corpus it opens is not the one we ship. The previous set was
  * tuned against 784 records and did not survive the corpus growing 122-fold;
  * that is the whole reason this object is exported.
@@ -320,18 +326,18 @@ export const DEFAULT_WEIGHTS: RankWeights = {
    *
    * This was 1.0, against a 784-record sample where the index's popularity prior
    * — `0.5 / (1 + doc / 500)`, with 500 hard-coded — spanned 0.5 down to 0.31
-   * and carried real information. Over 95,885 records that form collapsed to ~0
+   * and carried real information. Over 95,996 records that form collapsed to ~0
    * by record 5,000, so a third of the score was being spent on a number that
    * was flat across most of the corpus.
    *
    * The reader now decays over log rank normalised by corpus size, and record
    * order itself was fixed upstream, so the prior is a real signal again — and
    * the obvious next move was to raise this back up. **Swept 0, 0.5, 1, 1.5, 2
-   * and 3 on the rebuilt corpus: staples stay at 100%, brand recall moves by a
-   * tenth of a point, name recall does not move at all.** The weight is simply
-   * not load-bearing once the text signals below are doing their job, because
-   * the index score has already decided *which* 200 candidates arrive and this
-   * only reorders within them.
+   * and 3, on three separate rebuilds: staples stay at 100%, brand and name
+   * recall do not move at all, leading-word wanders half a point with no
+   * trend.** The weight is simply not load-bearing once the text signals below
+   * are doing their job, because the index score has already decided *which*
+   * 200 candidates arrive and this only reorders within them.
    *
    * Kept non-zero so the index keeps a say in ties. Do not raise it without
    * re-running that sweep: "the prior got better, so the weight should go up"
@@ -360,7 +366,29 @@ export const DEFAULT_WEIGHTS: RankWeights = {
   brandNamed: 1.5,
   nameTightness: 0.6,
   reference: 3,
-  foundation: 0.8,
+  /**
+   * Lab-analysed USDA Foundation, over and above the reference bonus.
+   *
+   * Raised from 0.8 to 2 to fix one query, and worth the space because the
+   * query is "chicken breast" and the reason is a real limitation of
+   * `headExact` above.
+   *
+   * USDA puts the cut *after* the comma — "Chicken, breast, boneless,
+   * skinless, raw" — so that record's head clause is only "Chicken" and it
+   * scores no `headExact` for a two-word query. A deli product named "Chicken
+   * breast, roll, oven-roasted" has the head "Chicken breast", which *is* the
+   * query, so it collected the full 1.8 and beat the raw cut by almost exactly
+   * that margin. The raw breast sat at rank 11 while four processed deli rows
+   * held the first four places.
+   *
+   * Foundation is the ~342-record lab-analysed whole-food set, so "prefer the
+   * measured whole food over a deli product whose name happens to lead with
+   * the query" is what this weight says, and it is the honest discriminator
+   * where the head heuristic has nothing to offer. Swept 0.8, 1.5, 2, 3, 4:
+   * flat from 1.5 to 3 with the raw cut at rank 1 and no cost to brand or name
+   * recall, degrading only at 4. 2 is the middle of that range.
+   */
+  foundation: 2,
   confidence: 0.3,
 };
 
@@ -514,7 +542,7 @@ export function dedupeHits<F extends RankableFood>(
  * name, are one row's worth of information occupying a whole screen — and they
  * were pushing the plain USDA record off it entirely.
  *
- * **Five, measured, not guessed.** Against the shipped index (95,885 records),
+ * **Five, measured, not guessed.** Against the shipped index (95,996 records),
  * over 31 generic staple queries and an 800-record recall sample:
  *
  * | cap | plain food on the first screen | the name typed out, @8 |

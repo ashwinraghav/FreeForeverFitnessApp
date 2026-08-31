@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   analyseHit,
   brandIntent,
+  DEFAULT_WEIGHTS,
   classifyQuery,
   dedupeHits,
   diversifyByName,
@@ -471,5 +472,68 @@ describe('a brand field that is just echoing the product name', () => {
       [hit(food('echo', 'Milk', 'Milk')), hit(reference('plain', 'Milk, whole, 3.25% milkfat'))],
       tokens,
     ).map((h) => h.food.id)).toEqual(['plain', 'echo']);
+  });
+});
+
+describe('a lab-analysed whole food beats a deli product with a luckier name', () => {
+  // The case that set `foundation` to 2, and a real limitation of `headExact`.
+  //
+  // USDA puts the cut after the comma, so the raw breast's head clause is only
+  // "Chicken" and it earns no head match for a two-word query. A deli product
+  // named "Chicken breast, roll, oven-roasted" has the head "Chicken breast",
+  // which IS the query, so it collected the full head bonus and won by almost
+  // exactly that margin — four processed rows held the first four places while
+  // the raw cut sat at rank 11.
+  const tokens = ['chicken', 'breast'];
+  const rawCut: RankableFood = {
+    id: 'raw',
+    name: 'Chicken, breast, boneless, skinless, raw',
+    brand: null,
+    source: 'usda-foundation',
+    flags: { highConfidence: true },
+  };
+  const deliRoll: RankableFood = {
+    id: 'deli',
+    name: 'Chicken breast, roll, oven-roasted',
+    brand: null,
+    source: 'usda-sr-legacy',
+    flags: { highConfidence: true },
+  };
+
+  it('confirms the head heuristic really does favour the deli row', () => {
+    // Asserted so the *reason* for the weight cannot quietly stop being true.
+    expect(hitFeatures(deliRoll, tokens).headExact).toBe(1);
+    expect(hitFeatures(rawCut, tokens).headExact).toBe(0);
+  });
+
+  it('and that the Foundation signal is what overturns it', () => {
+    expect(rerank([hit(deliRoll), hit(rawCut)], tokens).map((h) => h.food.id)).toEqual([
+      'raw',
+      'deli',
+    ]);
+  });
+
+  it('would get this wrong at the old weight, which is why the weight moved', () => {
+    const atOldWeight = rerank([hit(deliRoll), hit(rawCut)], tokens, {
+      ...DEFAULT_WEIGHTS,
+      foundation: 0.8,
+    });
+    expect(atOldWeight.map((h) => h.food.id)).toEqual(['deli', 'raw']);
+  });
+
+  it('does not let Foundation override an actual name match', () => {
+    // The bound on the same weight: being lab-analysed must not beat being the
+    // food that was asked for.
+    const unrelated: RankableFood = {
+      id: 'unrelated',
+      name: 'Egg, whole, dried',
+      brand: null,
+      source: 'usda-foundation',
+      flags: { highConfidence: true },
+    };
+    expect(rerank([hit(unrelated), hit(deliRoll)], tokens).map((h) => h.food.id)).toEqual([
+      'deli',
+      'unrelated',
+    ]);
   });
 });

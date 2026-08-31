@@ -15,8 +15,8 @@ import { DATASETS_BUILD_DIR } from '../test/fixturePath.js';
  * 98,000. A loose match that returns a handful of rows shows you the right one;
  * the same loose match over 98,000 returns thousands and buries it.
  *
- * Every figure quoted below was measured on index 2026.08.1, **95,885 records**
- * (core 32,117 + off 63,768), manifest 2026-08-31T15:18Z. The corpus is named
+ * Every figure quoted below was measured on index 2026.08.1, **95,996 records**
+ * (core 32,123 + off 63,873), manifest 2026-08-31T15:40Z. The corpus is named
  * next to the numbers deliberately: these comments once carried figures from a
  * pre-dedupe 98,267-record build and nothing in them said so.
  *
@@ -43,7 +43,7 @@ import { DATASETS_BUILD_DIR } from '../test/fixturePath.js';
  *   good *page*, not a specific row, which is what `STAPLES` below measures.
  */
 
-/** Under 4 MB gzipped, 95,885 records. Well under this means the sample index. */
+/** Under 4 MB gzipped, 95,996 records. Well under this means the sample index. */
 const MIN_SHIP_CORPUS = 50_000;
 
 const VERSION = '2026.08.1';
@@ -125,15 +125,33 @@ function recall(records: readonly Food[], probe: Probe, k: number): number {
  * measures *precision at k* against a named right answer rather than recall of
  * an arbitrary record — "is the plain food on the first screen".
  *
- * Each pattern was checked against the shipped index rather than guessed. Where
- * a query has two acceptable plain answers ("Cheddar cheese" and "Cheese,
+ * Each pattern was checked against the shipped index rather than guessed, and
+ * every one of them was audited by printing *what it actually matched* rather
+ * than trusting that it passed. That audit is how the "chicken breast" pattern
+ * was caught passing on a deli roll while the raw cut sat at rank 11 — the same
+ * dishonest green the datasets team found in their own probe, from the other
+ * direction. A pattern that can pass on the wrong row is worse than a failing
+ * one, because it retires the defect.
+ *
+ * Where the line is drawn, since it is a judgement and not a rule: a different
+ * *preparation* of the same food is an acceptable answer — "Kale, frozen,
+ * cooked" for "kale", "Salmon, sockeye, canned" for "salmon" — because logging
+ * cooked kale is a real thing a person does. A different *product* is not:
+ * "Chicken breast, roll, oven-roasted" is a deli slice, not a chicken breast.
+ *
+ * Where a query has two acceptable plain answers ("Cheddar cheese" and "Cheese,
  * cheddar" are both in there) the pattern accepts either.
  */
 const STAPLES: readonly [string, RegExp][] = [
   ['milk', /^milk, /iu],
   ['rice', /^rice, /iu],
   ['white rice', /^rice, white/iu],
-  ['chicken breast', /^chicken,? breast/iu],
+  // `/^chicken,? breast/` passed on "Chicken breast, roll, oven-roasted" — a
+  // deli product, with the raw cut down at rank 11. The comma is load-bearing:
+  // USDA writes the cut after it, so requiring it excludes the products whose
+  // name merely opens with the query. See the note under STAPLES on where this
+  // line is drawn.
+  ['chicken breast', /^chicken, (breast|broilers?)/iu],
   ['salmon', /^fish, salmon|^salmon, /iu],
   ['tuna', /^fish, tuna/iu],
   ['beef', /^beef, /iu],
@@ -220,9 +238,15 @@ describe('recall at the limits a phone actually shows', () => {
     // screen, not on page three.
     const k8 = recall(records, BRAND_AND_PRODUCT, 8);
     const k20 = recall(records, BRAND_AND_PRODUCT, 20);
-    // Measured 99.2% at k=8, 99.8% at k=20; 98.8% / 99.8% for the previous
-    // ranker on this corpus. Worth stating plainly: typing a brand never broke.
-    // What broke was the row underneath, which the staple set below measures.
+    // Measured 98.5% at k=8, 99.4% at k=20. Down from 99.2%/99.8% on the
+    // previous build, and the cause is upstream rather than here: the adapter
+    // now nulls a brand field that merely repeated the product name, so 5,305
+    // records that used to be findable *by that junk brand* no longer are.
+    // Correct, but it leaves only half a point above the floor — if this trips
+    // on a future rebuild, check the brand population before touching weights.
+    //
+    // Worth stating plainly: typing a brand never broke. What broke was the row
+    // underneath, which the staple set below measures.
     expect(k8, `brand + product words @8 = ${(k8 * 100).toFixed(1)}%`).toBeGreaterThan(0.98);
     expect(k20, `brand + product words @20 = ${(k20 * 100).toFixed(1)}%`).toBeGreaterThan(0.98);
   });
@@ -236,11 +260,11 @@ describe('recall at the limits a phone actually shows', () => {
     // defers the third and later identical-looking rows so the first screen is
     // not one word repeated eight times. Naming the brand recovers them, which
     // is what the probe above measures.
-    // Measured 94.9% at k=8, 95.0% at k=20, against 96.1%/98.8% for the
-    // previous ranker on this corpus. That gap is what a first screen which is
-    // not one word repeated eight times costs, and it is recoverable by naming
-    // the brand — which is the 99.2% probe above. It narrowed from four points
-    // to one when the reader's plural handicap was fixed upstream.
+    // Measured 96.5% at k=8, 97.0% at k=20. The gap to a no-diversification
+    // ranking is what a first screen which is not one word repeated eight times
+    // costs, and it is recoverable by naming the brand — the probe above. It
+    // has narrowed from four points to about one as the upstream defects were
+    // fixed: 91.0% two builds ago, 94.9% one build ago, 96.5% now.
     expect(k8, `the name typed out @8 = ${(k8 * 100).toFixed(1)}%`).toBeGreaterThan(0.90);
     expect(k20, `the name typed out @20 = ${(k20 * 100).toFixed(1)}%`).toBeGreaterThan(0.92);
   });
@@ -252,10 +276,10 @@ describe('recall at the limits a phone actually shows', () => {
     // file. What *is* worth guarding is that it has not collapsed to nothing,
     // which would mean the leading word had stopped mattering at all.
     // For the record, since it is the number that raised the alarm: it was
-    // reported as 39.6% at k=20 on the pre-dedupe build. On this corpus the
-    // previous ranker scores 36.4% and this one scores 31.8%. It went *down*,
-    // and that is the trade working — recall of one arbitrary record for a
-    // common word is anti-correlated with putting the right food first.
+    // reported as 39.6% at k=20 on the pre-dedupe build, and measures 37.8%
+    // here. It stays below what a ranking tuned *for* it would score, and that
+    // is the trade working — recall of one arbitrary record for a common word
+    // is anti-correlated with putting the right food first.
     expect(k8, `leading word @8 = ${(k8 * 100).toFixed(1)}%`).toBeGreaterThan(0.15);
     expect(k20, `leading word @20 = ${(k20 * 100).toFixed(1)}%`).toBeGreaterThan(0.2);
     expect(k20).toBeGreaterThan(k8);
@@ -265,7 +289,8 @@ describe('recall at the limits a phone actually shows', () => {
 describe('a short generic query puts the plain food on the first screen', () => {
   it('surfaces the reference food for the staples people actually weigh', () => {
     const { rate, misses } = staplePrecision(8);
-    // 31 of 31, against 15 of 31 for the previous ranker on this same corpus.
+    // 31 of 31, honestly — every pattern audited against what it matched, not
+    // just that it matched. 15 of 31 for the previous ranker on this corpus.
     // This is the column the whole change was for. One miss is tolerated so a
     // rebuild that shuffles one borderline food is a conversation rather than a
     // red build; two is a regression worth stopping for.
@@ -314,9 +339,10 @@ describe('a short generic query puts the plain food on the first screen', () => 
     // The concrete case that started this: "milk" used to return three
     // supermarket own-brands and then milk crackers, milk chocolate candies and
     // a milkshake. The record that IS milk was in the candidate pool the whole
-    // time — position 116 when this was diagnosed, and 3 of 200 today, because
-    // the index's own ordering improved underneath. Which is the tell: when the
-    // right answer is already in the pool, the fetch was never the problem.
+    // time — position 116 when this was diagnosed, and near the top today,
+    // because the index's own ordering improved underneath. Which is the tell:
+    // when the right answer is already in the pool, the fetch was never the
+    // problem, and deepening it will not help.
     const { hits } = searchFoods(runSearch, 'milk', 8);
     const first = hits[0]?.food;
     expect(first?.brand).toBeNull();
@@ -372,7 +398,7 @@ describe('a stopword-only query is an unfinished query, not a missing food', () 
     // probe artefact: those records open with a word the index does not index.
     //
     // This used to probe by the food's *first* indexed term, which was a fair
-    // demonstration over 784 records and is meaningless over 95,885 — "beef"
+    // demonstration over 784 records and is meaningless over 95,996 — "beef"
     // alone matches five hundred unbranded USDA rows before the branded ones,
     // so a top-N search cannot hold them all however large N is. Probing by the
     // whole token sequence tests what the claim was always about: that the
