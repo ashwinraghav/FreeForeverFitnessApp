@@ -4,9 +4,9 @@ import { fold, tokenise } from '@freeforever/datasets';
  * Query classification and client-side re-ranking.
  *
  * Every figure quoted in this file was measured against the shipped index —
- * version 2026.08.1, 97,294 records, manifest 2026-08-31T14:39Z — by
- * `recall.test.ts`, which refuses to report a number if the build directory
- * holds a sample. **The corpus identity is stated wherever a number is, on
+ * version 2026.08.1, 95,885 records (core 32,117 + off 63,768), manifest
+ * 2026-08-31T15:18Z — by `recall.test.ts`, which refuses to report a number if
+ * the build directory holds a sample. **The corpus identity is stated wherever a number is, on
  * purpose:** an earlier version of these comments carried figures from the
  * pre-dedupe 98,267-record build and there was no way to tell by reading them.
  * A measurement without its corpus is a rumour.
@@ -27,17 +27,20 @@ import { fold, tokenise } from '@freeforever/datasets';
  * the index only materialises the records it returns.
  *
  * **3. A common word surfaced the wrong *kind* of food.** This is the one the
- * corpus growing 124-fold exposed. Over 784 records "milk" returned a handful
- * of rows and the plain one was visible; over 97,294 it returned three
+ * corpus growing 122-fold exposed. Over 784 records "milk" returned a handful
+ * of rows and the plain one was visible; over 97,000 it returned three
  * supermarket own-brand cartons followed by milk crackers, milk chocolate
- * candies and a milkshake, while the record that *is* milk sat at candidate
- * position 60 the whole time. The signals that fix it are `headExact` (a USDA name is
+ * candies and a milkshake — while the record that *is* milk sat inside the
+ * candidate pool the whole time, never lower than position 116 and now at 3.
+ * That is worth remembering as a diagnostic: when the right answer is already
+ * in the pool, the fetch is not the problem and deepening it will not help.
+ * The signals that fix it are `headExact` (a USDA name is
  * head-then-qualifiers, so "Milk, whole, 3.25% milkfat" IS milk), a
  * `reference` bonus for unbranded USDA records, `brandIntent` to gate that
  * bonus off when the user names a brand, and `diversifyByName` to stop a dozen
  * rows reading the same word from owning the first screen. Measured on the
  * corpus above, over 31 generic queries: the plain food reached the first
- * screen 11 times out of 31 before, 29 out of 31 after.
+ * screen 15 times out of 31 before, 31 out of 31 after.
  *
  * ## The seam for a second source
  *
@@ -290,9 +293,9 @@ export function hitFeatures(food: RankableFood, tokens: readonly string[]): HitF
  * Weights, in one object so they can be swept rather than argued about.
  *
  * Every number here was chosen by measuring recall and top-8 precision against
- * the shipped 97,294-record index — see `recall.test.ts`, which reports both
+ * the shipped 95,885-record index — see `recall.test.ts`, which reports both
  * and fails if the corpus it opens is not the one we ship. The previous set was
- * tuned against 784 records and did not survive the corpus growing 125-fold;
+ * tuned against 784 records and did not survive the corpus growing 122-fold;
  * that is the whole reason this object is exported.
  */
 export interface RankWeights {
@@ -313,22 +316,26 @@ export const DEFAULT_WEIGHTS: RankWeights = {
   /**
    * The index's own opinion, normalised within the result set.
    *
-   * Deliberately small, and **due to be raised.**
+   * Small, and **staying small on the evidence, not on a hunch.**
    *
-   * The index score carries a popularity prior over record order. It used to be
-   * `0.5 / (1 + doc / 500)`, with 500 hard-coded against a 784-record sample:
-   * worth a lot there (a spread of 0.5 down to 0.31) and worth almost nothing
-   * at 97,294, where every record past a few thousand scored an identical ~0.
-   * Weighting a flat number as the equal of a text signal spends a third of the
-   * score on nothing, which is why this is 0.5 rather than the 1.0 it was.
+   * This was 1.0, against a 784-record sample where the index's popularity prior
+   * — `0.5 / (1 + doc / 500)`, with 500 hard-coded — spanned 0.5 down to 0.31
+   * and carried real information. Over 95,885 records that form collapsed to ~0
+   * by record 5,000, so a third of the score was being spent on a number that
+   * was flat across most of the corpus.
    *
-   * The reader now decays over log rank normalised by corpus size, so the prior
-   * spans a useful range again — that half has landed. The other half has not:
-   * record order itself is being fixed upstream (`nameQuality()` docked 0.12
-   * per comma, which systematically punished USDA's comma-heavy generic-food
-   * names), and that needs an artefact rebuild. **Re-measure and raise this
-   * once the rebuilt artefacts land**, not before: tuning against an ordering
-   * that is about to change is how the last set of numbers went stale.
+   * The reader now decays over log rank normalised by corpus size, and record
+   * order itself was fixed upstream, so the prior is a real signal again — and
+   * the obvious next move was to raise this back up. **Swept 0, 0.5, 1, 1.5, 2
+   * and 3 on the rebuilt corpus: staples stay at 100%, brand recall moves by a
+   * tenth of a point, name recall does not move at all.** The weight is simply
+   * not load-bearing once the text signals below are doing their job, because
+   * the index score has already decided *which* 200 candidates arrive and this
+   * only reorders within them.
+   *
+   * Kept non-zero so the index keeps a say in ties. Do not raise it without
+   * re-running that sweep: "the prior got better, so the weight should go up"
+   * sounds right and measures as nothing.
    */
   index: 0.5,
   /** Typed the food's exact name. Nothing should outrank that. */
@@ -507,21 +514,25 @@ export function dedupeHits<F extends RankableFood>(
  * name, are one row's worth of information occupying a whole screen — and they
  * were pushing the plain USDA record off it entirely.
  *
- * **Five, measured, not guessed.** Against the shipped index (97,294 records),
+ * **Five, measured, not guessed.** Against the shipped index (95,885 records),
  * over 31 generic staple queries and an 800-record recall sample:
  *
  * | cap | plain food on the first screen | the name typed out, @8 |
  * |-----|-------------------------------|------------------------|
- * | off |  68%                          | 94.4%                  |
- * |  2  |  94%                          | 86.9%                  |
- * |  5  |  94%                          | 91.0%                  |
- * |  6  |  94%                          | 92.4%                  |
- * |  8  |  68%                          | 94.4%                  |
+ * | off |  81%                          | 96.3%                  |
+ * |  2  | 100%                          | 91.1%                  |
+ * |  5  | 100%                          | 94.9%                  |
+ * |  6  | 100%                          | 95.5%                  |
+ * |  8  |  81%                          | 96.3%                  |
  *
  * So 2 gave away four points of recall for nothing, and 8 is past the cliff —
- * with eight rows on screen a cap of eight is no cap. 6 measures 1.4 points
+ * with eight rows on screen a cap of eight is no cap. 6 measures 0.6 points
  * better than 5 and sits one step from that cliff, which is not where a shipped
  * constant belongs. 5 keeps two rows of margin and the same staple figure.
+ *
+ * This table has now been re-measured across three index rebuilds and the shape
+ * has not moved, which is the main reason to trust the choice rather than the
+ * individual percentages.
  */
 export const MAX_SAME_NAME_UP_FRONT = 5;
 

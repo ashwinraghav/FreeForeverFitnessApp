@@ -15,10 +15,10 @@ import { DATASETS_BUILD_DIR } from '../test/fixturePath.js';
  * 98,000. A loose match that returns a handful of rows shows you the right one;
  * the same loose match over 98,000 returns thousands and buries it.
  *
- * Every figure quoted below was measured on index 2026.08.1, **97,294 records**
- * (core 33,320 + off 63,974), manifest 2026-08-31T14:39Z. The corpus is named
- * next to the numbers deliberately: these comments previously carried figures
- * from a pre-dedupe 98,267-record build and nothing in them said so.
+ * Every figure quoted below was measured on index 2026.08.1, **95,885 records**
+ * (core 32,117 + off 63,768), manifest 2026-08-31T15:18Z. The corpus is named
+ * next to the numbers deliberately: these comments once carried figures from a
+ * pre-dedupe 98,267-record build and nothing in them said so.
  *
  * So: this file opens `packages/datasets/build/` — the directory
  * `apps/web/scripts/sync-datasets.mjs` copies into the app — and **refuses to
@@ -43,7 +43,7 @@ import { DATASETS_BUILD_DIR } from '../test/fixturePath.js';
  *   good *page*, not a specific row, which is what `STAPLES` below measures.
  */
 
-/** Under 4 MB gzipped, 97,294 records. Well under this means the sample index. */
+/** Under 4 MB gzipped, 95,885 records. Well under this means the sample index. */
 const MIN_SHIP_CORPUS = 50_000;
 
 const VERSION = '2026.08.1';
@@ -166,17 +166,24 @@ const STAPLES: readonly [string, RegExp][] = [
 ];
 
 /**
- * Queries whose plain answer is in the corpus but sits past the over-fetch.
+ * One miss out of 31 is tolerated; the shipped index currently misses none.
  *
- * Both are reachable only by deepening `OVERFETCH_LIMIT`, which trades them for
- * other staples and doubles the per-keystroke work — so they are recorded as
- * known and unfixed from this side rather than papered over. The cause is
- * upstream: the index stores records in descending likelihood order, and it has
- * ranked "Potato flour" and "Apple croissants" hundreds of places above
- * "Potatoes, flesh and skin, raw" (core record 1785) and "Apples, raw, without
- * skin" (core record 1282). Reported to the datasets team.
+ * This used to carry a `KNOWN_STAPLE_GAPS` set naming "potato" and "apple",
+ * whose plain records sat past the over-fetch. They are gone, and the reason is
+ * worth keeping because I had the diagnosis wrong: I read it as record order and
+ * reported it as such. The actual defect was in the reader's prefix scoring,
+ * which penalised an expansion by `needle.length / term.length` — and USDA names
+ * generic whole foods in the plural and derived products in the singular:
+ *
+ *     "Potatoes, russet, without skin, raw"   term "potatoes"  6/8 = 0.75
+ *     "Potato flour"                          term "potato"    exact = 1.00
+ *
+ * A quarter of a point of handicap for being a plural, which no ranking of mine
+ * could repay. `search("potatoes")` put plain raw potatoes at ranks 1-3 while
+ * `search("potato")` put the first one at 539 — same index, one letter of query.
+ * Fixed upstream; the guard for it is the test below.
  */
-const KNOWN_STAPLE_GAPS = new Set(['potato', 'apple']);
+const STAPLE_MISS_TOLERANCE = 1;
 
 function staplePrecision(k: number): { rate: number; misses: string[] } {
   let found = 0;
@@ -213,10 +220,9 @@ describe('recall at the limits a phone actually shows', () => {
     // screen, not on page three.
     const k8 = recall(records, BRAND_AND_PRODUCT, 8);
     const k20 = recall(records, BRAND_AND_PRODUCT, 20);
-    // Measured 99.4% at k=8, 99.8% at k=20 — and identical before this rework.
-    // Worth stating plainly: typing a brand never broke. The corpus growing did
-    // not touch this probe, and nothing here improved it. What broke was the
-    // row underneath, which is what the staple set below measures.
+    // Measured 99.2% at k=8, 99.8% at k=20; 98.8% / 99.8% for the previous
+    // ranker on this corpus. Worth stating plainly: typing a brand never broke.
+    // What broke was the row underneath, which the staple set below measures.
     expect(k8, `brand + product words @8 = ${(k8 * 100).toFixed(1)}%`).toBeGreaterThan(0.98);
     expect(k20, `brand + product words @20 = ${(k20 * 100).toFixed(1)}%`).toBeGreaterThan(0.98);
   });
@@ -230,10 +236,11 @@ describe('recall at the limits a phone actually shows', () => {
     // defers the third and later identical-looking rows so the first screen is
     // not one word repeated eight times. Naming the brand recovers them, which
     // is what the probe above measures.
-    // Measured 91.0% at k=8, 93.4% at k=20, against 94.9%/98.6% before this
-    // rework. Those four points at k=8 are what a first screen that is not one
-    // word repeated eight times costs, and they are recoverable by naming the
-    // brand — which is the 99.4% probe above.
+    // Measured 94.9% at k=8, 95.0% at k=20, against 96.1%/98.8% for the
+    // previous ranker on this corpus. That gap is what a first screen which is
+    // not one word repeated eight times costs, and it is recoverable by naming
+    // the brand — which is the 99.2% probe above. It narrowed from four points
+    // to one when the reader's plural handicap was fixed upstream.
     expect(k8, `the name typed out @8 = ${(k8 * 100).toFixed(1)}%`).toBeGreaterThan(0.90);
     expect(k20, `the name typed out @20 = ${(k20 * 100).toFixed(1)}%`).toBeGreaterThan(0.92);
   });
@@ -245,10 +252,10 @@ describe('recall at the limits a phone actually shows', () => {
     // file. What *is* worth guarding is that it has not collapsed to nothing,
     // which would mean the leading word had stopped mattering at all.
     // For the record, since it is the number that raised the alarm: it was
-    // reported as 39.6% at k=20 on the pre-dedupe build. On this corpus the old
-    // ranker scores 43.0% and this one scores 34.9%. It went *down*, and that is
-    // the trade working — recall of one arbitrary record for a common word is
-    // anti-correlated with putting the right food first.
+    // reported as 39.6% at k=20 on the pre-dedupe build. On this corpus the
+    // previous ranker scores 36.4% and this one scores 31.8%. It went *down*,
+    // and that is the trade working — recall of one arbitrary record for a
+    // common word is anti-correlated with putting the right food first.
     expect(k8, `leading word @8 = ${(k8 * 100).toFixed(1)}%`).toBeGreaterThan(0.15);
     expect(k20, `leading word @20 = ${(k20 * 100).toFixed(1)}%`).toBeGreaterThan(0.2);
     expect(k20).toBeGreaterThan(k8);
@@ -258,22 +265,58 @@ describe('recall at the limits a phone actually shows', () => {
 describe('a short generic query puts the plain food on the first screen', () => {
   it('surfaces the reference food for the staples people actually weigh', () => {
     const { rate, misses } = staplePrecision(8);
-    const unexpected = misses.filter((q) => !KNOWN_STAPLE_GAPS.has(q));
-    expect(unexpected, `unexpected staple misses at k=8: ${unexpected.join(', ')}`).toEqual([]);
-    // 29 of 31 = 93.5%, against 11 of 31 = 35.5% before this rework. This is
-    // the column the whole change was for.
-    expect(rate, `staples @8 = ${(rate * 100).toFixed(0)}%`).toBeGreaterThan(0.9);
+    // 31 of 31, against 15 of 31 for the previous ranker on this same corpus.
+    // This is the column the whole change was for. One miss is tolerated so a
+    // rebuild that shuffles one borderline food is a conversation rather than a
+    // red build; two is a regression worth stopping for.
+    expect(misses.length, `staple misses at k=8: ${misses.join(', ') || 'none'}`).toBeLessThanOrEqual(
+      STAPLE_MISS_TOLERANCE,
+    );
+    expect(rate, `staples @8 = ${(rate * 100).toFixed(0)}%`).toBeGreaterThan(0.95);
   });
 
   it('does no worse with more room', () => {
     expect(staplePrecision(20).rate).toBeGreaterThanOrEqual(staplePrecision(8).rate);
   });
 
+  it('finds the plural generic from the singular a person types', () => {
+    // The guard for the defect described above `STAPLE_MISS_TOLERANCE`. Nobody
+    // types "potatoes" or "apples"; USDA names the plain food in the plural and
+    // the derived product in the singular, so a singular query has to reach the
+    // plural record without being handicapped for it.
+    for (const [query, wanted] of [
+      ['potato', /^potatoes, /iu],
+      ['apple', /^apples, /iu],
+      ['carrot', /^carrots, /iu],
+      ['onion', /^onions, /iu],
+    ] as const) {
+      const { hits } = searchFoods(runSearch, query, 8);
+      expect(
+        hits.some((h) => h.food.brand === null && wanted.test(h.food.name)),
+        `"${query}" did not surface ${String(wanted)} — top: ${hits
+          .slice(0, 3)
+          .map((h) => h.food.name)
+          .join(' / ')}`,
+      ).toBe(true);
+    }
+  });
+
+  it('does not treat every longer word as a plural of the query', () => {
+    // The other side of the same fix: "milkshake" is not the plural of "milk",
+    // and a query for milk must not be handed one as an equal match. Pinned
+    // here rather than only upstream, because this is the assertion that fails
+    // if the suffix rule is ever loosened.
+    const { hits } = searchFoods(runSearch, 'milk', 8);
+    expect(hits.every((h) => !/milkshake/iu.test(h.food.name))).toBe(true);
+  });
+
   it('prefers the plain reference food over a branded carton for "milk"', () => {
     // The concrete case that started this: "milk" used to return three
     // supermarket own-brands and then milk crackers, milk chocolate candies and
     // a milkshake. The record that IS milk was in the candidate pool the whole
-    // time, at position 60 of 200.
+    // time — position 116 when this was diagnosed, and 3 of 200 today, because
+    // the index's own ordering improved underneath. Which is the tell: when the
+    // right answer is already in the pool, the fetch was never the problem.
     const { hits } = searchFoods(runSearch, 'milk', 8);
     const first = hits[0]?.food;
     expect(first?.brand).toBeNull();
@@ -329,7 +372,7 @@ describe('a stopword-only query is an unfinished query, not a missing food', () 
     // probe artefact: those records open with a word the index does not index.
     //
     // This used to probe by the food's *first* indexed term, which was a fair
-    // demonstration over 784 records and is meaningless over 97,294 — "beef"
+    // demonstration over 784 records and is meaningless over 95,885 — "beef"
     // alone matches five hundred unbranded USDA rows before the branded ones,
     // so a top-N search cannot hold them all however large N is. Probing by the
     // whole token sequence tests what the claim was always about: that the
@@ -348,7 +391,7 @@ describe('a stopword-only query is an unfinished query, not a missing food', () 
 });
 
 describe('the query path stays offline and instant', () => {
-  it('answers keystroke by keystroke in well under a frame, at 97k records', () => {
+  it('answers keystroke by keystroke in well under a frame, at 96k records', () => {
     const started = performance.now();
     for (const prefix of [
       'ch', 'chi', 'chic', 'chick', 'chicke', 'chicken',
@@ -357,10 +400,9 @@ describe('the query path stays offline and instant', () => {
     ]) {
       searchFoods(runSearch, prefix, 20);
     }
-    // Thirteen keystrokes across three words. Measured at about 13 ms on the
-    // shipped corpus, and 10.9 ms worst-case per keystroke in a real browser at
-    // 412 px. The bound is generous because this is a regression guard against
-    // an accidental full scan, not a benchmark.
+    // Thirteen keystrokes across three words, on the shipped corpus. The bound
+    // is generous because this is a regression guard against an accidental full
+    // scan, not a benchmark; the browser figure is in the commit message.
     expect(performance.now() - started).toBeLessThan(250);
   });
 
