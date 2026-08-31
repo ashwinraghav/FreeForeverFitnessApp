@@ -67,3 +67,56 @@ wanted a fact to read, not another control to operate one-handed, out of breath,
 **Drop foods with no stated serving from the index** (rejected: they are the USDA reference
 foods — plain chicken, rice, dal — which ADR-0030's ranking work shows are what people most
 want for a generic query. Opening them on `100 g` is correct, not a fallback.)
+
+---
+
+## Correction (2026-08-31, same day)
+
+Appended rather than edited: the repository's policy is to supersede rather than rewrite an
+accepted ADR, and these are factual errors in my description of the code, not changes to the
+decision. Raised by the nutrition/servings agent, who found the defect in the first place.
+
+**1. The ordering bug was unconditional, not conditional.** The text above says
+`servingsForFood` pushed `GRAM_SERVING` before `HUNDRED_GRAM_SERVING` "whenever the dataset row
+carried no serving mass". It pushed both on every call, always:
+
+```js
+servings.push(GRAM_SERVING, HUNDRED_GRAM_SERVING);
+```
+
+A stated serving was merely *prepended* when one existed. So the ordering was permanent and only
+*visible* when no stated serving occupied position zero. This matters for anyone reading this ADR
+as binding: **there was no conditional to find**, which is part of why the bug was invisible.
+
+**2. The sharper lesson, which the text above understates.** The surviving test was:
+
+```js
+it('falls back to 100 g when the food states no serving', () => {
+  const list = servingsForFood({ basis: 'g' });
+  expect(defaultServing(list).gramsPerServing).toBe(1); // grams first, then 100 g
+  expect(list.map((s) => s.name)).toEqual(['g', '100 g']);
+});
+```
+
+Three artefacts stated the correct behaviour — the test's **name**, its inline **comment**, and
+`defaultServing`'s own **doc comment**. Exactly one encoded what the code did: `toBe(1)`. A reader
+saw "100 g" three times in prose beside a green tick, and the single line that disagreed is the one
+nobody reads as prose. So:
+
+> **A test whose name states an outcome its assertion contradicts is worse than no test.** The name
+> is what a reader trusts; the assertion is what ships.
+
+This is kept *alongside* "a test that pins construction order can hold a defect in place", because
+they catch different failures: the first catches asserting the wrong *value* while claiming the
+right one — and is greppable — the second catches asserting the wrong *level*.
+
+Deliberately not added as a third rule, on the author's advice: the defect was split across
+`packages/core` (list order) and `apps/web` (default quantity), and neither file's tests were wrong
+about their own half. "A defect can live in the gap between two correct units" is true but too
+weakly actionable to sit beside the other two.
+
+**3. Two attributions corrected.** The final alternative credits ADR-0030 with "ranking work";
+ADR-0030 is the cache-not-catalogue decision, and the ranking evidence is in
+`apps/web/src/features/nutrition/search/recall.test.ts` and commit `c49217f`. And the same passage
+names dal as a shipped reference food: chicken and rice were verified in the shipped index, dal was
+not.

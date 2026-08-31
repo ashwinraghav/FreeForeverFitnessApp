@@ -1,6 +1,9 @@
 # ADR-0030: The bundled food index is a cache, not the catalogue
 
-- **Status:** Accepted
+- **Status:** Accepted; **rule 3 superseded by [ADR-0033](./0033-reach-is-a-download-problem-not-a-network-one.md)**
+  (2026-08-31). Rules 1 and 2 stand. Rule 3's premise — that a browser-direct call to Open Food
+  Facts is free and therefore bounded — is false: OFF's terms forbid the use, and *free to us* is
+  not *bounded*. The text below is left unedited on purpose.
 - **Date:** 2026-08-31
 - **Decided by:** Project owner, with Claude Opus 5 (session 60f2e23f)
 
