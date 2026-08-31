@@ -37,6 +37,7 @@ New decision: `pnpm adr "Short title"`.
 | [0029](./0029-hard-deletes-under-delta-sync.md) | The domain soft-deletes; hard deletes are best-effort | Accepted |
 | [0030](./0030-bundled-food-index-is-a-cache-not-the-catalogue.md) | The bundled food index is a cache, not the catalogue | Accepted |
 | [0031](./0031-food-index-is-a-release-artefact-served-from-the-repo.md) | The food index ships from the repo via jsDelivr, not from Hosting | Accepted |
+| [0032](./0032-a-serving-is-a-thing-you-eat-not-a-quantity.md) | A serving is a thing you eat, not a quantity | Accepted |
 
 ## Reading order for newcomers
 
