@@ -24,6 +24,12 @@ quietly work around it.
 Teams write only inside directories they own (ADR-0018). Need a change elsewhere? Report it to
 the integrator rather than reaching across.
 
+Ownership is enforced per **directory**, so it cannot see a collision that lives in a shared
+**string**. Two teams styling one CSS class name is invisible to the model: the shell's
+`.ff-tab` and the design system's `.ff-tab` sat in different owned files and silently fought,
+and a design-system change would have restyled the app's primary navigation. Prefix a class
+with the component that owns it, and grep the other packages before claiming a name.
+
 | Area | Owns |
 |---|---|
 | design-system | `packages/design-system` |
@@ -59,7 +65,7 @@ jsdom has no layout engine. Every element reports zero size, so the whole suite 
 at every viewport because it does not know what a viewport is. This is not a gap that
 more tests fix — it is a gap the test *environment* cannot address.
 
-It has already cost real bugs twice, both found only by opening a browser:
+It has already cost real bugs three times, each found only by opening a browser:
 
 - The rest bar measured 490px inside a 390px screen and pushed the button that ends the
   rest off the right edge. A grid item's default `min-width: auto` refused to shrink.
@@ -67,6 +73,16 @@ It has already cost real bugs twice, both found only by opening a browser:
   so at 1920px it became 624px wide and therefore 624px tall, stretching the whole action
   bar to 649px and burying the screen. **The same bug was present at 390px** — 114px
   instead of 81px — survivable, which is exactly why nobody caught it there.
+- The bottom tab bar measured 498px inside a 412px phone **at 200% text**, scrolling the
+  whole document sideways. `grid-auto-columns: 1fr` is `minmax(auto, 1fr)`, and that `auto`
+  floor is content width, so "Progress" widened its own column and the four columns stopped
+  being equal. Fixing it needed `minmax(0, 1fr)` in **three** nested places — the strip's
+  columns, the item's `min-width`, and the item's own implicit track — because each level
+  refused to shrink independently. The real cause was one level further out again: the
+  shell's nav reused the class name `.ff-tab`, which **the design system already owns** for
+  its Tabs primitive, and so inherited `padding-inline: var(--ff-space-16)` meant for a
+  segmented control — 32px a side at 200% text, leaving 39px of a 103px tab for a label
+  needing 66px. Renamed to `.ff-navbar`/`.ff-navtab`.
 
 Two rules follow:
 

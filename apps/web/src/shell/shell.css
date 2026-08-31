@@ -25,27 +25,61 @@ body {
 
 .ff-main { overflow-y: auto; }
 
-.ff-tabs {
+/* Named `ff-navbar`/`ff-navtab`, NOT `ff-tabs`/`ff-tab`. The design system's
+ * Tabs primitive already owns `.ff-tab` (packages/design-system, primitives.css)
+ * and gives it `padding-inline: var(--ff-space-16)` for a segmented control.
+ * This bottom nav had been reusing that class name, so it silently inherited
+ * padding meant for a different component — 32px a side at 200% text, which
+ * left 39px of a 103px tab for a label needing 66px. Two teams styling one
+ * class name is the collision ADR-0018 exists to prevent; it just cannot see
+ * one that lives in a shared string. */
+.ff-navbar {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 1fr;
+  /* `1fr` is `minmax(auto, 1fr)`, and that `auto` floor is the column's content
+   * width — so at 200% text "Progress" widened its own column to 161px and the
+   * four columns summed to 498px inside a 412px phone, scrolling the whole page
+   * sideways. `minmax(0, 1fr)` removes the floor so the columns stay equal and
+   * the label wraps instead of shoving the document. Third time this repo has
+   * been bitten by a track that refuses to shrink; see the CLAUDE.md note. */
+  grid-auto-columns: minmax(0, 1fr);
   border-top: 1px solid var(--ff-color-hairline);
   background: var(--ff-color-surface);
   /* Clear the home indicator so the last row of tabs is not half-swallowed. */
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-.ff-tab {
+.ff-navtab {
   display: grid;
-  place-items: center;
+  /* Centred vertically, but the label must STRETCH horizontally. With
+   * `place-items: center` the text became a max-content-sized item, so it had
+   * no width to wrap against and `overflow-wrap` never engaged — "Progress"
+   * spilled 26px out of its own 103px column at 200% text. */
+  align-items: center;
+  justify-items: stretch;
+  /* `.ff-navtab` is itself a grid, and its own implicit column defaults to `auto`
+   * — max-content. So the label sat in a 129px column inside a 103px tab, the
+   * word always "fitted" its own column, and `overflow-wrap` had nothing to
+   * act on. Constraining this track too is what finally lets it wrap. Three
+   * levels of the same bug in one component: the tab strip's columns, the
+   * item's min-width, and now the item's own track. */
+  grid-template-columns: minmax(0, 1fr);
   /* 56px is the mid-set target from ADR-0013, not a rounded-up 48. */
   min-height: var(--ff-hit-mid-set);
   color: var(--ff-color-fg-muted);
   text-decoration: none;
   font-size: var(--ff-text-label);
+  /* A grid item defaults to `min-width: auto`, which is the same refusal to
+   * shrink one level down. Both are needed: the track and the item. */
+  min-inline-size: 0;
+  /* WCAG 1.4.4 wants the text at 200% without losing content, so the label
+   * wraps rather than being truncated or ellipsised — a clipped nav label is
+   * lost content, not a graceful degradation. */
+  overflow-wrap: break-word;
+  text-align: center;
 }
 
-.ff-tab.active { color: var(--ff-color-accent); }
+.ff-navtab.active { color: var(--ff-color-accent); }
 
 .ff-booting {
   display: grid;

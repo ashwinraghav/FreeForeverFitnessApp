@@ -11,11 +11,11 @@ export function AppFrame({ children }: { children: ReactNode }) {
   return (
     <div className="ff-frame">
       <main className="ff-main">{children}</main>
-      <nav className="ff-tabs" aria-label="Sections">
-        <NavLink to={ROUTES.workout} className="ff-tab">Train</NavLink>
-        <NavLink to={ROUTES.nutrition} className="ff-tab">Eat</NavLink>
-        <NavLink to={ROUTES.insights} className="ff-tab">Progress</NavLink>
-        <NavLink to={ROUTES.more} className="ff-tab">More</NavLink>
+      <nav className="ff-navbar" aria-label="Sections">
+        <NavLink to={ROUTES.workout} className="ff-navtab">Train</NavLink>
+        <NavLink to={ROUTES.nutrition} className="ff-navtab">Eat</NavLink>
+        <NavLink to={ROUTES.insights} className="ff-navtab">Progress</NavLink>
+        <NavLink to={ROUTES.more} className="ff-navtab">More</NavLink>
       </nav>
     </div>
   );
