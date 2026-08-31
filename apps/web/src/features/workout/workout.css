@@ -171,7 +171,6 @@
   padding: var(--ff-space-4) var(--ff-space-16);
 }
 
-
 .ffw-row[data-ff-state='completed'] {
   background: color-mix(in srgb, var(--ff-color-success) 10%, transparent);
 }
@@ -1107,47 +1106,6 @@
 .ffw-past__exercise .ffw-row > .ffw-row__last:nth-child(2),
 .ffw-past__exercise .ffw-sets__legend > span:nth-child(2) {
   display: none;
-}
-
-/*
- * MITIGATION, not a fix. The real bug is in `packages/design-system`.
- *
- * At 200% text, inside the 348px this editor has to give:
- *
- *   `.ff-number` is a flex row with no `flex-wrap`, and `.ff-number__well` is `flex: 1`
- *   with no `min-inline-size: 0` — so a flex item cannot shrink below its min-content
- *   and the row cannot break. The two steppers are 112px each at that size, the well
- *   needs more than the 124px left, and the "+" button ends up 144px off the right edge
- *   of the phone. Not clipped-but-scrollable: unreachable. `.ff-segmented__option` has
- *   the identical shape and pushes "Not yet" off the same edge.
- *
- * That is loss of functionality under WCAG 1.4.4 on the two most-tapped controls in the
- * product, and it is not confined to this screen — the live workout editor has it too,
- * and so does anything else that renders a `NumberField` in a tight column.
- *
- * So this is scoped to `.ffw-editor` and does the least it can: let the rows wrap and
- * let the well shrink. It is deliberately NOT a redesign of someone else's component.
- * The proper fix is `min-inline-size: 0` on `.ff-number__well` and `.ff-segmented__option`
- * plus `flex-wrap: wrap` on their rows, in `primitives.css` — reported to design-system
- * via the integrator. Delete this block when that lands.
- *
- * Referencing their class names is the coupling this buys, and it is the reason this
- * block is loud rather than quiet.
- */
-.ffw-editor .ff-number {
-  flex-wrap: wrap;
-}
-
-.ffw-editor .ff-number__well {
-  min-inline-size: 0;
-}
-
-.ffw-editor__state {
-  flex-wrap: wrap;
-}
-
-.ffw-editor__state > button {
-  min-inline-size: 0;
 }
 
 /*
