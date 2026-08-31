@@ -250,16 +250,96 @@ export function canAddSet(workout: DraftWorkout, exerciseId: WorkoutExerciseId):
 }
 
 /**
- * The three states, in the order the log button walks them.
+ * What the row's log button does: log the set, or take the log back.
  *
- * Made is one tap, which is the overwhelmingly common case. Missed is two. Back to
- * untouched is three, and it keeps every number the lifter entered — only the fact
- * that the set was attempted is forgotten.
+ * **This used to be a three-state cycle** — `pending -> completed -> failed ->
+ * pending` — on a control with no visible label. A user tapped it twice, landed on
+ * `failed`, and read the large red cross as a delete button sitting where the primary
+ * action should be. Two taps of the commonest control in the product put them in a
+ * state that looked destructive and had no obvious way out.
+ *
+ * Making a set is the common case; missing one is rare. They should not be adjacent
+ * taps on the same unlabelled control. So the button is now a toggle — made, or not
+ * yet — and `failed` is reached from the set editor, where it is a word rather than a
+ * colour. From `failed`, one tap still returns to untouched, so there is never a state
+ * the button cannot get you out of.
+ *
+ * All three states survive; only the route to `failed` changed. It still feeds
+ * progression and volume (ADR-0025), and `setStateOptions` below is what offers it.
  */
-export function nextSetState(current: SetState): SetState {
-  if (current === 'pending') return 'completed';
-  if (current === 'completed') return 'failed';
-  return 'pending';
+export function toggleSetLogged(current: SetState): SetState {
+  return current === 'completed' || current === 'failed' ? 'pending' : 'completed';
+}
+
+/**
+ * The three states as a labelled choice, for the editor's state control.
+ *
+ * The words are the point. `NEXT_ACTION` in `SetRow` already held them, but only as
+ * an `aria-label` — so the one user group that never got told what the control did was
+ * the sighted one. Ordered as the lifter thinks: the outcome they wanted, the outcome
+ * they got, and not yet.
+ */
+export const SET_STATE_OPTIONS: readonly { readonly value: SetState; readonly label: string }[] = [
+  { value: 'completed', label: 'Made' },
+  { value: 'failed', label: 'Missed' },
+  { value: 'pending', label: 'Not yet' },
+];
+
+/* --------------------------------------------------------------- session length */
+
+/**
+ * How long a session may sit with nothing logged before it is over.
+ *
+ * A real user's clock read **39:22:01**. A session left open counts wall clock for as
+ * long as the app is installed, and nothing capped it, prompted a finish, or resumed
+ * sanely the next day — so every duration statistic downstream was wrong, and the
+ * header made the most-read number on the screen absurd.
+ *
+ * Four hours, and the rule is deliberately *idle time* rather than total length or the
+ * calendar day. Both of the obvious alternatives are wrong in a case that really
+ * happens: a total-length cap cuts off a genuine five-hour meet, and a day-boundary
+ * rule ends a session that started at 23:30 and is still going at 00:15. Nobody rests
+ * four hours between sets; four hours of silence means the lifter went home.
+ */
+export const SESSION_IDLE_MS = 4 * 60 * 60 * 1000;
+
+/**
+ * When the lifter last actually did something, or `startedAt` if they never did.
+ *
+ * `performedAt` is the only honest activity signal on a draft — it is written exactly
+ * when a set is logged, and cleared when a set is put back to pending.
+ */
+export function lastActivityAt(workout: DraftWorkout): number {
+  let latest = workout.startedAt;
+  for (const exercise of workout.exercises) {
+    for (const set of exercise.sets) {
+      if (set.performedAt !== undefined && set.performedAt > latest) latest = set.performedAt;
+    }
+  }
+  return latest;
+}
+
+/**
+ * Has this session been abandoned?
+ *
+ * Asked on resume, before the screen paints. A stale session is not resumed: if it has
+ * logged work it is closed and filed, and if it does not it is dropped.
+ */
+export function isStale(workout: DraftWorkout, now: number): boolean {
+  return now - lastActivityAt(workout) > SESSION_IDLE_MS;
+}
+
+/**
+ * The instant a session ended, which is not the same as the instant Finish was tapped.
+ *
+ * Bounded by the last logged set plus the idle grace, so a phone left in a locker
+ * cannot write a 39-hour workout into history and skew every duration average that
+ * reads it. For a session finished while the lifter is still standing there — every
+ * normal one — `now` is well inside the bound and this returns `now` unchanged.
+ */
+export function endedAtFor(workout: DraftWorkout, now: number): number {
+  const bound = lastActivityAt(workout) + SESSION_IDLE_MS;
+  return Math.max(workout.startedAt, Math.min(now, bound));
 }
 
 /**
@@ -489,9 +569,14 @@ function finish(state: WorkoutState, now: number): WorkoutState {
   return withWorkout(state, {
     ...state.workout,
     status: 'completed',
-    // `endedAt must not precede startedAt` — a device clock that went backwards mid
-    // session must not produce a document the schema will reject.
-    endedAt: Math.max(now, state.workout.startedAt),
+    /*
+     * Not `now`. `endedAtFor` floors at `startedAt`, because `endedAt must not precede
+     * startedAt` and a device clock that went backwards mid-session must not produce a
+     * document the schema will reject — and it caps at the last logged set plus the
+     * idle grace, because a session the lifter walked away from six hours ago did not
+     * last six hours and history should not say it did.
+     */
+    endedAt: endedAtFor(state.workout, now),
   });
 }
 

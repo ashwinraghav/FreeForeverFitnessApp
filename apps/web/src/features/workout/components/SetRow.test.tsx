@@ -92,25 +92,57 @@ describe('the one-tap repeat set', () => {
 });
 
 describe('three states, never a boolean', () => {
-  it('walks pending, made, missed, and back', () => {
+  it('toggles between logged and not, so a stray tap cannot reach missed', () => {
+    // The cycle this replaces was `pending -> completed -> failed`, on a control with
+    // no visible label. A real user tapped it twice and landed on a large red cross
+    // they read as delete, sitting where the primary action should be.
     const pending = setup();
     fireEvent.click(pending.logButton(/^Log as made/));
     expect(pending.onChangeState).toHaveBeenCalledWith('completed');
 
     const made = setup({ set: { state: 'completed', weightKg: 100, reps: 5 } });
-    fireEvent.click(made.logButton(/^Mark as missed/));
-    expect(made.onChangeState).toHaveBeenCalledWith('failed');
+    fireEvent.click(made.logButton(/^Undo/));
+    expect(made.onChangeState).toHaveBeenCalledWith('pending');
+  });
 
+  it('lets a missed set out again in one tap, so no state is a trap', () => {
     const missed = setup({ set: { state: 'failed', weightKg: 100, reps: 3 } });
-    fireEvent.click(missed.logButton(/^Clear/));
+    fireEvent.click(missed.logButton(/^Undo/));
     expect(missed.onChangeState).toHaveBeenCalledWith('pending');
   });
 
-  it('names the next action, not the current state', () => {
-    // A button announced as "made" that marks a miss when tapped is a trap.
+  it('marks a set missed from the editor, in words', () => {
+    // The whole point of the change: "missed" is a word a sighted user can read,
+    // not the second tap of an unlabelled glyph.
+    const open = setup({ openField: 'effort', set: { state: 'completed', reps: 7 } });
+    fireEvent.click(open.getByRole('radio', { name: 'Missed' }));
+    expect(open.onChangeState).toHaveBeenCalledWith('failed');
+  });
+
+  it('offers all three outcomes in the editor, and shows which one holds', () => {
+    const open = setup({ openField: 'effort', set: { state: 'failed', reps: 7 } });
+    for (const name of ['Made', 'Missed', 'Not yet']) {
+      expect(open.getByRole('radio', { name })).toBeInTheDocument();
+    }
+    expect(open.getByRole('radio', { name: 'Missed' })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('names the action for a screen reader, not the current state', () => {
+    // A button announced as "made" that un-logs when tapped is a trap.
     const made = setup({ set: { state: 'completed', weightKg: 100, reps: 5 } });
-    expect(made.logButton(/^Mark as missed/)).toBeInTheDocument();
+    expect(made.logButton(/^Undo/)).toBeInTheDocument();
     expect(made.queryByRole('button', { name: /^Log as made/ })).not.toBeInTheDocument();
+  });
+
+  it('prints the state as a word, not only as a colour and a glyph', () => {
+    // The control never said what it was for. The words existed — as `aria-label`s —
+    // so the only people ever told were the ones who could not see it.
+    const words: Record<string, string> = { pending: 'Log', completed: 'Made', failed: 'Missed' };
+    for (const [state, word] of Object.entries(words)) {
+      const row = setup({ set: { state: state as SetState, weightKg: 100, reps: 5 } });
+      expect(row.container.querySelector('.ffw-log__word')).toHaveTextContent(word);
+      row.unmount();
+    }
   });
 
   it('carries the state in the row for a screen reader as well as in colour', () => {
@@ -205,12 +237,13 @@ describe('the inline editor', () => {
 
   it('offers removal from inside the editor, not from the row', () => {
     // Removal is destructive, so it lives one level in — where a chalky thumb aiming
-    // for the log button cannot reach it.
+    // for the log button cannot reach it. It is a quiet text button now rather than a
+    // filled red square, which was the loudest thing on the whole screen.
     const closed = setup();
-    expect(closed.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument();
+    expect(closed.queryByRole('button', { name: /^Remove set/ })).not.toBeInTheDocument();
 
     const open = setup({ openField: 'weight' });
-    fireEvent.click(open.getByRole('button', { name: /^Remove/ }));
+    fireEvent.click(open.getByRole('button', { name: /^Remove set/ }));
     expect(open.onRemove).toHaveBeenCalledTimes(1);
   });
 });
@@ -240,9 +273,17 @@ describe('mid-set hit targets', () => {
     // most tapped surface in the app. Remove and Close were `lg` (48px) while the
     // steppers beside them were already `xl`.
     const row = setup({ openField: 'weight' });
-    for (const name of [/^Remove/, /^Close editor/]) {
+    for (const name of [/^Remove set/, /^Done editing/]) {
       expect(row.getByRole('button', { name })).toHaveAttribute('data-ff-size', 'xl');
     }
+  });
+
+  it('gives the editor state control the mid-set size too', () => {
+    // `SegmentedControl` composes `.ff-control`, whose floor is the general 48px.
+    // This one is tapped mid-set, so the feature stylesheet raises it — jsdom cannot
+    // measure that, so this asserts the hook the rule is attached to.
+    const row = setup({ openField: 'weight' });
+    expect(row.container.querySelector('.ffw-editor__state')).not.toBeNull();
   });
 
   it('gives the log button the mid-set size too', () => {

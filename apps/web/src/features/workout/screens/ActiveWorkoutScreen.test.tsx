@@ -10,7 +10,8 @@ import {
   memoryWorkoutRepository,
   type WorkoutRepository,
 } from '../storage/workoutStore.js';
-import { ActiveWorkoutScreen, elapsed } from './ActiveWorkoutScreen.js';
+import { SESSION_IDLE_MS } from '../model/session.js';
+import { ActiveWorkoutScreen, clockAt, elapsed } from './ActiveWorkoutScreen.js';
 
 const bench = toExerciseRef(STARTER_CATALOGUE.find((entry) => entry.id === 'bench-press')!);
 const NOW = 1_760_000_000_000;
@@ -80,6 +81,7 @@ function mountScreen(repository: WorkoutRepository) {
 const nextLogButton = () => screen.getAllByRole('button', { name: /^Log as made/ })[0]!;
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
 const weightCell = () => screen.getAllByRole('button', { name: /Weight:/ })[0]!;
+const repsCell = () => screen.getAllByRole('button', { name: /, reps:/i })[0]!;
 
 /** Open the picker and choose a lift by name, the way a thumb does. */
 function pickExercise(name: string | RegExp): void {
@@ -200,19 +202,40 @@ describe('the one-tap claim, driven by a real pointer sequence', () => {
     expect(saved.filter((set) => set.weightKg === 100)).toHaveLength(1);
   });
 
-  it('takes two taps to record a miss, and keeps the numbers', async () => {
+  it('records a miss in two taps, in words, and keeps the numbers', async () => {
+    /*
+     * Still two taps, but neither of them is a blind one. It used to be two taps of
+     * the *same* unlabelled glyph — log, then log again — which is how a user came to
+     * be looking at a red cross they read as delete. Now the second tap is a word in
+     * the editor, next to the rep count a missed set nearly always needs correcting
+     * anyway.
+     */
     const user = userEvent.setup();
     const repository = repositoryWithActiveSession();
     mountScreen(repository);
 
-    await user.click(nextLogButton());
-    await user.click(screen.getByRole('button', { name: /^Mark as missed: Bench Press, set 1/ }));
+    await user.click(repsCell());
+    await user.click(screen.getByRole('radio', { name: 'Missed' }));
 
     const set = repository.loadActive()?.exercises[0]?.sets[0];
     expect(set?.state).toBe('failed');
     // A failed set is real work: the load and the reps that were made stay.
     expect(set?.weightKg).toBe(100);
     expect(set?.reps).toBe(5);
+  });
+
+  it('never puts a missed set one stray tap away from a logged one', async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWithActiveSession();
+    mountScreen(repository);
+
+    await user.click(nextLogButton());
+    await user.click(screen.getByRole('button', { name: /^Undo.*Bench Press, set 1/ }));
+
+    // The second tap undoes. It does not mark a miss, and it does not delete anything.
+    const set = repository.loadActive()?.exercises[0]?.sets[0];
+    expect(set?.state).toBe('pending');
+    expect(set?.weightKg).toBe(100);
   });
 });
 
@@ -336,7 +359,7 @@ describe('no modals, anywhere in the flow', () => {
     mountScreen(repository);
 
     fireEvent.click(weightCell());
-    fireEvent.click(button(/^Remove Bench Press, set 1/));
+    fireEvent.click(button(/^Remove set — Bench Press, set 1/));
     expect(repository.loadActive()?.exercises[0]?.sets).toHaveLength(2);
 
     const toast = document.querySelector('.ff-toast');
@@ -667,14 +690,14 @@ describe('a session with nothing logged is not a workout', () => {
   it('counts a missed set as work worth saving', () => {
     // A session where everything was missed still happened.
     mountScreen(repositoryWithActiveSession());
-    fireEvent.click(nextLogButton());
-    fireEvent.click(button(/^Mark as missed: Bench Press, set 1/));
+    fireEvent.click(repsCell());
+    fireEvent.click(screen.getByRole('radio', { name: 'Missed' }));
     expect(button('Finish')).toBeEnabled();
   });
 });
 
 describe('the running total', () => {
-  it('counts only completed sets and their volume', () => {
+  it('counts logged sets and their volume', () => {
     const repository = repositoryWithActiveSession();
     const view = mountScreen(repository);
     expect(view.container.querySelector('.ffw-summary')?.textContent).toContain('0 sets');
@@ -685,18 +708,41 @@ describe('the running total', () => {
     expect(summary).toContain('500 kg');
   });
 
-  it('counts a missed set toward volume but not toward completed sets', () => {
-    // domain-model's ruling: a set that ground out reps moved the bar, so it is
-    // volume. The set *count* still reports only what was made, so a lifter can see
-    // both facts — the work done and the prescription missed — without either hiding
-    // the other.
+  it('never shows a set count that contradicts the volume beside it', () => {
+    /*
+     * This line read **"0 sets · 300 kg"** for a real user who had marked three sets
+     * missed. Both numbers were right — `completedSetCount` excludes a missed set,
+     * `volumeKg` includes it, because a set that ground out reps moved the bar
+     * (ADR-0025) — and side by side they read as broken.
+     *
+     * The volume rule is unchanged. The count is now the same population the volume is
+     * summed over, so the two cannot disagree, and the miss gets its own figure rather
+     * than vanishing.
+     */
     const repository = repositoryWithActiveSession();
     const view = mountScreen(repository);
+    fireEvent.click(repsCell());
+    fireEvent.click(screen.getByRole('radio', { name: 'Missed' }));
+
+    const summary = view.container.querySelector('.ffw-summary')?.textContent;
+    expect(summary).toContain('1 sets');
+    expect(summary).toContain('1 missed');
+    expect(summary).toContain('500 kg');
+    expect(summary).not.toContain('0 sets');
+  });
+
+  it('says nothing about misses when there were none', () => {
+    const view = mountScreen(repositoryWithActiveSession());
     fireEvent.click(nextLogButton());
-    fireEvent.click(button(/^Mark as missed: Bench Press, set 1/));
+    expect(view.container.querySelector('.ffw-summary')?.textContent).not.toContain('missed');
+  });
+
+  it('leaves warmups out of the count, since they contribute no volume either', () => {
+    const view = mountScreen(repositoryWithActiveSession());
+    fireEvent.click(button(/^Warmup$/));
+    fireEvent.click(screen.getAllByRole('button', { name: /^Log as made/ })[0]!);
     const summary = view.container.querySelector('.ffw-summary')?.textContent;
     expect(summary).toContain('0 sets');
-    expect(summary).toContain('500 kg');
   });
 });
 
@@ -710,5 +756,123 @@ describe('elapsed clock', () => {
 
   it('never runs backwards if the device clock does', () => {
     expect(elapsed(NOW, NOW - 60_000)).toBe('0:00');
+  });
+});
+
+describe('a session left running does not become a thirty-nine-hour workout', () => {
+  /*
+   * What a real user saw: 39:22:01 in the header. They had opened the app, logged
+   * some sets, gone home, and come back the next evening to a session still counting.
+   * Nothing capped it, nothing prompted a finish, and nothing resumed sanely.
+   */
+
+  /** An active session with one set logged, then abandoned. */
+  function abandonedRepository(): WorkoutRepository {
+    const repository = repositoryWithHistory();
+    const started = workoutReducer(startWorkout({ now: NOW }), {
+      type: 'add_exercise',
+      exercise: bench,
+      sets: 3,
+      now: NOW,
+    });
+    const exercise = started.workout.exercises[0]!;
+    const logged = workoutReducer(started, {
+      type: 'set_set_state',
+      exerciseId: exercise.id,
+      setId: exercise.sets[0]!.id,
+      state: 'completed',
+      commit: { weightKg: 100, reps: 5 },
+      now: NOW + 60_000,
+    });
+    repository.saveActive(logged.workout);
+    return repository;
+  }
+
+  it('files the abandoned session instead of resuming it', () => {
+    const repository = abandonedRepository();
+    clock = NOW + 39 * 3600_000;
+    mountScreen(repository);
+
+    // The abandoned session is out of the active slot — the slot now holds the fresh,
+    // empty one — and into history, where a finished session belongs.
+    expect(repository.loadActive()?.exercises).toHaveLength(0);
+    const saved = repository.loadHistory();
+    expect(saved).toHaveLength(2);
+    expect(saved[1]?.exercises[0]?.sets[0]?.state).toBe('completed');
+  });
+
+  it('records the length of the session, not the length of the gap', () => {
+    const repository = abandonedRepository();
+    clock = NOW + 39 * 3600_000;
+    mountScreen(repository);
+
+    const saved = repository.loadHistory()[1]!;
+    const durationMs = (saved.endedAt ?? saved.startedAt) - saved.startedAt;
+    expect(durationMs).toBe(60_000 + SESSION_IDLE_MS);
+    expect(durationMs).toBeLessThan(39 * 3600_000);
+  });
+
+  it('says so, rather than making a session disappear overnight', () => {
+    // A write on the lifter's behalf that they are not told about is indistinguishable
+    // from data loss. A toast, not a dialog — no modals in this flow (CLAUDE.md).
+    const repository = abandonedRepository();
+    clock = NOW + 39 * 3600_000;
+    const view = mountScreen(repository);
+
+    expect(document.querySelector('.ff-toast')?.textContent).toMatch(/left running/i);
+    expect(view.container.querySelector('dialog')).toBeNull();
+  });
+
+  it('starts the fresh session at zero, not at thirty-nine hours', () => {
+    const repository = abandonedRepository();
+    clock = NOW + 39 * 3600_000;
+    const view = mountScreen(repository);
+    expect(view.container.querySelector('.ffw-elapsed')?.textContent).toBe('0:00');
+  });
+
+  it('carries the recovered session into the new one as ghosts', () => {
+    // Appending during the first render rather than in an effect is what makes this
+    // work: `loadHistory()` is memoised just below it.
+    const repository = abandonedRepository();
+    clock = NOW + 39 * 3600_000;
+    const view = mountScreen(repository);
+    fireEvent.click(button(/Exercise$/));
+    fireEvent.click(
+      within(screen.getByRole('list', { name: 'Exercises' })).getAllByRole('button', {
+        name: /^Bench Press/,
+      })[0]!,
+    );
+    expect(view.container.querySelector('.ffw-cell[data-ff-source="ghost"]')).not.toBeNull();
+  });
+
+  it('drops an abandoned session with nothing logged, and files nothing', () => {
+    // Nothing logged is not a workout. Writing one puts a phantom session into the
+    // streak and the session count insights reads off the history.
+    const repository = repositoryWithActiveSession();
+    clock = NOW + 39 * 3600_000;
+    mountScreen(repository);
+
+    expect(repository.loadHistory()).toHaveLength(1);
+    expect(document.querySelector('.ff-toast')).toBeNull();
+  });
+
+  it('resumes a session the lifter only stepped away from briefly', () => {
+    const repository = abandonedRepository();
+    clock = NOW + 20 * 60_000;
+    const view = mountScreen(repository);
+
+    expect(repository.loadActive()).not.toBeNull();
+    expect(repository.loadHistory()).toHaveLength(1);
+    expect(view.container.querySelector('.ffw-elapsed')?.textContent).toBe('20:00');
+  });
+
+  it('stops the on-screen clock rather than letting it climb past the grace period', () => {
+    // Belt and braces for the app being left open rather than killed: even then the
+    // header cannot print a number like 39:22:01.
+    const repository = abandonedRepository();
+    const workout = repository.loadActive()!;
+    expect(clockAt(workout, NOW + 39 * 3600_000) - workout.startedAt).toBe(
+      60_000 + SESSION_IDLE_MS,
+    );
   });
 });

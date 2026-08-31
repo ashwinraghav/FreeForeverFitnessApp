@@ -135,12 +135,25 @@ export function ExerciseCard(props: ExerciseCardProps) {
 
       <HistoryStrip entries={history} today={today} />
 
+      {/*
+        * The legend, on the same grid as the rows and aligned the way each column's
+        * content is aligned.
+        *
+        * It was not. Every header was start-aligned while the value cells centre their
+        * numbers, so "REPS" sat visibly left of the inputs it named and the whole
+        * header row read as slightly broken — which is exactly how a user described
+        * it. The alignment now comes from the same `--ffw-cols` track list the rows
+        * use, with `.ffw-sets__legend > span` matched to its column.
+        *
+        * The state column is labelled too. It was the one column with a control in it
+        * and no heading, which is part of why the control was hard to interpret.
+        */}
       <div className="ffw-sets__legend" aria-hidden="true">
         <span>#</span>
         <span>Last</span>
         <span>{exercise.exercise.loadKind === 'none' ? '' : 'Weight'}</span>
         <span>{effortHeading(exercise)}</span>
-        <span />
+        <span>Done</span>
       </div>
 
       <ul className="ffw-sets" aria-label={`${exercise.exercise.name} sets`}>
@@ -190,11 +203,23 @@ export function ExerciseCard(props: ExerciseCardProps) {
         >
           Warmup
         </Button>
-        {/* `danger`, not `ghost`: this sat next to "Warmup" looking identical to it,
-            one thumb-width from the controls a lifter uses between sets. */}
+        {/*
+          * Outlined danger, which is neither of the two things this has been.
+          *
+          * As `ghost` it sat next to "Warmup" looking identical to it, one thumb-width
+          * from the controls a lifter uses between sets. As filled `danger` it became
+          * the loudest thing on a screen a user had just called noisy — a solid red
+          * slab under every exercise, drawing the eye away from the numbers.
+          *
+          * The outline keeps it distinguishable from both neighbours by *shape* as
+          * well as colour — "Set" has a neutral border, "Warmup" has none, this has a
+          * danger-coloured one — so the distinction survives greyscale (ADR-0013)
+          * without a block of red per exercise. Removal is still undoable from a toast.
+          */}
         <Button
           size="lg"
-          variant="danger"
+          variant="ghost"
+          className="ffw-card__remove"
           onClick={() => props.onRemoveExercise(exercise.id)}
         >
           Remove

@@ -1,6 +1,6 @@
 import { Button, EmptyState, PlusGlyph, Toast, ToastRegion } from '@freeforever/design-system';
 import type { SetId, SetState, WorkoutExerciseId } from '@freeforever/data';
-import { sessionTotals } from '@freeforever/core';
+import { hardSetCount, sessionTotals } from '@freeforever/core';
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 
 import { STARTER_CATALOGUE } from '../catalogue/starter.js';
@@ -21,7 +21,9 @@ import { localDateOf } from '../model/ids.js';
 import {
   canAddExercise,
   canAddSet,
+  endedAtFor,
   hasLoggedWork,
+  isStale,
   orderedExercises,
   startWorkout,
   workoutReducer,
@@ -75,13 +77,14 @@ export function ActiveWorkoutScreen({
   now = Date.now,
   onFinished,
 }: ActiveWorkoutScreenProps) {
-  // Resume straight out of storage in the initialiser rather than in an effect, so a
-  // cold start paints the session that was in progress on the first frame instead of
-  // flashing an empty screen at someone standing under a bar.
-  const [state, dispatch] = useReducer(workoutReducer, undefined, (): WorkoutState => {
-    const resumed = repository.loadActive();
-    return resumed === null ? startWorkout({ now: now() }) : { workout: resumed, undoStack: [] };
-  });
+  // Resume straight out of storage during the first render rather than in an effect,
+  // so a cold start paints the session that was in progress on the first frame instead
+  // of flashing an empty screen at someone standing under a bar. `useState` with an
+  // initialiser runs once, and `resumeSession` is idempotent, so React's development
+  // double-invoke costs nothing.
+  const [resumed] = useState(() => resumeSession(repository, now()));
+  const [state, dispatch] = useReducer(workoutReducer, resumed.state);
+  const [recovered, setRecovered] = useState<string | null>(resumed.recoveredTitle);
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [openEditor, setOpenEditor] = useState<OpenEditor | null>(null);
@@ -123,6 +126,18 @@ export function ActiveWorkoutScreen({
           : { bodyweightKg: state.workout.bodyweightKg },
       ),
     [exercises, state.workout.bodyweightKg],
+  );
+
+  /**
+   * Sets the header can honestly put next to the tonnage.
+   *
+   * `hardSetCount` is core's own name for "a working set that was actually attempted",
+   * and it is the same predicate `volumeKg` is summed over — which is the whole point:
+   * see the comment on `.ffw-summary` below for the "0 sets · 300 kg" it replaces.
+   */
+  const loggedSetCount = useMemo(
+    () => hardSetCount(exercises.flatMap((exercise) => exercise.sets.map(toPerformedSet))),
+    [exercises],
   );
 
   const changeSetState = useCallback(
@@ -250,17 +265,40 @@ export function ActiveWorkoutScreen({
     <div className="ffw-screen">
       <header className="ffw-screen__header">
         <h2 className="ffw-screen__title">{state.workout.title}</h2>
-        {/* `endedAt` wins once it exists: a clock still counting on a finished
-            session is the most visible way to say "nothing happened". */}
+        {/* `clockAt` wins over a raw `now()`: `endedAt` stops the clock on a finished
+            session, and the idle cap stops it on one left open in a locker — a header
+            reading 39:22:01 is how this screen most visibly lies. */}
         <span className="ffw-elapsed">
-          {elapsed(state.workout.startedAt, state.workout.endedAt ?? now())}
+          {elapsed(state.workout.startedAt, clockAt(state.workout, now()))}
         </span>
       </header>
 
+      {/*
+        * The set count and the volume must describe the same sets.
+        *
+        * They did not. This line read **"0 sets · 300 kg"** for a lifter who had marked
+        * three sets missed: `completedSetCount` excludes a missed set while `volumeKg`
+        * includes it. Both are right — a missed set moved the bar, so it is fatigue and
+        * it belongs in the tonnage (ADR-0025, and `volume.ts` in core) — but printed
+        * side by side they read as a bug, and a number that looks broken stops being
+        * read at all.
+        *
+        * So the count is now `hardSetCount`: working sets that were attempted, made or
+        * missed. Precisely the population `volumeKg` sums over, so the two can no
+        * longer disagree, and warmups stop being counted as sets that contributed no
+        * tonnage. The volume rule itself is untouched.
+        *
+        * Missed sets then get their own figure rather than being folded away silently
+        * — the lifter should be able to see that four of their sets included one they
+        * did not make.
+        */}
       <div className="ffw-summary">
         <span>
-          <span className="ffw-summary__value">{totals.completedSetCount}</span> sets
+          <span className="ffw-summary__value">{loggedSetCount}</span> sets
         </span>
+        {totals.failedSetCount === 0 ? null : (
+          <span className="ffw-summary__missed">{totals.failedSetCount} missed</span>
+        )}
         <span>
           <span className="ffw-summary__value">{Math.round(totals.volumeKg)}</span> kg
         </span>
@@ -396,6 +434,23 @@ export function ActiveWorkoutScreen({
         recentIds={recentIds}
       />
 
+      {/*
+        * The app saved something on the lifter's behalf, so it says so.
+        *
+        * A stale session is filed and a fresh one started before the first paint (see
+        * `resumeSession`). Silently is not an option — a session that was on screen
+        * yesterday and is gone today is indistinguishable from data loss — and a modal
+        * is not an option either (CLAUDE.md). A toast is neither: it does not block the
+        * first tap, which is still the thing the ten-second budget is spent on.
+        */}
+      {recovered === null ? null : (
+        <ToastRegion>
+          <Toast tone="info" durationMs={8000} onDismiss={() => setRecovered(null)}>
+            Saved “{recovered}” — it had been left running.
+          </Toast>
+        </ToastRegion>
+      )}
+
       {undoOffer === null ? null : (
         <ToastRegion>
           <Toast
@@ -421,6 +476,82 @@ export function ActiveWorkoutScreen({
       )}
     </div>
   );
+}
+
+/**
+ * What to put on screen when the app opens: the session in progress, or a fresh one.
+ *
+ * ## The thirty-nine-hour session
+ *
+ * A user's header read **39:22:01**. Nothing capped the clock, nothing prompted a
+ * finish, and reopening the app the next day resumed a session that had ended when
+ * they left the gym — so the duration on every session they ever left open was wrong,
+ * and the most-read number on the screen was absurd.
+ *
+ * A session is over when it has been idle longer than `SESSION_IDLE_MS`: four
+ * hours with nothing logged means the lifter went home. Deliberately idle time rather
+ * than total length or the calendar day, because a five-hour meet is real and a
+ * session that starts at 23:30 is still one session at 00:15.
+ *
+ * On resume, a stale session is not resumed:
+ *
+ *   - **With work logged**, it is finished and filed. `endedAtFor` puts `endedAt` at
+ *     the last logged set rather than at "now", so history records the session that
+ *     actually happened instead of the gap since. Nothing is lost — a finished session
+ *     in history is where it belongs — and the toast says so, because a write on the
+ *     lifter's behalf that they are not told about is indistinguishable from data loss.
+ *   - **With nothing logged**, it is dropped. There is nothing to save, which is
+ *     exactly the condition that makes dropping it safe.
+ *
+ * Appending here rather than in an effect matters: `loadHistory()` is memoised during
+ * the same render, just below, so the recovered session is available to ghost the new
+ * one. Recovered yesterday's squats, and today's rows arrive pre-filled with them.
+ */
+export function resumeSession(
+  repository: WorkoutRepository,
+  at: number,
+): { readonly state: WorkoutState; readonly recoveredTitle: string | null } {
+  const active = repository.loadActive();
+  if (active === null) return { state: startWorkout({ now: at }), recoveredTitle: null };
+
+  if (!isStale(active, at)) return { state: { workout: active, undoStack: [] }, recoveredTitle: null };
+
+  const fresh = startWorkout({
+    now: at,
+    ...(active.bodyweightKg === undefined ? {} : { bodyweightKg: active.bodyweightKg }),
+  });
+
+  if (!hasLoggedWork(active)) {
+    // Nothing logged is not a workout, and writing one puts a phantom session into
+    // the streak and the session count insights reads off the history.
+    repository.saveActive(null);
+    return { state: fresh, recoveredTitle: null };
+  }
+
+  // Keyed by id, so a repeated resume replaces rather than duplicates.
+  repository.appendHistory(
+    toCompletedSession(
+      workoutReducer({ workout: active, undoStack: [] }, { type: 'finish', now: at }).workout,
+    ),
+  );
+  repository.saveActive(null);
+  // The rest that was running belongs to a session that is now over.
+  repository.saveRest(null);
+
+  return { state: fresh, recoveredTitle: active.title };
+}
+
+/**
+ * The end of the clock's honest range.
+ *
+ * The header counts wall clock, and wall clock keeps going while the phone sits in a
+ * locker. Once a session has been idle past the grace period it has stopped being
+ * measured, so the clock stops with it rather than climbing towards the 39 hours a
+ * user actually saw. Logging another set moves `lastActivityAt` and the clock picks up
+ * again — which is the right behaviour, because that is a session that resumed.
+ */
+export function clockAt(workout: DraftWorkout, now: number): number {
+  return workout.endedAt ?? endedAtFor(workout, now);
 }
 
 /** `0:42`, `1:07:30`. Wall clock since the first tap. */

@@ -49,10 +49,20 @@
 
 .ffw-summary {
   display: flex;
-  gap: var(--ff-space-20);
+  flex-wrap: wrap;
+  gap: var(--ff-space-4) var(--ff-space-20);
   padding: 0 var(--ff-space-16) var(--ff-space-12);
   color: var(--ff-color-fg-secondary);
   font-size: var(--ff-text-body-sm);
+}
+
+/*
+ * Present only when there are misses, so the line stays three figures long on the
+ * ordinary session. Wraps rather than squeezing the other figures — a fourth figure on
+ * a second line is fine; three figures crushed together is not.
+ */
+.ffw-summary__missed {
+  color: var(--ff-color-fg-muted);
 }
 
 .ffw-summary__value {
@@ -66,8 +76,18 @@
   /* The set grid's track list. Declared on the card, not on `.ffw-sets`, because the
      legend is a *sibling* of the set list — scoping it to the list left the legend
      with an undefined value, which silently collapsed four headers into a single
-     column and cost 93px of vertical space at the top of every exercise. */
-  --ffw-cols: var(--ff-space-32) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr) var(--ff-hit-mid-set);
+     column and cost 93px of vertical space at the top of every exercise.
+
+     The history strip is on this grid too now (see `.ffw-history__row`). It used to
+     run a grid of its own — `5rem | 1fr | auto` — so its three columns landed nowhere
+     near the four beneath them and the card read as two tables stacked by accident.
+
+     `1fr` for "last", not the old `1.2fr` share elsewhere: the log column grew from 56
+     to 64px to fit its label, and the least-read column is the one that should pay for
+     it. The log button itself is still 56px tall (`--ff-hit-mid-set`); this widens the
+     target, which is never the wrong direction. */
+  --ffw-col-log: var(--ff-space-64);
+  --ffw-cols: var(--ff-space-32) minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1fr) var(--ffw-col-log);
   background: var(--ff-color-surface);
   border-block: var(--ff-border, 1px) solid var(--ff-color-hairline);
   margin-block-end: var(--ff-space-12);
@@ -96,6 +116,12 @@
   padding: 0 var(--ff-space-16) var(--ff-space-12);
 }
 
+/* Outlined rather than filled. See the comment on the button in ExerciseCard. */
+.ffw-card__remove {
+  border-color: var(--ff-color-danger);
+  color: var(--ff-color-danger);
+}
+
 /* ---------------------------------------------------------------- set table */
 
 .ffw-sets {
@@ -114,6 +140,25 @@
   color: var(--ff-color-fg-muted);
   text-transform: uppercase;
   letter-spacing: var(--ff-tracking-caption);
+}
+
+/*
+ * Each header sits over its own column, aligned the way that column's content is.
+ *
+ * Headers default to `start`; the value cells and the log button centre their
+ * contents and `.ffw-row__index` uses `place-items: center`. So every header but
+ * "Last" was offset from the thing it named — most visibly "REPS", which sat a
+ * whole cell-padding to the left of its inputs.
+ */
+.ffw-sets__legend > span {
+  text-align: start;
+}
+
+.ffw-sets__legend > span:nth-child(1),
+.ffw-sets__legend > span:nth-child(3),
+.ffw-sets__legend > span:nth-child(4),
+.ffw-sets__legend > span:nth-child(5) {
+  text-align: center;
 }
 
 .ffw-row {
@@ -217,22 +262,44 @@
 
 /* ---------------------------------------------------------------- log button */
 
+/*
+ * A glyph *and* a word, stacked inside the same target.
+ *
+ * The word is the fix. This control was a bare tick, cross or dashed ring, and a real
+ * user could not tell what it was for — they read the red cross as delete. The words
+ * already existed as `aria-label`s, which meant the only people ever told what the
+ * button did were the ones who could not see it.
+ *
+ * Stacked rather than beside, so the label costs no width: the column went from 56 to
+ * 64px to give "MISSED" room, and that is the whole price. Height is unchanged at
+ * `--ff-hit-mid-set`.
+ */
 .ffw-log {
   -webkit-tap-highlight-color: transparent;
   display: grid;
   place-items: center;
-  inline-size: var(--ff-hit-mid-set);
-  block-size: var(--ff-hit-mid-set);
-  padding: 0;
+  align-content: center;
+  gap: var(--ff-space-4);
+  inline-size: 100%;
+  min-block-size: var(--ff-hit-mid-set);
+  padding: var(--ff-space-4) var(--ff-space-4);
   border: var(--ff-border-thick, 2px) solid var(--ff-color-line-strong);
   border-radius: var(--ff-radius-md);
   background: var(--ff-color-sunken);
   color: var(--ff-color-fg-secondary);
-  font-size: var(--ff-text-heading);
+  font-size: var(--ff-text-body);
   cursor: pointer;
   transition:
     background-color var(--ff-duration-fast) var(--ff-ease-standard),
     border-color var(--ff-duration-fast) var(--ff-ease-standard);
+}
+
+.ffw-log__word {
+  font-size: var(--ff-text-caption);
+  line-height: var(--ff-leading-caption);
+  font-weight: var(--ff-weight-label);
+  letter-spacing: var(--ff-tracking-caption);
+  text-transform: uppercase;
 }
 
 .ffw-log[data-ff-state='completed'] {
@@ -241,10 +308,20 @@
   color: var(--ff-color-on-success);
 }
 
+/*
+ * Outlined, not filled.
+ *
+ * A missed set is a fact about training, not a destructive action, and a solid red
+ * block sitting where the primary action goes is what made a user read it as delete.
+ * It still carries three signals — the cross, the word MISSED, and danger-coloured
+ * ink and border — so it survives greyscale and colour-vision deficiency (ADR-0013)
+ * without being the loudest thing on the screen. The row behind it also keeps its
+ * 10% danger tint, which is the calmer place for an area of colour.
+ */
 .ffw-log[data-ff-state='failed'] {
-  background: var(--ff-color-danger);
+  background: var(--ff-color-sunken);
   border-color: var(--ff-color-danger);
-  color: var(--ff-color-on-danger);
+  color: var(--ff-color-danger);
 }
 
 .ffw-log:disabled {
@@ -271,6 +348,32 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--ff-space-8);
+}
+
+/*
+ * The three outcomes, as words, at the mid-set size.
+ *
+ * `SegmentedControl` composes `.ff-control`, whose floor is the 48px general minimum.
+ * This one is tapped mid-set, so ADR-0013 asks for 56. Targeted through the element
+ * rather than the design system's own class name, so a rename over there does not
+ * silently drop this back to 48.
+ */
+.ffw-editor__state {
+  display: flex;
+}
+
+.ffw-editor__state > button {
+  min-block-size: var(--ff-hit-mid-set);
+}
+
+/*
+ * Removal is spelled out and quiet, and it is the only danger-coloured thing in the
+ * editor. It used to be a filled red square with no label — the loudest element on
+ * the screen, one thumb-width from the number the lifter was trying to change.
+ */
+.ffw-editor__remove {
+  color: var(--ff-color-danger);
+  padding-inline: var(--ff-space-8);
 }
 
 .ffw-plates {
@@ -308,14 +411,37 @@
   padding: 0 var(--ff-space-16) var(--ff-space-8);
 }
 
+/*
+ * On the set grid, not a grid of its own.
+ *
+ * It used to be `5rem | 1fr | auto`, which put the date, the summary and the volume at
+ * three x-positions that matched nothing in the table right underneath — the card read
+ * as two unrelated layouts stacked together. Sharing `--ffw-cols` and spanning pairs
+ * of tracks lines the date up with the `#`/`Last` columns and the summary up with the
+ * weight and rep columns, which is also what they mean: what you did, and with what.
+ */
 .ffw-history__row {
   display: grid;
-  grid-template-columns: minmax(0, 5rem) minmax(0, 1fr) auto;
+  grid-template-columns: var(--ffw-cols);
   gap: var(--ff-space-8);
   align-items: baseline;
   font-size: var(--ff-text-body-sm);
   color: var(--ff-color-fg-secondary);
   font-variant-numeric: tabular-nums;
+}
+
+.ffw-history__date {
+  grid-column: 1 / 3;
+}
+
+.ffw-history__sets {
+  grid-column: 3 / 5;
+}
+
+.ffw-history__volume {
+  grid-column: 5;
+  justify-self: end;
+  white-space: nowrap;
 }
 
 .ffw-history__date {
@@ -366,6 +492,17 @@
    * off the right edge. Measured at 390px: 490px wide, 100px of it off-screen.
    */
   min-inline-size: 0;
+  /*
+   * And the same bug comes back at 200% text, which `min-inline-size: 0` cannot
+   * help with: the clock, the two nudges and Skip are all intrinsically sized, so
+   * the row's min-content grows with the type and Skip goes over the edge again —
+   * measured at 412px with a 32px root: 489px of content, 117px of it off-screen.
+   *
+   * Wrapping is the only honest answer for a row of controls that cannot shrink.
+   * At 100% nothing moves (measured); at 200% Skip drops to a second line, which
+   * is the outcome ADR-0013's "works at 200% text" is asking for.
+   */
+  flex-wrap: wrap;
 }
 
 .ffw-restbar__clock {
@@ -461,6 +598,8 @@
 
 .ffw-actions {
   display: flex;
+  /* See `.ffw-actions > *` below: the row has to be allowed to break at 200% text. */
+  flex-wrap: wrap;
   gap: var(--ff-space-8);
   padding: var(--ff-space-8) var(--ff-space-12);
   padding-bottom: calc(var(--ff-space-8) + env(safe-area-inset-bottom));
@@ -468,8 +607,27 @@
   border-top: var(--ff-border, 1px) solid var(--ff-color-hairline);
 }
 
+/*
+ * `1 1 <basis>` with wrapping, not `flex: 1` — the difference only shows at 200% text.
+ *
+ * `flex: 1` is `1 1 0%`. A zero basis is never larger than the line, so the row can
+ * never break, and `.ff-button` sets `white-space: nowrap` — so at 200% text, where
+ * "+ Exercise" and "Finish" measure about 185px and 215px, the pair cannot fit 412px
+ * and the button that ends the session goes over the right edge. Same class of bug as
+ * the rest bar's 490px row, and equally invisible to a suite with no layout engine.
+ *
+ * A real basis lets the line break honestly: at 100% the two still share one row in
+ * equal halves (equal basis, equal grow, measured), and at 200% they stack, each full
+ * width. No `min-inline-size: 0` — that would let them shrink under their own
+ * min-content and spill the nowrapped label out of the button instead of wrapping.
+ *
+ * Note: at 200% the *page* is currently wider than the viewport regardless of this,
+ * and that overflow is in the shell rather than here — reported to the integrator. It
+ * happens to hide this bug today, which is exactly why the fix belongs in the rule and
+ * not in whatever the screen currently looks like.
+ */
 .ffw-actions > * {
-  flex: 1;
+  flex: 1 1 var(--ff-space-64);
 }
 
 /* ------------------------------------------------------------------ picker */

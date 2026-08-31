@@ -85,6 +85,38 @@ describe('the workout feature never fixes anything to the viewport', () => {
   });
 });
 
+describe('the card is one table, not three layouts stacked', () => {
+  /*
+   * A user described the header row as "slightly misaligned" and the card as noisy.
+   * Two of the three causes are geometry a browser can see and jsdom cannot, so these
+   * assert the rule at the layer where the rule lives — the same trade this file's
+   * header explains. The alignment itself was verified in Chrome at 412px.
+   */
+
+  it('puts the legend, the rows and the history strip on the same track list', () => {
+    // The history strip used to run `5rem | 1fr | auto`, which matched none of the
+    // four columns beneath it. Three grids, one card.
+    for (const selector of ['.ffw-sets__legend', '.ffw-row', '.ffw-history__row']) {
+      expect(blockFor(selector)).toMatch(/grid-template-columns:\s*var\(--ffw-cols\)/);
+    }
+  });
+
+  it('aligns each legend header the way its own column aligns its content', () => {
+    // Every header was start-aligned while the value cells centre their numbers, so
+    // "REPS" sat a whole cell-padding left of the inputs it named.
+    expect(DECLARATIONS).toMatch(/\.ffw-sets__legend > span[\s\S]*?text-align/);
+  });
+
+  it('lets both control rows break rather than run off the right edge', () => {
+    // The rest bar has already put the button that ends the rest off-screen once. It
+    // does it again at 200% text, where nothing in either row can shrink.
+    expect(blockFor('.ffw-restbar__body')).toMatch(/flex-wrap:\s*wrap/);
+    expect(blockFor('.ffw-actions')).toMatch(/flex-wrap:\s*wrap/);
+    // A zero flex basis can never be larger than the line, so the row can never break.
+    expect(blockFor('.ffw-actions > *')).not.toMatch(/flex:\s*1;/);
+  });
+});
+
 function blockFor(selector: string): string | null {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(DECLARATIONS);

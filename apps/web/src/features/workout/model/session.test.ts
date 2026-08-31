@@ -6,7 +6,11 @@ import { toExerciseRef } from '../catalogue/types.js';
 import {
   canAddExercise,
   canAddSet,
-  nextSetState,
+  endedAtFor,
+  isStale,
+  lastActivityAt,
+  SESSION_IDLE_MS,
+  toggleSetLogged,
   orderedExercises,
   orderedSets,
   startWorkout,
@@ -213,10 +217,17 @@ describe('logging a set', () => {
     expect(orderedSets(firstExercise(next))[0]?.restSecBefore).toBe(93);
   });
 
-  it('walks pending, completed, failed, pending', () => {
-    expect(nextSetState('pending')).toBe('completed');
-    expect(nextSetState('completed')).toBe('failed');
-    expect(nextSetState('failed')).toBe('pending');
+  it('toggles rather than cycling, so one stray tap cannot reach missed', () => {
+    // The cycle it replaces was `pending -> completed -> failed -> pending` on an
+    // unlabelled glyph. Two taps of the commonest control in the product left a real
+    // user looking at a big red cross they read as delete. Missing a set is rare and
+    // making one is common; they are no longer adjacent taps on one control.
+    expect(toggleSetLogged('pending')).toBe('completed');
+    expect(toggleSetLogged('completed')).toBe('pending');
+  });
+
+  it('lets a missed set out again in one tap, so no state is a trap', () => {
+    expect(toggleSetLogged('failed')).toBe('pending');
   });
 
   it('going back to pending keeps the numbers and forgets only the attempt', () => {
@@ -470,5 +481,78 @@ describe('unknown targets are ignored, not thrown on', () => {
   it('removing an exercise that is not there returns the same state', () => {
     const state = withBench();
     expect(run(state, { type: 'remove_exercise', exerciseId: 'nope' as never })).toBe(state);
+  });
+});
+
+describe('a session is not thirty-nine hours long', () => {
+  /*
+   * A real user's header read 39:22:01. Nothing capped the clock, nothing prompted a
+   * finish, and reopening the app the next day resumed a session that had ended when
+   * they left the gym — so every duration statistic downstream was wrong.
+   *
+   * The rule is idle time, deliberately, and both obvious alternatives are wrong in a
+   * case that really happens: a total-length cap truncates a five-hour meet, and a
+   * calendar-day rule ends a session that started at 23:30 and is still going at 00:15.
+   */
+  function logged(atOffsetMs: number): WorkoutState {
+    const state = withBench();
+    const exercise = firstExercise(state);
+    return run(state, {
+      type: 'set_set_state',
+      exerciseId: exercise.id,
+      setId: orderedSets(exercise)[0]!.id,
+      state: 'completed',
+      commit: { weightKg: 100, reps: 5 },
+      now: NOW + atOffsetMs,
+    });
+  }
+
+  it('measures activity from the last logged set, not from the start', () => {
+    expect(lastActivityAt(logged(90 * 60_000).workout)).toBe(NOW + 90 * 60_000);
+  });
+
+  it('falls back to the start when nothing has been logged at all', () => {
+    expect(lastActivityAt(withBench().workout)).toBe(NOW);
+  });
+
+  it('leaves a long but active session alone', () => {
+    // A powerlifting meet is genuinely five hours. Sets keep landing, so it is live.
+    const meet = logged(5 * 3600_000);
+    expect(isStale(meet.workout, NOW + 5 * 3600_000 + 60_000)).toBe(false);
+  });
+
+  it('leaves a session that crossed midnight alone', () => {
+    // Started 23:30, logging at 00:15. A calendar-day rule would have ended this one.
+    const late = logged(45 * 60_000);
+    expect(isStale(late.workout, NOW + 50 * 60_000)).toBe(false);
+  });
+
+  it('calls a session stale once it has been idle past the grace period', () => {
+    const abandoned = logged(30 * 60_000);
+    const idleSince = NOW + 30 * 60_000;
+    expect(isStale(abandoned.workout, idleSince + SESSION_IDLE_MS - 1)).toBe(false);
+    expect(isStale(abandoned.workout, idleSince + SESSION_IDLE_MS + 1)).toBe(true);
+  });
+
+  it('ends a finished session at the tap, when the lifter is still standing there', () => {
+    const done = logged(45 * 60_000);
+    const at = NOW + 46 * 60_000;
+    expect(endedAtFor(done.workout, at)).toBe(at);
+    expect(workoutReducer(done, { type: 'finish', now: at }).workout.endedAt).toBe(at);
+  });
+
+  it('refuses to write a thirty-nine-hour workout into history', () => {
+    const done = logged(45 * 60_000);
+    const muchLater = NOW + 39 * 3600_000;
+    const finished = workoutReducer(done, { type: 'finish', now: muchLater });
+    // Bounded by the last set plus the grace, not by when Finish happened to be tapped.
+    expect(finished.workout.endedAt).toBe(NOW + 45 * 60_000 + SESSION_IDLE_MS);
+    expect(finished.workout.endedAt! - finished.workout.startedAt).toBeLessThan(39 * 3600_000);
+  });
+
+  it('never lets endedAt precede startedAt, even on a clock that went backwards', () => {
+    // The schema rejects the document otherwise, mid-session, with no way to recover.
+    const done = logged(45 * 60_000);
+    expect(endedAtFor(done.workout, NOW - 3600_000)).toBe(NOW);
   });
 });
