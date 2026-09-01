@@ -29,7 +29,50 @@
 
     <meta name="theme-color" content="#0A1119" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#F1F4F8" media="(prefers-color-scheme: light)" />
-    <title>TheFreeForeverFitnessApp</title>
+    <!--
+      SEO and share metadata. None of this existed: no description, no Open
+      Graph, no favicon — so a shared link rendered as a bare URL and a search
+      result had nothing but the title to go on.
+
+      SITE_URL appears in the canonical and the og:url. When a custom domain is
+      attached, this is the one place it changes.
+    -->
+    <link rel="canonical" href="https://freeforeversitnessapp.web.app/" />
+    <meta
+      name="description"
+      content="Free workout and food logging. Track lifts, scan barcodes, see your progress. No account, no subscription, works offline — and it stays that way."
+    />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <!-- iOS neither masks nor reads SVG, so it needs a square PNG of its own. -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Free Forever" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="TheFreeForeverFitnessApp" />
+    <meta property="og:title" content="Free Forever Fitness — lift and food logging with no subscription" />
+    <meta
+      property="og:description"
+      content="Track lifts, scan food barcodes, and see your progress. No account, no subscription, works offline. Open source and free forever."
+    />
+    <meta property="og:url" content="https://freeforeversitnessapp.web.app/" />
+    <meta property="og:image" content="https://freeforeversitnessapp.web.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Free Forever Fitness — lift and food logging. No account, no subscription." />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Free Forever Fitness — lift and food logging with no subscription" />
+    <meta
+      name="twitter:description"
+      content="Track lifts, scan food barcodes, and see your progress. No account, no subscription, works offline."
+    />
+    <meta name="twitter:image" content="https://freeforeversitnessapp.web.app/og-image.png" />
+
+    <title>Free Forever Fitness — workout and food logging, no subscription</title>
   </head>
   <body>
     <div id="root"></div>

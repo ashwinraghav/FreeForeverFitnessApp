@@ -6,11 +6,12 @@
   "type": "module",
   "scripts": {
     "predev": "node scripts/sync-datasets.mjs",
-    "dev": "vite",
+    "dev": "node scripts/build-icons.mjs && vite",
     "prebuild": "node scripts/sync-datasets.mjs",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/build-icons.mjs && tsc -b && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "icons": "node scripts/build-icons.mjs"
   },
   "dependencies": {
     "@freeforever/core": "workspace:*",
@@ -32,6 +33,7 @@
     "@types/react-dom": "19.0.3",
     "@vitejs/plugin-react": "4.3.4",
     "jsdom": "26.0.0",
+    "sharp": "0.35.4",
     "typescript": "5.7.3",
     "vite": "6.1.0",
     "vite-plugin-pwa": "0.21.1",

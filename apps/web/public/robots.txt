@@ -1,0 +1,5 @@
+# Everything here is public and there is nothing to gate.
+User-agent: *
+Allow: /
+
+Sitemap: https://freeforeversitnessapp.web.app/sitemap.xml

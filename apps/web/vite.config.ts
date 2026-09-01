@@ -123,7 +123,31 @@ export default defineConfig({
       manifest: {
         name: 'TheFreeForeverFitnessApp',
         short_name: 'Free Forever',
-        description: 'A fitness app that is free forever.',
+        description:
+          'Free workout and food logging. Track lifts, scan barcodes, see progress. No account, no subscription, works offline.',
+        /*
+         * This array did not exist, which is the whole reason an installed app
+         * showed a generic tile — a manifest with no icons gives the platform
+         * nothing to use, and it falls back to a screenshot or the first letter.
+         *
+         * `any` and `maskable` are separate entries on purpose. A maskable icon
+         * is cropped to whatever shape the platform likes, usually a circle
+         * inscribed in ~80% of the tile, so it needs its own generous padding —
+         * and if the same rounded artwork is offered for both, the tile's
+         * corners show up as notches inside the circle.
+         *
+         * Regenerate with `node scripts/build-icons.mjs`, which runs on build.
+         */
+        icons: [
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          {
+            src: '/icons/icon-maskable-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
         theme_color: '#0A1119',
         background_color: '#0A1119',
         display: 'standalone',
