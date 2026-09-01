@@ -1,6 +1,6 @@
 TheFreeForeverFitnessApp food index — Open Food Facts shard
 Index version: 2026.08.1
-Records: 63782
+Records: 144
 
 Contains information from Open Food Facts (https://world.openfoodfacts.org),
 made available under the Open Database License (ODbL) v1.0:

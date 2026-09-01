@@ -1,49 +1,49 @@
 {
   "schemaVersion": 1,
   "indexVersion": "2026.08.1",
-  "builtAt": "2026-08-31T17:22:14.906Z",
+  "builtAt": "2026-08-31T16:04:13.066Z",
   "locale": "us",
   "budgetBytes": 4194304,
-  "totalGzipBytes": 4194219,
+  "totalGzipBytes": 24655,
   "shards": {
     "core": {
-      "candidates": 216134,
-      "shipped": 32208,
-      "reservedIngredients": 8107,
-      "droppedForBudget": 183926,
-      "gzipBytes": 1258243,
-      "bytesPerRecord": 39.1
+      "candidates": 387,
+      "shipped": 387,
+      "reservedIngredients": 387,
+      "droppedForBudget": 0,
+      "gzipBytes": 14806,
+      "bytesPerRecord": 38.3
     },
     "off": {
-      "candidates": 208988,
-      "shipped": 63782,
+      "candidates": 144,
+      "shipped": 144,
       "reservedIngredients": 0,
-      "droppedForBudget": 145206,
-      "gzipBytes": 2935976,
-      "bytesPerRecord": 46
+      "droppedForBudget": 0,
+      "gzipBytes": 9849,
+      "bytesPerRecord": 68.4
     }
   },
   "selection": {
-    "input": 1385721,
-    "packaged": 1377463,
-    "ingredient": 8139,
-    "keptPackaged": 596942,
-    "keptIngredient": 8139,
-    "noServingGrams": 416993,
-    "noServingLabel": 5213,
-    "massOnlyLabel": 354629,
-    "inconsistent": 3686,
-    "consistencyChecked": 575405,
-    "consistencyUncheckable": 25223,
-    "unindexableName": 119
+    "input": 791,
+    "packaged": 404,
+    "ingredient": 387,
+    "keptPackaged": 148,
+    "keptIngredient": 387,
+    "noServingGrams": 100,
+    "noServingLabel": 0,
+    "massOnlyLabel": 156,
+    "inconsistent": 0,
+    "consistencyChecked": 144,
+    "consistencyUncheckable": 4,
+    "unindexableName": 0
   },
   "dedupe": {
-    "input": 605081,
-    "byGtinWithinShard": 423,
-    "offSuppressedByCore": 141322,
-    "byFingerprint": 33021,
-    "byProductCluster": 5193,
-    "output": 425122
+    "input": 535,
+    "byGtinWithinShard": 0,
+    "offSuppressedByCore": 0,
+    "byFingerprint": 3,
+    "byProductCluster": 1,
+    "output": 531
   },
   "artefacts": [
     {
@@ -53,23 +53,23 @@
         {
           "role": "records",
           "file": "food-core-records-2026.08.1.bin.gz",
-          "bytes": 2216924,
-          "gzipBytes": 856133,
-          "sha256": "sha256-zQ5tXhRkE+TlzwImr53RtdPle1hf1bNVAPDIV2Uv/po="
+          "bytes": 26935,
+          "gzipBytes": 9966,
+          "sha256": "sha256-pRbrWNrgFiFv1Pcgiw0/UvtmOhGN5AaRsBWSR4maJDU="
         },
         {
           "role": "search",
           "file": "food-core-search-2026.08.1.bin.gz",
-          "bytes": 371054,
-          "gzipBytes": 276455,
-          "sha256": "sha256-mXUTUx4MAholTOMged4RLUdKs0nem1EBk6e2Ikhn1Xk="
+          "bytes": 7365,
+          "gzipBytes": 4797,
+          "sha256": "sha256-Tz3SKav2b9Ve6c6XDvqHVDpJcbHAN/6fm9d0NmVUGAk="
         },
         {
           "role": "barcodes",
           "file": "food-core-barcodes-2026.08.1.bin.gz",
-          "bytes": 161980,
-          "gzipBytes": 125655,
-          "sha256": "sha256-gcQbXY9CedwDPHEkqW0m/hOJMablPb2HwFdTc+e/tPs="
+          "bytes": 45,
+          "gzipBytes": 43,
+          "sha256": "sha256-R3y035qgMqMAJoVEhjLHB2oD840HoVGOTk/N3geB+EY="
         }
       ]
     },
@@ -80,30 +80,30 @@
         {
           "role": "records",
           "file": "food-off-records-2026.08.1.bin.gz",
-          "bytes": 4248370,
-          "gzipBytes": 1999540,
-          "sha256": "sha256-dz/yvUOi5M9IYxAKd4yr3yN3vpcvyfbxTyBAaad0IZQ="
+          "bytes": 12476,
+          "gzipBytes": 6090,
+          "sha256": "sha256-Thh0601xvKp/oFVKp5eEw54GV1YnEagpBEM/COJWb0k="
         },
         {
           "role": "search",
           "file": "food-off-search-2026.08.1.bin.gz",
-          "bytes": 824834,
-          "gzipBytes": 630078,
-          "sha256": "sha256-X9vMWsFm4rvGBsUjMFr7j8/PonMN+yzq9yy4Ki0KkJ0="
+          "bytes": 4665,
+          "gzipBytes": 3095,
+          "sha256": "sha256-fzDhKB9Y4C4vky0LvuryTdYd4YX9M0LtmUmTCxE00X0="
         },
         {
           "role": "barcodes",
           "file": "food-off-barcodes-2026.08.1.bin.gz",
-          "bytes": 415856,
-          "gzipBytes": 306358,
-          "sha256": "sha256-tzyTiyAxT5+54BsInDcEamDyCnW06+sP1wmUIDlOykk="
+          "bytes": 712,
+          "gzipBytes": 664,
+          "sha256": "sha256-K2FELh+lnW21ODPt/4Cc/ucTeqL/E3yEE1TIAT1cf/g="
         },
         {
           "role": "ndjson-parallel-distribution",
           "file": "food-off-2026.08.1.ndjson.gz",
-          "bytes": 27314664,
-          "gzipBytes": 3533547,
-          "sha256": "sha256-jdKat9/hlERPcrVEYt61MnzuY+wqz4bKJQFsxtpkuNM="
+          "bytes": 65448,
+          "gzipBytes": 8268,
+          "sha256": "sha256-nisb0UNhZjcvb/p/szHgkYocC/JSx6Qs6xb1nBrhpS0="
         }
       ]
     }
