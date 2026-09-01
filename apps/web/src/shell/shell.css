@@ -229,3 +229,17 @@ body {
   background: var(--ff-color-accent);
   color: var(--ff-color-on-accent);
 }
+
+/* The mark sits beside the screen title and takes the accent. Baseline-safe:
+   it is a flex row rather than an inline SVG in a heading, which would sit on
+   the text baseline and hang below the cap height. */
+.ff-more__title {
+  display: flex;
+  align-items: center;
+  gap: var(--ff-space-8);
+}
+
+.ff-more__title svg {
+  flex: none;
+  color: var(--ff-color-accent);
+}

@@ -219,8 +219,11 @@ describe('progress photos', () => {
       subscribe: () => () => undefined,
     };
     await mount(<BodyView />, store);
-    expect(host.querySelector('.ff-in-photo__absent')?.textContent).toBe('Not on this device');
-    expect(host.querySelector('.ff-in-photo img')).toBeNull();
+    // Selectors moved when the grid became a reel; the guarantee did not. A
+    // photo whose bytes are not on this device is a normal state (ADR-0024) and
+    // must render as a label, never as a broken image.
+    expect(host.querySelector('.ff-in-reel__pending')?.textContent).toBe('Not on this device');
+    expect(host.querySelector('.ff-in-reel__stage img')).toBeNull();
   });
 
   it('says photos stay on the device when there are none', async () => {

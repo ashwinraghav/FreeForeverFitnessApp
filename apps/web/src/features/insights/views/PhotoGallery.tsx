@@ -110,9 +110,145 @@ function AddPhoto({ onAdded }: { readonly onAdded: () => void }) {
   );
 }
 
+/** A flipbook is the honest way to show change over time. */
+const FRAME_MS = 450;
+
+/**
+ * The reel: every photo of one pose, in date order, played as a flipbook.
+ *
+ * This is what progress photos are actually for. A grid of tiles is a folder;
+ * change over months only becomes visible when the frames sit in the same place
+ * and advance. It is also why this is a reel rather than the before/after
+ * composite the original notes ruled out — a composite is a thing you post,
+ * and this is a thing you watch. No compositing, no export, no share.
+ *
+ * **Filtered to one pose, because a reel that mixes poses is noise.** Front and
+ * side frames interleaved do not read as change, they read as a slideshow.
+ *
+ * Object URLs are cached per photo and revoked on unmount. Without that, playing
+ * a sixty-frame reel twice leaks sixty blobs the tab keeps until it closes.
+ */
+function Reel({ photos, onDeleted }: { readonly photos: readonly ProgressPhotoRef[]; readonly onDeleted: () => void }) {
+  const store = usePhotoStore();
+  const [index, setIndex] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [urls, setUrls] = useState<Readonly<Record<string, string>>>({});
+  const cache = useRef<Record<string, string>>({});
+
+  const clamped = Math.min(index, photos.length - 1);
+  const current = photos[clamped];
+
+  // Load the current frame and its neighbours, so scrubbing and playback do not
+  // flash an empty tile at every step.
+  useEffect(() => {
+    let live = true;
+    const wanted = [clamped - 1, clamped, clamped + 1]
+      .map((i) => photos[i])
+      .filter((p): p is ProgressPhotoRef => p !== undefined && p.bytesLocation !== 'absent');
+    void Promise.all(
+      wanted.map(async (p) => {
+        if (cache.current[p.id] !== undefined) return;
+        const url = await store.openLocal(p.id);
+        if (url !== null) cache.current[p.id] = url;
+      }),
+    ).then(() => {
+      if (live) setUrls({ ...cache.current });
+    });
+    return () => {
+      live = false;
+    };
+  }, [store, photos, clamped]);
+
+  // Revoke every object URL this component created, once, on unmount.
+  const cacheRef = cache;
+  useEffect(
+    () => () => {
+      for (const url of Object.values(cacheRef.current)) URL.revokeObjectURL(url);
+      cacheRef.current = {};
+    },
+    [cacheRef],
+  );
+
+  useEffect(() => {
+    if (!playing || photos.length < 2) return undefined;
+    const timer = setInterval(() => {
+      setIndex((i) => (i + 1 >= photos.length ? 0 : i + 1));
+    }, FRAME_MS);
+    return () => clearInterval(timer);
+  }, [playing, photos.length]);
+
+  if (current === undefined) return null;
+  const url = urls[current.id];
+
+  const remove = store.remove;
+  const onDelete = async (): Promise<void> => {
+    if (remove === undefined) return;
+    setPlaying(false);
+    await remove(current.id);
+    setIndex((i) => Math.max(0, i - 1));
+    onDeleted();
+  };
+
+  return (
+    <div className="ff-in-reel">
+      <div className="ff-in-reel__stage">
+        {url === undefined ? (
+          <span className="ff-in-reel__pending">
+            {current.bytesLocation === 'absent' ? 'Not on this device' : 'Loading'}
+          </span>
+        ) : (
+          <img
+            src={url}
+            alt={`${POSE_LABELS[current.pose]}, ${formatDateShort(current.localDate)} — frame ${clamped + 1} of ${photos.length}`}
+          />
+        )}
+      </div>
+
+      <div className="ff-in-reel__bar">
+        <button
+          type="button"
+          className="ff-control ff-focusable ff-in-reel__play"
+          onClick={() => setPlaying((p) => !p)}
+          disabled={photos.length < 2}
+        >
+          {playing ? 'Pause' : 'Play'}
+        </button>
+
+        <label className="ff-in-reel__scrub">
+          <span className="ff-in-reel__sronly">Frame</span>
+          <input
+            type="range"
+            min={0}
+            max={photos.length - 1}
+            value={clamped}
+            disabled={photos.length < 2}
+            onChange={(event) => {
+              setPlaying(false);
+              setIndex(Number(event.target.value));
+            }}
+          />
+        </label>
+
+        <span className="ff-in-reel__date">{formatDateShort(current.localDate)}</span>
+
+        {remove !== undefined && (
+          <button
+            type="button"
+            className="ff-control ff-focusable ff-in-reel__delete"
+            onClick={() => void onDelete()}
+          >
+            Delete
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function PhotoGallery() {
   const store = usePhotoStore();
   const [photos, setPhotos] = useState<readonly ProgressPhotoRef[]>(() => store.list());
+  const [pose, setPose] = useState<PhotoPose>('front_relaxed');
 
   useEffect(() => {
     setPhotos(store.list());
@@ -120,6 +256,14 @@ export function PhotoGallery() {
   }, [store]);
 
   const refresh = (): void => setPhotos(store.list());
+
+  // Date order, and one pose at a time. `localDate` is ISO so it sorts as text.
+  const reel = photos
+    .filter((p) => p.pose === pose)
+    .slice()
+    .sort((a, b) => a.localDate.localeCompare(b.localDate));
+
+  const posesPresent = [...new Set(photos.map((p) => p.pose))];
 
   return (
     <>
@@ -130,48 +274,29 @@ export function PhotoGallery() {
           body="Progress photos stay on this device unless you choose otherwise. Nothing here is uploaded."
         />
       ) : (
-        <ul className="ff-in-photos">
-          {photos.map((photo) => (
-            <PhotoTile key={photo.id} photo={photo} />
-          ))}
-        </ul>
+        <>
+          {posesPresent.length > 1 && (
+            <div className="ff-in-reel__poses" role="group" aria-label="Pose">
+              {posesPresent.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className="ff-control ff-focusable ff-in-reel__pose"
+                  aria-pressed={p === pose}
+                  onClick={() => setPose(p)}
+                >
+                  {POSE_LABELS[p]}
+                </button>
+              ))}
+            </div>
+          )}
+          {reel.length === 0 ? (
+            <EmptyState title="No photos in this pose" body="Add one, or pick another pose above." />
+          ) : (
+            <Reel key={pose} photos={reel} onDeleted={refresh} />
+          )}
+        </>
       )}
     </>
-  );
-}
-
-function PhotoTile({ photo }: { readonly photo: ProgressPhotoRef }) {
-  const store = usePhotoStore();
-  const [url, setUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (photo.bytesLocation === 'absent') return;
-    let live = true;
-    let created: string | null = null;
-    void store.openLocal(photo.id).then((next) => {
-      if (!live) {
-        if (next !== null) URL.revokeObjectURL(next);
-        return;
-      }
-      created = next;
-      setUrl(next);
-    });
-    return () => {
-      live = false;
-      if (created !== null) URL.revokeObjectURL(created);
-    };
-  }, [store, photo.id, photo.bytesLocation]);
-
-  return (
-    <li className="ff-in-photo">
-      {url === null ? (
-        <span className="ff-in-photo__absent">
-          {photo.bytesLocation === 'absent' ? 'Not on this device' : 'Loading'}
-        </span>
-      ) : (
-        <img src={url} alt={`Progress photo, ${photo.pose.replace('_', ' ')}, ${formatDateShort(photo.localDate)}`} />
-      )}
-      <span className="ff-in-photo__meta">{formatDateShort(photo.localDate)}</span>
-    </li>
   );
 }

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { AppUpdateSection } from './AppUpdateSection';
+import { Mark } from './Mark';
 import { ROUTES } from '../app/routes';
 
 /**
@@ -46,7 +47,10 @@ export function MoreScreen() {
   return (
     <div className="ff-more">
       <header className="ff-more__head">
-        <h1 className="ff-more__title">More</h1>
+        <h1 className="ff-more__title">
+          <Mark size={28} />
+          More
+        </h1>
       </header>
 
       <section className="ff-more__group" aria-labelledby="more-eat">

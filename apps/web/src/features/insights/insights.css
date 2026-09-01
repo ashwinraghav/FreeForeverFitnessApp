@@ -560,3 +560,106 @@
   color: var(--ff-color-danger);
   font-size: var(--ff-text-body-sm);
 }
+
+/* ── The progress reel ────────────────────────────────────────────────────
+ *
+ * A fixed-aspect stage, because the whole point is that frames land in the same
+ * place. If the box resized to each photo, change in the body would be lost in
+ * the layout moving underneath it.
+ */
+.ff-in-reel__poses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ff-space-8);
+  margin-block-end: var(--ff-space-12);
+}
+
+.ff-in-reel__pose {
+  min-block-size: var(--ff-hit-min);
+  padding-inline: var(--ff-space-16);
+  border: var(--ff-border-hairline) solid var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-full, 999px);
+  background: transparent;
+  color: var(--ff-color-fg-secondary);
+}
+
+.ff-in-reel__pose[aria-pressed='true'] {
+  border-color: transparent;
+  background: var(--ff-color-accent);
+  color: var(--ff-color-on-accent);
+}
+
+.ff-in-reel__stage {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 3 / 4;
+  inline-size: 100%;
+  overflow: hidden;
+  border-radius: var(--ff-radius-md);
+  background: var(--ff-color-sunken);
+}
+
+.ff-in-reel__stage img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+}
+
+.ff-in-reel__pending {
+  color: var(--ff-color-fg-muted);
+  font-size: var(--ff-text-body-sm);
+}
+
+.ff-in-reel__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ff-space-8);
+  margin-block-start: var(--ff-space-12);
+}
+
+.ff-in-reel__play,
+.ff-in-reel__delete {
+  min-block-size: var(--ff-hit-min);
+  padding-inline: var(--ff-space-16);
+  border: var(--ff-border-hairline) solid var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-md);
+  background: transparent;
+  color: var(--ff-color-fg-primary);
+  font-weight: var(--ff-weight-label);
+}
+
+.ff-in-reel__delete {
+  border-color: transparent;
+  color: var(--ff-color-danger);
+}
+
+/* Grows to fill the row; `min-inline-size: 0` because a flex item will not
+   shrink below its intrinsic size otherwise, and a range input's is wide. */
+.ff-in-reel__scrub {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  align-items: center;
+}
+
+.ff-in-reel__scrub input {
+  inline-size: 100%;
+  min-block-size: var(--ff-hit-min);
+  accent-color: var(--ff-color-accent);
+}
+
+.ff-in-reel__date {
+  color: var(--ff-color-fg-secondary);
+  font-size: var(--ff-text-body-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.ff-in-reel__sronly {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

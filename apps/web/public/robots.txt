@@ -2,4 +2,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://freeforeversitnessapp.web.app/sitemap.xml
+Sitemap: https://freeforeverfitness.app/sitemap.xml
