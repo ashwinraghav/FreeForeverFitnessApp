@@ -18,6 +18,15 @@
 import { SHARD } from '../../src/schema.mjs';
 import { fingerprint } from '../../src/text.mjs';
 import { shardOf } from './record.mjs';
+import {
+  brandKey,
+  flavourSignature,
+  identityCompatible,
+  identityTokens,
+  macrosAgree,
+  representativeScore,
+  variantSignature,
+} from './variants.mjs';
 
 /**
  * @typedef {object} DedupeStats
@@ -25,6 +34,7 @@ import { shardOf } from './record.mjs';
  * @property {number} byGtinWithinShard
  * @property {number} offSuppressedByCore
  * @property {number} byFingerprint
+ * @property {number} byProductCluster
  * @property {number} output
  */
 
@@ -38,6 +48,7 @@ export function dedupe(records) {
     byGtinWithinShard: 0,
     offSuppressedByCore: 0,
     byFingerprint: 0,
+    byProductCluster: 0,
     output: 0,
   };
 
@@ -52,6 +63,9 @@ export function dedupe(records) {
   const byGtin = new Map();
   /** @type {Map<string, import('./record.mjs').CanonicalRecord>} */
   const byPrint = new Map();
+  /** Bucket key -> indices into `out`, so a merge can replace the kept row. */
+  /** @type {Map<string, number[]>} */
+  const byCluster = new Map();
   /** @type {import('./record.mjs').CanonicalRecord[]} */
   const out = [];
 
@@ -88,11 +102,82 @@ export function dedupe(records) {
       continue;
     }
     byPrint.set(print, r);
+
+    // The same branded product, transcribed by several contributors under
+    // different barcodes. Nothing above catches it: the GTINs really are
+    // different, and the names differ by enough punctuation that the
+    // fingerprint does not collide. See lib/variants.mjs for why this is
+    // built out of blockers rather than a similarity score.
+    const cluster = clusterKey(shard, r);
+    if (cluster) {
+      const peers = byCluster.get(cluster);
+      if (peers) {
+        const at = peers.findIndex((p) => sameProduct(out[p], r));
+        if (at >= 0) {
+          const slot = /** @type {number} */ (peers[at]);
+          const kept = /** @type {import('./record.mjs').CanonicalRecord} */ (out[slot]);
+          // Merge, then decide which row the user should be shown. The keeper's
+          // SLOT is preserved — that is its rank, earned before this stage —
+          // but the row occupying it may be the challenger.
+          if (representativeScore(r) > representativeScore(kept)) {
+            absorb(r, kept);
+            out[slot] = r;
+          } else {
+            absorb(kept, r);
+          }
+          stats.byProductCluster++;
+          continue;
+        }
+        peers.push(out.length);
+      } else {
+        byCluster.set(cluster, [out.length]);
+      }
+    }
+
     out.push(r);
   }
 
   stats.output = out.length;
   return { records: out, stats };
+}
+
+/**
+ * The cheap bucket key. Everything in it must match exactly for two records to
+ * even be compared; `sameProduct` then does the pairwise work on what is left,
+ * which is a handful of records per bucket.
+ *
+ * Returns null for records this stage must not touch: no brand (generic USDA
+ * ingredients, where "same brand" means nothing) or no serving weight (nothing
+ * to align the two panels on).
+ *
+ * @param {number} shard @param {import('./record.mjs').CanonicalRecord} r
+ */
+function clusterKey(shard, r) {
+  const brand = brandKey(r.brand);
+  if (!brand) return null;
+  if (r.servingGrams == null || !(r.servingGrams > 0)) return null;
+  return [
+    shard,
+    brand,
+    r.basis,
+    Math.round(r.servingGrams),
+    flavourSignature(r.rawName),
+    variantSignature(r.rawName),
+  ].join('|');
+}
+
+/**
+ * Final check before merging two rows that landed in the same bucket.
+ * @param {import('./record.mjs').CanonicalRecord|undefined} a
+ * @param {import('./record.mjs').CanonicalRecord} b
+ */
+function sameProduct(a, b) {
+  if (!a) return false;
+  if (!macrosAgree(a, b)) return false;
+  // The bucket key already guarantees the two flavour signatures are equal, so
+  // it is enough to know whether that shared signature is empty.
+  const flavoured = flavourSignature(a.rawName) !== '';
+  return identityCompatible(identityTokens(a.rawName), identityTokens(b.rawName), { flavoured });
 }
 
 /**
@@ -115,6 +200,38 @@ function absorb(keeper, loser) {
     }
   }
   keeper.popularity = Math.max(keeper.popularity, loser.popularity);
+
+  // Keep the loser's barcode pointing at the keeper.
+  //
+  // Until the product-cluster rule there was no dedupe path that discarded a
+  // *distinct* GTIN: the GTIN path merges equal barcodes and the fingerprint
+  // path merges barcodeless records. Clustering three regional SKUs of one tub
+  // is the first step that could quietly break scanning two of them — fixing a
+  // search problem by regressing a different feature.
+  //
+  // It is also the attribution question. OFF's terms ask re-users to credit
+  // contributors with a link to the product they contributed to (NOTICE.md
+  // §2.2); dropping the barcodes of the rows we folded in would drop exactly
+  // those links. Retaining them keeps every contributed product reachable.
+  //
+  // The barcode table is a flat sorted (gtin -> record) list, so an extra entry
+  // costs about four bytes and needs no format change.
+  // Note the loser's ALREADY-ABSORBED barcodes move too. Merges chain — A
+  // absorbs B, then C absorbs A — and a version of this that copied only
+  // `loser.gtin` silently dropped B's barcode at the second hop. Four SKUs of
+  // the Gold Standard tub merge in the full corpus and exactly one of them
+  // stopped scanning, which is the kind of hole a spot check does not find.
+  const incoming = [
+    ...(loser.gtin != null ? [{ value: loser.gtin, digits: loser.gtinDigits ?? String(loser.gtin).length }] : []),
+    ...(loser.extraGtins ?? []),
+  ];
+  if (incoming.length > 0) {
+    const extras = (keeper.extraGtins ??= []);
+    for (const g of incoming) {
+      if (g.value !== keeper.gtin && !extras.some((e) => e.value === g.value)) extras.push(g);
+    }
+  }
+
   // A serving size is the one field worth taking from a duplicate: it is
   // factual, frequently missing, and its absence costs the user arithmetic.
   if (keeper.servingGrams == null && loser.servingGrams != null) {

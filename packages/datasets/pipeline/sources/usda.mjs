@@ -9,6 +9,7 @@
 
 import { SOURCE } from '../../src/schema.mjs';
 import { displayName } from '../../src/text.mjs';
+import { brandUnlessItRepeatsName } from '../lib/record.mjs';
 import {
   EMPTY_NUTRIENTS,
   fillEnergy,
@@ -70,6 +71,54 @@ const LABEL_KEY = {
   sodium: 'sodiumMg',
   saturatedFat: 'satFatG',
 };
+
+/**
+ * How close a USDA food category is to "an ingredient somebody cooks with".
+ *
+ * This is USDA's own classification, not a vocabulary of ours, which is why it
+ * is trustworthy in a way that guessing from the name is not. It exists because
+ * name shape turned out to be a misleading proxy: the ranker put "Restaurant,
+ * Chinese, lemon chicken" and "Babyfood, apple yogurt dessert" above plain
+ * chicken and plain apples, and for the query "chicken" eight of the top eight
+ * core hits were Chinese restaurant dishes.
+ *
+ * The split is between foods that are an ingredient or a plain preparation of
+ * one, and foods that are somebody else's finished dish. Both are real foods and
+ * both stay in the index — this only decides who is nearer the top.
+ *
+ * Unlisted categories get the neutral 0.6 rather than a penalty, so a new USDA
+ * category never silently sinks.
+ */
+const CATEGORY_PRIOR = {
+  'Vegetables and Vegetable Products': 1.0,
+  'Fruits and Fruit Juices': 1.0,
+  'Dairy and Egg Products': 1.0,
+  'Cereal Grains and Pasta': 1.0,
+  'Legumes and Legume Products': 1.0,
+  'Nut and Seed Products': 1.0,
+  'Poultry Products': 0.95,
+  'Beef Products': 0.95,
+  'Pork Products': 0.95,
+  'Finfish and Shellfish Products': 0.95,
+  'Lamb, Veal, and Game Products': 0.9,
+  'Fats and Oils': 0.9,
+  'Spices and Herbs': 0.85,
+  'Beverages': 0.7,
+  'Breakfast Cereals': 0.7,
+  'Baked Products': 0.65,
+  'Soups, Sauces, and Gravies': 0.55,
+  'Sausages and Luncheon Meats': 0.55,
+  'American Indian/Alaska Native Foods': 0.5,
+  'Snacks': 0.4,
+  'Sweets': 0.4,
+  'Meals, Entrees, and Side Dishes': 0.3,
+  'Baby Foods': 0.2,
+  'Fast Foods': 0.2,
+  'Restaurant Foods': 0.2,
+};
+
+/** Neutral prior for a category we do not recognise, and for branded goods. */
+export const NEUTRAL_CATEGORY_PRIOR = 0.6;
 
 const DATA_TYPE_SOURCE = {
   Foundation: SOURCE.USDA_FOUNDATION,
@@ -162,17 +211,18 @@ export function mapFood(food) {
       : null,
   );
 
+  // `labelNutrients` is what the printed panel says, per serving. Read it
+  // always, not only as a fallback: on a Branded record it is a second,
+  // independent measurement of the same product and it is what
+  // `lib/select.mjs` cross-checks the per-100 g array against.
+  const label = readLabel(food.labelNutrients);
+
   // Branded records sometimes carry only `labelNutrients`, which is per serving.
-  if (!got && food.labelNutrients && serving) {
-    for (const [k, target] of Object.entries(LABEL_KEY)) {
-      const v = food.labelNutrients[k]?.value;
-      if (Number.isFinite(v)) {
-        if (target === 'kcal') energyReported = true;
-        n[/** @type {keyof typeof n} */ (target)] = v;
-        got = true;
-      }
-    }
-    if (got) n = toPer100(n, serving.grams);
+  if (!got && label.got && serving) {
+    n = { ...n, ...label.n };
+    if (label.energyReported) energyReported = true;
+    got = true;
+    n = toPer100(n, serving.grams);
   }
   if (!got) return null;
 
@@ -182,7 +232,14 @@ export function mapFood(food) {
   if (!check.ok) return null;
 
   const gtin = normaliseGtin(food.gtinUpc);
-  const brand = cleanBrand(food.brandName ?? food.brandOwner);
+  const brand = brandUnlessItRepeatsName(cleanBrand(food.brandName ?? food.brandOwner), displayName(raw));
+
+  // Branded foods state a serving on the label. Ingredients — Foundation, SR
+  // Legacy — do not: their natural basis is per 100 g and their household
+  // measures live in `foodPortions` ("1 cup, chopped", "1 medium"). Reading
+  // them is what turns "chicken breast, per 100 g" into something a user can
+  // log in one tap.
+  const portion = serving ? null : bestPortion(food.foodPortions);
 
   return {
     source,
@@ -194,18 +251,119 @@ export function mapFood(food) {
     gtinDigits: gtin?.digits ?? null,
     basis: serving?.basis === 'ml' ? 'ml' : 'g',
     n: quantise(n),
-    servingGrams: serving?.grams ?? null,
-    servingLabel: servingLabel(food.householdServingFullText) ?? null,
+    servingGrams: serving?.grams ?? portion?.grams ?? null,
+    servingLabel: servingLabel(food.householdServingFullText) ?? portion?.label ?? null,
     servingEstimated: serving?.estimated ?? false,
+    reportedPerServing: label.got ? label.n : null,
     atwaterMismatch: check.atwaterMismatch,
     energyReported,
     energyDerived: filled.derived,
     // Foundation and SR Legacy are laboratory-analysed; Branded is label data.
     highConfidence: source !== SOURCE.USDA_BRANDED,
+    categoryPrior:
+      CATEGORY_PRIOR[
+        /** @type {keyof typeof CATEGORY_PRIOR} */ (
+          typeof food.foodCategory === 'string' ? food.foodCategory : food.foodCategory?.description
+        )
+      ] ?? NEUTRAL_CATEGORY_PRIOR,
     aliases: aliasesFor(food, raw),
     popularity: 0,
     countries: ['us'],
   };
+}
+
+/**
+ * Read the printed nutrition panel. Values are per serving, in label units.
+ * @param {any} labelNutrients
+ * @returns {{n:Partial<import('../lib/nutrients.mjs').Nutrients>, got:boolean, energyReported:boolean}}
+ */
+function readLabel(labelNutrients) {
+  /** @type {any} */
+  const n = {};
+  let got = false;
+  let energyReported = false;
+  if (!labelNutrients) return { n, got, energyReported };
+  for (const [k, target] of Object.entries(LABEL_KEY)) {
+    const v = labelNutrients[k]?.value;
+    if (!Number.isFinite(v)) continue;
+    if (target === 'kcal') energyReported = true;
+    n[target] = v;
+    got = true;
+  }
+  return { n, got, energyReported };
+}
+
+/**
+ * Pick the household measure most likely to be the one a user reaches for.
+ *
+ * FDC lists several portions per ingredient and they are not equally useful.
+ * "1 cup, chopped" beats "1 cup, NFS", both beat a bare gram weight with no
+ * measure at all, and a portion whose text is only a qualifier ("Quantity not
+ * specified") is worse than none — it renders as a serving option that tells
+ * the user nothing.
+ *
+ * @param {any[]|undefined} portions
+ * @returns {{grams:number, label:string}|null}
+ */
+function bestPortion(portions) {
+  if (!Array.isArray(portions)) return null;
+
+  // The two USDA releases disagree about where the measure lives. Foundation
+  // fills `measureUnit` ("cup") and uses `modifier` for a qualifier
+  // ("drained"). SR Legacy sets every `measureUnit.name` to the literal string
+  // "undetermined" and puts the whole measure in `modifier` ("cup, chopped",
+  // "bar (1 oz)"), with no `amount` at all. Both must work.
+  const ordered = [...portions].sort(
+    (a, b) => (Number(a?.sequenceNumber) || 99) - (Number(b?.sequenceNumber) || 99),
+  );
+
+  /** @type {{grams:number, label:string, rank:number}|null} */
+  let best = null;
+  for (const p of ordered) {
+    const grams = Number(p?.gramWeight);
+    if (!Number.isFinite(grams) || grams <= 0 || grams > 2000) continue;
+
+    const name = String(p?.measureUnit?.name ?? '').trim();
+    const abbr = String(p?.measureUnit?.abbreviation ?? '').trim();
+    const modifier = String(p?.modifier ?? '').trim();
+    const known = Boolean(name) && name !== 'undetermined';
+    // Prefer the abbreviation: "2 tbsp" fits a 48px row, "2 tablespoon" fights
+    // it, and the abbreviation is the form a recipe would use anyway.
+    const unit = known ? (abbr && abbr !== 'undetermined' ? abbr : name) : '';
+    const measure = known ? unit : modifier;
+    // "RACC" is the Reference Amount Customarily Consumed — a regulatory
+    // quantity, not something anybody eats. "Quantity not specified" renders
+    // as a serving option that tells the user nothing.
+    if (!measure || /^(racc|quantity not specified)$/i.test(measure)) continue;
+
+    const amount = Number(p?.amount ?? p?.value);
+    const qty = Number.isFinite(amount) && amount > 0 ? amount : 1;
+    const extra = known && modifier && !/^\d/.test(modifier) ? `, ${modifier}` : '';
+    const label = servingLabel(`${trimNumber(qty)} ${measure}${extra}`);
+    if (!label) continue;
+
+    // Prefer a household measure at a round amount: "1 cup" over "0.5 cup",
+    // and either over "3 oz", which is a mass the user's scale already gives
+    // them. Ties break on `sequenceNumber` — the order FDC's own curators
+    // chose — because the loop keeps the first of an equal rank.
+    let rank = 0;
+    if (qty === 1) rank += 2;
+    if (
+      /\b(cup|tbsp|tablespoon|tsp|teaspoon|slice|piece|medium|large|small|each|bar|fruit|item|serving|container|package)\b/i.test(
+        measure,
+      )
+    ) {
+      rank += 3;
+    }
+    if (/^(oz|g|gram|grams|ml|lb)\b/i.test(measure)) rank -= 1;
+    if (best == null || rank > best.rank) best = { grams, label, rank };
+  }
+  return best ? { grams: best.grams, label: best.label } : null;
+}
+
+/** @param {number} v */
+function trimNumber(v) {
+  return Number.isInteger(v) ? String(v) : String(Number(v.toFixed(2)));
 }
 
 /**

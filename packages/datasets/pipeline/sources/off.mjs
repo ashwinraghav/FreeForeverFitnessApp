@@ -28,6 +28,7 @@ import {
   servingLabel,
   validate,
 } from '../lib/nutrients.mjs';
+import { brandUnlessItRepeatsName } from '../lib/record.mjs';
 import { normaliseGtin } from './usda.mjs';
 
 const API = 'https://world.openfoodfacts.org/api/v2/search';
@@ -50,6 +51,39 @@ export const FIELDS = [
   'completeness',
   'categories_tags',
   'lang',
+];
+
+/**
+ * Nutriment sub-keys we keep, in both bases.
+ *
+ * A dump row's `nutriments` carries ~120 keys — every vitamin, every fatty
+ * acid, and a `_unit`/`_value`/`_label` triplet for most of them. Projecting to
+ * this list at read is what makes a full ingest fit: the whole-object version
+ * of the projected dump is ~9 GB, this one is ~1 GB, and nothing downstream
+ * reads a key that is not here.
+ *
+ * The `_serving` half is not decoration. It is the only independent witness to
+ * a record's serving arithmetic, and the internal-consistency rule in
+ * `lib/select.mjs` is built on comparing it against the `_100g` half.
+ */
+export const NUTRIMENT_KEYS = [
+  'energy-kcal_100g',
+  'energy-kj_100g',
+  'energy_100g',
+  'proteins_100g',
+  'carbohydrates_100g',
+  'fat_100g',
+  'fiber_100g',
+  'sugars_100g',
+  'sodium_100g',
+  'salt_100g',
+  'saturated-fat_100g',
+  'energy-kcal_serving',
+  'energy-kj_serving',
+  'energy_serving',
+  'proteins_serving',
+  'carbohydrates_serving',
+  'fat_serving',
 ];
 
 /**
@@ -106,36 +140,62 @@ export const DUMP_URL = 'https://static.openfoodfacts.org/data/openfoodfacts-pro
  * stream yields whole lines until it runs out. A sample that exercises a
  * different reader than production is a sample that proves nothing.
  *
- * @param {{byteLimit?:number|null, maxProducts?:number, url?:string, fetchImpl?:typeof fetch}} opts
+ * `file` reads a dump already on disk instead of fetching one. A full ingest
+ * takes long enough that a network hiccup two hours in must not cost the whole
+ * transfer; download once with curl, then stream the local copy as many times
+ * as the pipeline needs.
+ *
+ * @param {{byteLimit?:number|null, maxProducts?:number, url?:string, file?:string|null, fetchImpl?:typeof fetch}} opts
  * @returns {AsyncGenerator<any>}
  */
 export async function* fetchDump({
   byteLimit = null,
   maxProducts = Infinity,
   url = DUMP_URL,
+  file = null,
   fetchImpl = fetch,
 } = {}) {
   const { createGunzip } = await import('node:zlib');
   const { Readable } = await import('node:stream');
+  const { StringDecoder } = await import('node:string_decoder');
 
-  /** @type {Record<string,string>} */
-  const headers = { 'user-agent': USER_AGENT };
-  if (byteLimit != null) headers.range = `bytes=0-${byteLimit - 1}`;
-
-  const res = await fetchImpl(url, { headers });
-  if (!res.ok && res.status !== 206) throw new Error(`OFF dump ${res.status} ${res.statusText}`);
-  if (!res.body) throw new Error('OFF dump returned no body');
+  const truncating = byteLimit != null;
+  /** @type {import('node:stream').Readable} */
+  let bytes;
+  if (file) {
+    const { createReadStream } = await import('node:fs');
+    bytes = createReadStream(file);
+  } else {
+    /** @type {Record<string,string>} */
+    const headers = { 'user-agent': USER_AGENT };
+    if (truncating) headers.range = `bytes=0-${byteLimit - 1}`;
+    const res = await fetchImpl(url, { headers });
+    if (!res.ok && res.status !== 206) throw new Error(`OFF dump ${res.status} ${res.statusText}`);
+    if (!res.body) throw new Error('OFF dump returned no body');
+    bytes = Readable.fromWeb(/** @type {any} */ (res.body));
+  }
 
   const gunzip = createGunzip();
   // A truncated gzip stream ends in an error by definition. That is expected on
   // the prefix path and must not fail the build.
-  gunzip.on('error', () => {});
-  Readable.fromWeb(/** @type {any} */ (res.body)).pipe(gunzip);
+  //
+  // It is NOT expected on the full path, and swallowing it there is how a
+  // half-downloaded dump becomes a quietly half-sized index. Only the prefix
+  // read is allowed to end in an error.
+  if (truncating) gunzip.on('error', () => {});
+  bytes.pipe(gunzip);
+
+  // A gzip chunk boundary lands wherever the compressor put it, which is
+  // regularly in the middle of a UTF-8 sequence. `buf += chunk` decodes each
+  // chunk independently and turns every such name into mojibake — invisible on
+  // a 600-product sample of US products, a few thousand mangled names across
+  // the full dump, and unsearchable in every one of them.
+  const decoder = new StringDecoder('utf8');
 
   let buf = '';
   let emitted = 0;
   for await (const chunk of gunzip) {
-    buf += chunk;
+    buf += decoder.write(/** @type {Buffer} */ (chunk));
     let nl;
     while ((nl = buf.indexOf('\n')) >= 0) {
       const line = buf.slice(0, nl);
@@ -162,10 +222,16 @@ export async function* fetchDump({
  * the boundary. (NOTICE.md §2.5)
  * @param {any} p
  */
-function project(p) {
+export function project(p) {
   /** @type {any} */
   const out = {};
   for (const f of FIELDS) if (p[f] !== undefined) out[f] = p[f];
+  if (out.nutriments) {
+    /** @type {any} */
+    const nm = {};
+    for (const k of NUTRIMENT_KEYS) if (out.nutriments[k] !== undefined) nm[k] = out.nutriments[k];
+    out.nutriments = nm;
+  }
   return out;
 }
 
@@ -223,7 +289,7 @@ export function mapProduct(p) {
     sourceId: String(p.code), // required for attribution — never drop
     name: displayName(raw),
     rawName: raw,
-    brand: brands[0] ?? null,
+    brand: brandUnlessItRepeatsName(brands[0] ?? null, displayName(raw)),
     gtin: gtin.value,
     gtinDigits: gtin.digits,
     basis,
@@ -231,6 +297,17 @@ export function mapProduct(p) {
     servingGrams: serving?.grams ?? null,
     servingLabel: servingLabel(p.serving_size),
     servingEstimated: serving?.estimated ?? false,
+    // Upstream's own per-serving statement, kept only as far as the selection
+    // stage. It is a second, independent measurement of the same product, and
+    // `lib/select.mjs` is the only thing that reads it.
+    reportedPerServing: {
+      kcal:
+        num(nm['energy-kcal_serving']) ??
+        kjToKcal(num(nm['energy-kj_serving']) ?? num(nm.energy_serving)),
+      proteinG: num(nm.proteins_serving),
+      carbG: num(nm.carbohydrates_serving),
+      fatG: num(nm.fat_serving),
+    },
     atwaterMismatch: check.atwaterMismatch,
     energyReported,
     energyDerived: filled.derived,

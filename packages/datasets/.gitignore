@@ -1,7 +1,19 @@
 # Raw upstream downloads. Never committed: too large, and re-fetchable.
 raw/
-# Full-build output. The small SAMPLE build under build/ IS committed, so a
-# reader can inspect a real artefact without running the pipeline (see README).
+# `build/` is the SHIPPED index and IS committed. That is not a convenience:
+# committing it is what makes jsDelivr able to serve it from the public repo for
+# free (ADR-0007, ADR-0031). 4 MB byte-identical for every user is exactly the
+# traffic pattern that turns Firebase Hosting egress into an unbounded cost at
+# $0.15/GB past the 10 GB free tier, so the CDN path is the cheap one and the
+# repo is its delivery mechanism.
+#
+# Commit on index-version bumps only, never per rebuild: the version is in every
+# filename, so a bump writes new paths instead of rewriting existing blobs.
+#
+# build-sample/ is the fixture build, also committed, so a reader can inspect an
+# artefact without running the pipeline. It is a SIBLING of build/ rather than a
+# subdirectory because sync-datasets.mjs copies build/ recursively into the web
+# app's public dir — anything parked under build/ ships to Hosting.
 build/full/
 
 # Media binaries. Never committed here: they are published from the media repo

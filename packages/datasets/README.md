@@ -19,6 +19,7 @@ decisions below exist to satisfy it rather than for engineering reasons.
 | [`docs/normalisation.md`](./docs/normalisation.md) | Per-100 g rules, validation, dedupe, ranking |
 | [`docs/exercise-catalogue.md`](./docs/exercise-catalogue.md) | **Exercise contract — read the load-cost warning before importing** |
 | [`docs/long-tail-contract.md`](./docs/long-tail-contract.md) | Cloud Run endpoint contract (specified, not built) |
+| [`docs/pack-layering.md`](./docs/pack-layering.md) | Additive/regional pack design (design only) — read before touching record numbering |
 | [`docs/media-budget.md`](./docs/media-budget.md) | Exercise media budget, format, CDN layout |
 | [`docs/contribution-loop.md`](./docs/contribution-loop.md) | How improvements flow back to Open Food Facts |
 | `src/` | Runtime: the reader the app imports |
@@ -34,8 +35,8 @@ Node 22+ as it sits.
 ```sh
 cd packages/datasets
 
-node --test "pipeline/test/*.test.mjs"   # 58 tests, ~150 ms
-node pipeline/build-food-index.mjs       # builds from fixtures/
+node --test "pipeline/test/*.test.mjs"   # 87 tests, ~150 ms
+node pipeline/build-food-index.mjs       # builds from fixtures/ into build-sample/
 node pipeline/build-exercise-catalogue.mjs
 node pipeline/verify-index.mjs           # integrity + licence compliance
 node pipeline/report-index.mjs           # where the bytes go
@@ -46,11 +47,18 @@ Expected output from the fixture build:
 ```
 loaded  usda=500 off=600
 mapped  791 kept, 309 rejected by validation
-dedupe  791 -> 784 (gtin 0, off-suppressed-by-core 0, fingerprint 7)
-core    486/486 records, 0.02 MB gz (47.9 B/record)
-off     298/298 records, 0.02 MB gz (62.0 B/record)
-total   0.04 MB gz of a 4.00 MB budget
+select  576 pass the entry rules (ingredients 387/387, packaged 189/404)
+        packaged rejected: no serving grams 100, no serving label 0, mass-only label 115, inconsistent 0 of 179 checkable
+dedupe  576 -> 571 (gtin 0, off-suppressed-by-core 0, fingerprint 4, product-cluster 1)
+core    387/387 records, 0.01 MB gz (38.5 B/record)
+off     184/184 records, 0.01 MB gz (67.2 B/record)
+total   0.03 MB gz of a 4.00 MB budget
 ```
+
+The `select` stage is where the index stops being a corpus. Branded packaged
+goods must be able to answer "one serving = what?" to earn their ~50 gzipped
+bytes; ingredients are exempt, because per 100 g is their natural basis. Full
+rules and the reasoning: [`docs/normalisation.md`](./docs/normalisation.md).
 
 ### Why plain JavaScript in a TypeScript repo
 
@@ -83,6 +91,28 @@ starter set and lazy-load these 873 behind it. Full contract:
 
 The food index has the same property and the same rule — `openIndexFromUrls()`
 is async for the same reason.
+
+## Where the artefacts live
+
+| Path | What | Committed? |
+|---|---|---|
+| `build/` | **The shipped index.** `apps/web/scripts/sync-datasets.mjs` copies from here and nutrition's recall suite measures against it. | **Yes** — committing it is what lets jsDelivr serve it free (ADR-0007, ADR-0031) |
+| `build-sample/` | Fixture build output, ~570 records. Inspectable without running anything. | Yes |
+
+**Nothing may be parked inside `build/`.** `sync-datasets.mjs` copies it
+recursively into `apps/web/public/data`, so a scratch subdirectory becomes part
+of the web app's deploy payload. That is why the sample build is a sibling.
+
+**A sample build must never write to `build/`.** It used to: `--out` defaulted to
+`build/`, so the documented fixture command silently replaced a 97,000-record
+corpus with a 571-record sample, and the only symptom was another team's recall
+numbers quietly measuring the wrong thing. That default is now `build/sample/`.
+It is also how the project came to ship 784 records to a real user who then
+could not find their food.
+
+Commit `build/` on **index-version bumps only**, never per rebuild. Every
+filename carries the version, so a bump writes new paths rather than rewriting
+existing blobs, which keeps the tracked weight to a few MB a year.
 
 ## Refreshing the samples
 
@@ -128,32 +158,51 @@ conditions on the data (`NOTICE.md` §1).
 Prefer the bulk exports over the APIs. Paging an API for a million products is
 slow, fragile, and rude.
 
-```sh
-mkdir -p raw
+The build discovers its inputs by directory. Put the bulk exports here and it
+streams them; leave them out and it falls back to the committed samples, running
+the *same* adapters either way.
 
-# USDA: full bulk exports, ~1 GB.
-#   https://fdc.nal.usda.gov/download-datasets.html
-#   Take "Foundation Foods", "SR Legacy", and "Branded Foods" (JSON).
-#   Unpack into raw/ and point the build at them.
-
-# Open Food Facts: the full JSONL dump, ~12.7 GB compressed.
-node -e "
-  import('./pipeline/sources/off.mjs').then(async ({ fetchDump }) => {
-    const { createWriteStream } = await import('node:fs');
-    const out = createWriteStream('raw/off-full.ndjson');
-    let n = 0;
-    for await (const p of fetchDump()) {           // no byteLimit = the whole dump
-      out.write(JSON.stringify(p) + '\n');
-      if (++n % 100000 === 0) console.log(n);
-    }
-    out.end();
-  });
-"
+```
+raw/usda/*.json          USDA bulk exports, unzipped
+raw/off/*.jsonl.gz       the published Open Food Facts dump (or a projected copy)
 ```
 
-`fetchDump()` projects each row through the field allow-list as it reads, so the
-local copy never contains an image URL (`NOTICE.md` §2.5) and is a fraction of
-the dump's size.
+```sh
+mkdir -p raw/usda raw/off
+
+# USDA: bulk JSON exports, ~700 MB zipped / ~3.5 GB unpacked.
+#   Listed at https://fdc.nal.usda.gov/download-datasets
+#   Branded is the big one; Foundation and SR Legacy are the ingredient corpus
+#   and carry the `foodPortions` that become household serving labels.
+for f in FoodData_Central_branded_food_json_2026-04-30.zip \
+         FoodData_Central_foundation_food_json_2026-04-30.zip \
+         FoodData_Central_sr_legacy_food_json_2021-10-28.zip; do
+  curl -L -C - -o "raw/usda/$f" "https://fdc.nal.usda.gov/fdc-datasets/$f"
+  unzip -o -q "raw/usda/$f" -d raw/usda
+done
+
+# Open Food Facts: the full JSONL dump, ~12.8 GB compressed. Download it to
+# disk rather than streaming it into the build — at ~2 MB/s this is over an
+# hour, and a network hiccup 50 minutes in must not cost the whole transfer.
+curl -L -C - --compressed \
+  -A "TheFreeForeverFitnessApp/0.1 (dataset build pipeline)" \
+  -o raw/off/openfoodfacts-products.jsonl.gz \
+  https://static.openfoodfacts.org/data/openfoodfacts-products.jsonl.gz
+```
+
+**Do not substitute the CSV export.** `en.openfoodfacts.org.products.csv.gz` is
+ten times smaller and tempting, and it has no `*_serving` nutrient columns at
+all. Those columns are the only independent witness to a record's serving
+arithmetic, and the consistency rule in `lib/select.mjs` is built on them — with
+the CSV, the rule silently checks nothing.
+
+The build projects every dump row through the OFF field allow-list as it reads,
+so no image URL is ever held in memory or written anywhere (`NOTICE.md` §2.5).
+
+**USDA's bulk JSON is one 3.3 GB object wrapping one array**, which `JSON.parse`
+cannot hold. `lib/json-array-stream.mjs` streams the elements out. It is not a
+general JSON parser and is not meant to be. Note that USDA's arrays end with a
+run of literal `null` elements — that is the file, not a parse failure.
 
 ### 3. Build
 
@@ -170,6 +219,12 @@ node pipeline/verify-index.mjs --dir build/full --release
 node pipeline/report-index.mjs --input raw
 ```
 
+A full ingest reads ~1.4M USDA rows and ~4.7M Open Food Facts rows and takes
+roughly **15 minutes** with a peak heap around 1 GB, so pass
+`--max-old-space-size=8192`. It writes to `build/full`, which is gitignored —
+`build/` holds the small committed *sample* output and a full build must not
+overwrite it.
+
 `--release` adds the checks that only matter when publishing, including that
 `manifest.publishedAt` names the public URL where the ODbL derived database is
 offered. Set it before cutting a release; without it, publishing puts us in
@@ -178,6 +233,32 @@ breach of ODbL §4.4.
 Expect roughly **~100,000 foods in 4 MB gzipped**. `fitToBudget` binary-searches
 the real encoded size and drops the lowest-ranked tail until it fits, so the
 budget is a hard constraint rather than a target.
+
+### The acceptance probes are the check that matters
+
+`--release` also runs `lib/probes.mjs`: a short list of **named foods that a
+shipped index must still contain**, searched for the way the app searches, with
+their expected serving label and per-serving numbers.
+
+They exist because of the failure this pipeline actually had. Every unit test
+passed while the shipped index held 784 sample records, no serving label on a
+single one, and 1% of the download budget used. A green suite could not see it.
+A probe that types `gold standard whey vanilla` into the real index can:
+
+```
+ok    probe gold-standard-whey-vanilla
+      #1 Optimum Nutrition — Gold Standard Whey (Vanilla Ice Cream Flavour)
+         · 1 scoop (31 g) · ~120 kcal · ~23.9 g protein
+```
+
+Each probe is a claim about the corpus that a rebuild can falsify — a dropped
+record, a duplicate ranked above it, a serving label that reverts to a bare
+mass, or nutrition off by a factor all fail the build. `maxMatches` is what
+pins the dedupe: three rows for that tub reached a user once.
+
+Add probes for shapes of failure we have actually seen, not for coverage.
+`pipeline/test/probes.test.mjs` drives the harness against stub readers in both
+directions, so the probes cannot pass because the harness never ran.
 
 ### 4. Media (gated — read `NOTICE.md` §3.2 first)
 
@@ -195,6 +276,13 @@ is fine.
 ```sh
 node --test "pipeline/test/*.test.mjs"
 node pipeline/build-food-index.mjs && node pipeline/verify-index.mjs
+```
+
+A **release** build must additionally pass the acceptance probes, which the
+sample build cannot run because it does not contain the foods they name:
+
+```sh
+node pipeline/verify-index.mjs --dir build/full --probes
 ```
 
 `verify-index.mjs` is not only an integrity check. Half of it enforces the
@@ -217,6 +305,22 @@ break. A comment saying "never merge OFF into core" is a wish.
 
 ## Things that will bite you
 
+- **USDA Branded's missing 1.5M records are a KNOWN, DEPRIORITISED gap.** Not a
+  surprise to rediscover: the decision was that the missing records are
+  overwhelmingly US branded groceries, which is the one category the 4 MB budget
+  already over-spends on (~0.94 MB of it). More candidates of that category
+  improve selection marginally and reach in a direction the project's first user
+  does not live in. Revisit after per-region packs exist, when the extra
+  candidates would land in a US pack rather than in everyone's base.
+- **USDA's Branded *JSON* export is not all of Branded.** The April 2026 JSON
+  holds **455,458** foods; `food.csv` in the full CSV release lists
+  **1,999,950** with `data_type = branded_food`. Three independent per-record
+  markers in the JSON (`gtinUpc`, `brandedFoodCategory`,
+  `householdServingFullText`) all agree at 455,458, so this is the export's
+  scope and not a parser bug. The current build therefore draws from a 23%
+  slice of USDA Branded. Fixing it means an adapter that joins
+  `branded_food.csv` + `food.csv` + `food_nutrient.csv` — worth doing, not yet
+  done.
 - **`sodiumMg` is milligrams.** Open Food Facts states sodium in grams and the
   pipeline converts. A value that looks 1000x wrong is worth reporting, not
   patching at the call site.

@@ -14,7 +14,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
@@ -24,6 +24,8 @@ import { dedupe } from './lib/dedupe.mjs';
 import { encodeBarcodes, encodeRecords, encodeSearch } from './lib/encode.mjs';
 import { rankAll } from './lib/rank.mjs';
 import { shardOf, toNdjson } from './lib/record.mjs';
+import { isPackaged, streamingSelect } from './lib/select.mjs';
+import { loadOff, loadUsda } from './lib/corpus.mjs';
 import { mapProduct } from './sources/off.mjs';
 import { mapFood } from './sources/usda.mjs';
 
@@ -68,28 +70,67 @@ const SOURCE_MANIFEST = [
 ];
 
 const t0 = Date.now();
-const raw = await load();
-console.log(`loaded  usda=${raw.usda.length} off=${raw.off.length}`);
+const inputDir = resolve(ROOT, opts.input);
+const usda = await loadUsda(inputDir);
+const off = await loadOff(inputDir);
+console.log(`input   usda: ${usda.describe}\n        off:  ${off.describe}`);
 
 /** @type {import('./lib/record.mjs').CanonicalRecord[]} */
 const mapped = [];
+const read = { usda: 0, off: 0 };
 let rejected = 0;
-for (const f of raw.usda) {
-  const r = mapFood(f);
-  r ? mapped.push(r) : rejected++;
+
+// Map and select in one streaming pass. On the full corpora this is ~5.1M rows
+// and the survivors are a few percent of them; materialising the intermediate
+// would need tens of gigabytes for records that are about to be thrown away.
+/** @type {import('./lib/select.mjs').SelectionStats} */
+let selection = /** @type {any} */ (null);
+const selector = streamingSelect(mapped);
+
+for await (const row of usda.rows) {
+  read.usda++;
+  const r = mapFood(row);
+  if (r) selector.offer(r);
+  else rejected++;
+  if (read.usda % 250_000 === 0) progress();
 }
-for (const p of raw.off) {
-  const r = mapProduct(p);
-  r ? mapped.push(r) : rejected++;
+for await (const row of off.rows) {
+  read.off++;
+  const r = mapProduct(row);
+  if (r) selector.offer(r);
+  else rejected++;
+  if (read.off % 250_000 === 0) progress();
 }
-console.log(`mapped  ${mapped.length} kept, ${rejected} rejected by validation`);
+selection = selector.stats;
+
+console.log(`loaded  usda=${read.usda} off=${read.off}`);
+console.log(
+  `mapped  ${selection.input} kept, ${rejected} rejected by validation`,
+);
+console.log(
+  `select  ${mapped.length} pass the entry rules ` +
+    `(ingredients ${selection.keptIngredient}/${selection.ingredient}, ` +
+    `packaged ${selection.keptPackaged}/${selection.packaged})`,
+);
+console.log(
+  `        packaged rejected: no serving grams ${selection.noServingGrams}, ` +
+    `no serving label ${selection.noServingLabel}, ` +
+    `mass-only label ${selection.massOnlyLabel}, ` +
+    `inconsistent ${selection.inconsistent} of ${selection.consistencyChecked} checkable; ` +
+    `unindexable name ${selection.unindexableName} (any source)`,
+);
+
+// The per-serving witness has done its job. It is a build-time audit field and
+// never reaches an artefact; dropping it here frees it before ranking sorts a
+// few hundred thousand records.
+for (const r of mapped) delete r.reportedPerServing;
 
 const ranked = rankAll(mapped, { locale: opts.locale });
 const { records: deduped, stats } = dedupe(ranked);
 console.log(
   `dedupe  ${stats.input} -> ${stats.output} ` +
     `(gtin ${stats.byGtinWithinShard}, off-suppressed-by-core ${stats.offSuppressedByCore}, ` +
-    `fingerprint ${stats.byFingerprint})`,
+    `fingerprint ${stats.byFingerprint}, product-cluster ${stats.byProductCluster})`,
 );
 
 /** @type {Record<string, import('./lib/record.mjs').CanonicalRecord[]>} */
@@ -127,7 +168,7 @@ for (const [name, shardId] of /** @type {Array<[keyof typeof shards, number]>} *
     continue;
   }
 
-  const { records, encoded, droppedForBudget } = fitToBudget(all, shardId, budgets[name]);
+  const { records, encoded, droppedForBudget, reserved } = fitToBudget(all, shardId, budgets[name]);
   const version = opts.version;
 
   const files = [
@@ -176,6 +217,7 @@ for (const [name, shardId] of /** @type {Array<[keyof typeof shards, number]>} *
   shardReport[name] = {
     candidates: all.length,
     shipped: records.length,
+    reservedIngredients: reserved,
     droppedForBudget,
     gzipBytes: gzTotal,
     bytesPerRecord: +(gzTotal / records.length).toFixed(1),
@@ -183,6 +225,7 @@ for (const [name, shardId] of /** @type {Array<[keyof typeof shards, number]>} *
   console.log(
     `${name.padEnd(6)}  ${records.length}/${all.length} records, ` +
       `${fmtMb(gzTotal)} gz (${(gzTotal / records.length).toFixed(1)} B/record)` +
+      (reserved ? `, ${reserved} reserved` : '') +
       (droppedForBudget ? `, dropped ${droppedForBudget} to fit` : ''),
   );
 }
@@ -199,6 +242,11 @@ const manifest = {
     0,
   ),
   shards: shardReport,
+  // Persisted because the interesting question about an index is not how many
+  // records it has but what it refused. "2,278 India rows excluded for a
+  // mass-only serving label" is a decision someone should be able to audit
+  // months later without re-running a 15-minute ingest.
+  selection: selection,
   dedupe: stats,
   artefacts,
   sources: SOURCE_MANIFEST,
@@ -225,6 +273,20 @@ console.log(
  * @param {number} budget
  */
 function fitToBudget(all, shardId, budget) {
+  // Records the budget may never drop. The locale-independent ingredient corpus
+  // — USDA Foundation and SR Legacy, ~8,100 records at 258 KB, 6.3% of a 4 MB
+  // budget — is the set that must answer offline for a user anywhere: dal,
+  // rice, atta, chicken, eggs, ghee, oats. It is also the cheapest thing in the
+  // index per byte, at ~33 B/record, because comma-chained generic names share
+  // prefixes and compress well.
+  //
+  // Today every one of them happens to survive the cut. That is luck of
+  // ranking, not construction, and ADR-0030 rule 2 (local-first is not
+  // negotiable) is exactly the thing that must not be left to luck: a ranking
+  // change could drop the plain foods and nothing would fail.
+  const reserved = all.map((r) => !isPackaged(r));
+  const reservedCount = reserved.filter(Boolean).length;
+
   const measure = (/** @type {import('./lib/record.mjs').CanonicalRecord[]} */ subset) => {
     const encoded = {
       records: encodeRecords(subset, shardId),
@@ -239,44 +301,54 @@ function fitToBudget(all, shardId, budget) {
   };
 
   let full = measure(all);
-  if (full.size <= budget) return { records: all, encoded: full.encoded, droppedForBudget: 0 };
+  if (full.size <= budget) {
+    return { records: all, encoded: full.encoded, droppedForBudget: 0, reserved: reservedCount };
+  }
 
-  let lo = 1;
-  let hi = all.length;
-  let best = { n: 1, ...measure(all.slice(0, 1)) };
+  // Take every reserved record plus the best `n` of the rest, keeping the
+  // original relative order so that record order still IS rank order — the
+  // reader's popularity prior reads `doc`, so reordering here would corrupt it.
+  const take = (/** @type {number} */ n) => {
+    const out = [];
+    let taken = 0;
+    for (let i = 0; i < all.length; i++) {
+      if (reserved[i]) out.push(/** @type {any} */ (all[i]));
+      else if (taken < n) {
+        out.push(/** @type {any} */ (all[i]));
+        taken++;
+      }
+    }
+    return out;
+  };
+
+  const optional = all.length - reservedCount;
+  let lo = 0;
+  let hi = optional;
+  let best = { n: 0, ...measure(take(0)) };
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
-    const r = measure(all.slice(0, mid));
+    const r = measure(take(mid));
     if (r.size <= budget) {
       best = { n: mid, ...r };
       lo = mid + 1;
     } else hi = mid - 1;
   }
+  const records = take(best.n);
   return {
-    records: all.slice(0, best.n),
+    records,
     encoded: best.encoded,
-    droppedForBudget: all.length - best.n,
+    droppedForBudget: all.length - records.length,
+    reserved: reservedCount,
   };
 }
 
-async function load() {
-  const dir = resolve(ROOT, opts.input);
-  const usda = await readJson(resolve(dir, 'usda-sample.json'), []);
-  const off = await readJson(resolve(dir, 'off-sample.json'), []);
-  return { usda, off };
-}
-
-/** @param {string} path @param {any} fallback */
-async function readJson(path, fallback) {
-  try {
-    return JSON.parse(await readFile(path, 'utf8'));
-  } catch (err) {
-    if (/** @type {any} */ (err).code === 'ENOENT') {
-      console.warn(`missing ${path} — run \`node pipeline/fetch-samples.mjs\` first`);
-      return fallback;
-    }
-    throw err;
-  }
+/** Heartbeat for a full ingest, which reads ~5.1M rows and takes minutes. */
+function progress() {
+  const mb = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(0);
+  console.log(
+    `        read usda=${read.usda} off=${read.off} -> ${mapped.length} selected ` +
+      `(${((Date.now() - t0) / 1000).toFixed(0)}s, ${mb} MB heap)`,
+  );
 }
 
 /** @param {Uint8Array} b */
@@ -326,7 +398,19 @@ function parseArgs(argv) {
   const now = new Date();
   return {
     input: val('--input', 'fixtures'),
-    out: val('--out', 'build'),
+    // Sample builds write to build-sample/, NOT over build/, and NOT inside it.
+    //
+    // `build/` is the shipped index: `apps/web/scripts/sync-datasets.mjs`
+    // copies from it and nutrition's recall suite measures against it. When the
+    // default was `build/`, every fixture build silently replaced a 97,294-record
+    // corpus with a 571-record sample, and the only symptom was another team's
+    // recall numbers quietly measuring the wrong thing. Iteration should be the
+    // thing that moves, not the shipped output.
+    //
+    // A sibling directory rather than `build/sample/` because that sync is
+    // `cpSync(build, public/data, { recursive: true })` — it copies whatever it
+    // finds, so anything parked under build/ joins the web app's deploy payload.
+    out: val('--out', 'build-sample'),
     locale: val('--locale', 'us'),
     budgetBytes: Number(val('--budget-mb', '4')) * 1024 * 1024,
     version: val('--version', `${now.getUTCFullYear()}.${String(now.getUTCMonth() + 1).padStart(2, '0')}.1`),

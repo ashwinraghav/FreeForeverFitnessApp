@@ -18,6 +18,7 @@
  */
 
 import { SOURCE } from '../../src/schema.mjs';
+import { NEUTRAL_CATEGORY_PRIOR } from '../sources/usda.mjs';
 
 /**
  * Prior by source. Generic whole foods dominate real searches — "chicken
@@ -32,11 +33,34 @@ const SOURCE_PRIOR = {
   [SOURCE.OFF]: 0.3,
 };
 
+/**
+ * `categoryPrior` was added after measuring what the shipped index actually
+ * returned for one-word staple queries: all eight of the top core hits for
+ * "chicken" were Chinese restaurant dishes, and five of eight for "apple" were
+ * babyfood, pie and dessert. USDA's own food category separates "an ingredient"
+ * from "somebody else's finished dish" far better than any signal derived from
+ * the name, which is where its 0.15 comes from.
+ *
+ * It is paid for out of the two terms that measurement showed were weak:
+ *
+ *  - `nameQuality` 0.10 -> 0.05. It was actively harmful: USDA names generic
+ *    whole foods with comma chains ("Potatoes, flesh and skin, raw"), so a
+ *    per-comma penalty taxed exactly the staples and rewarded short
+ *    marketing-shaped names like "Potato flour". Relaxing it helped and was not
+ *    enough; the residual value here is the junk-name detection below it.
+ *  - `completeness` 0.15 -> 0.10. It has largely saturated since `lib/select.mjs`
+ *    made a serving label an entry requirement — a term that nearly every
+ *    surviving record scores the same on cannot order them.
+ *
+ * `popularity` is deliberately untouched: it is the only signal ordering the
+ * branded OFF shard, and nutrition measured 99.4% recall against it.
+ */
 const WEIGHTS = {
-  sourcePrior: 0.4,
+  sourcePrior: 0.35,
   popularity: 0.3,
-  completeness: 0.15,
-  nameQuality: 0.1,
+  categoryPrior: 0.15,
+  completeness: 0.1,
+  nameQuality: 0.05,
   locale: 0.05,
 };
 
@@ -59,6 +83,7 @@ export function score(r, ctx) {
   return clamp01(
     WEIGHTS.sourcePrior * prior +
       WEIGHTS.popularity * pop +
+      WEIGHTS.categoryPrior * (r.categoryPrior ?? NEUTRAL_CATEGORY_PRIOR) +
       WEIGHTS.completeness * completeness(r) +
       WEIGHTS.nameQuality * nameQuality(r) +
       WEIGHTS.locale * localeFit(r, ctx.locale ?? 'us'),
@@ -92,8 +117,28 @@ function nameQuality(r) {
   const words = r.name.split(/\s+/).length;
   const commas = (r.rawName.match(/,/g) ?? []).length;
   let s = 1;
-  s -= Math.min(0.5, Math.max(0, words - 4) * 0.08);
-  s -= Math.min(0.4, commas * 0.12);
+
+  // THE FIRST TWO CLAUSES AND SIX WORDS ARE FREE, and that allowance is the
+  // whole point of this function's shape.
+  //
+  // USDA's canonical name for a generic whole food is comma-chained by
+  // convention — "Potatoes, flesh and skin, raw", "Apples, raw, without skin",
+  // "Milk, whole, 3.25% milkfat". Charging per comma from the first one
+  // therefore taxed precisely the plain staples people search for most, while
+  // leaving derived products with short marketing-shaped names untaxed. The
+  // measured result: "Potato flour" scored 0.668 and landed at core record 4,
+  // "Potatoes, flesh and skin, raw" scored 0.636 and landed at 1,785 — and the
+  // entire 0.032 gap was this function. Same for "Apple fruit butters" ahead of
+  // "Apples, raw, without skin". Nutrition could not surface either staple at
+  // k=8 because the plain record sat ~350 deep in the candidate pool.
+  //
+  // The original intent is still served: what nobody searches for is not a
+  // two-clause name, it is "Beef, chuck, arm pot roast, separable lean only,
+  // trimmed to 0" fat, all grades, cooked, braised" — eight clauses, sixteen
+  // words. Those still lose most of this term.
+  s -= Math.min(0.5, Math.max(0, words - 6) * 0.06);
+  s -= Math.min(0.4, Math.max(0, commas - 2) * 0.12);
+
   if (/\b(upc|gtin|sku|item\s*#|\d{6,})\b/i.test(r.name)) s -= 0.4;
   if (r.name.length > 60) s -= 0.2;
   return clamp01(s);

@@ -3,9 +3,12 @@ import test from 'node:test';
 
 import { ByteWriter } from '../../src/bytes.mjs';
 import { fingerprint, fold, tokenise } from '../../src/text.mjs';
-import { atwaterKcal, parseServing, quantise, toPer100, validate } from '../lib/nutrients.mjs';
+import { atwaterKcal, parseServing, quantise, servingLabel, toPer100, validate } from '../lib/nutrients.mjs';
+import { select } from '../lib/select.mjs';
+import { SOURCE } from '../../src/schema.mjs';
 import { FIELDS, mapProduct } from '../sources/off.mjs';
 import { mapFood, normaliseGtin } from '../sources/usda.mjs';
+import { brandUnlessItRepeatsName } from '../lib/record.mjs';
 
 /** @param {object} over */
 const n = (over) => ({
@@ -215,6 +218,144 @@ test('a stated zero that the macros contradict is also derived', () => {
   });
   assert.equal(r?.energyDerived, true);
   assert.equal(r?.n.kcal, 190);
+});
+
+test('an energy value too small for the kcal column is derived, not rounded to zero', () => {
+  // The Mooala "simple oat milk" record, verbatim: OFF states
+  // `energy-kcal_100g: 0.038` because a contributor put a per-serving figure in
+  // a per-serving field and OFF divided it again. 0.038 satisfies `kcal > 0`,
+  // so the old guard let it through and quantise turned it into 0 kcal.
+  const oatMilk = mapProduct({
+    code: '0850038717193',
+    product_name: 'simple oat milk',
+    brands: 'Mooala',
+    serving_size: '1 cup (237 ml)',
+    nutriments: {
+      'energy-kcal_100g': 0.038,
+      proteins_100g: 0.844,
+      carbohydrates_100g: 7.17,
+      fat_100g: 0.633,
+      fiber_100g: 0.422,
+      'energy-kcal_serving': 0.09,
+    },
+  });
+  assert.ok(oatMilk, 'the record must not be dropped');
+  assert.ok(oatMilk.n.kcal >= 30, `oat milk should be ~37 kcal/100 g, got ${oatMilk.n.kcal}`);
+  assert.equal(oatMilk.energyDerived, true, 'and it must be flagged as derived, not stated');
+});
+
+test('UN/CEFACT unit codes are mapped, not shipped as labels', () => {
+  // 6,732 shipped records — 7.1% of every record carrying a label — rendered a
+  // machine code on the portion sheet. Not with the tidy leading "1" it was
+  // first reported as: "10.05 ONZ", "0.21 ONZ", "30 GRM".
+  assert.equal(servingLabel('1 ONZ'), '1 oz');
+  assert.equal(servingLabel('10.05 ONZ'), '10.05 oz');
+  assert.equal(servingLabel('0.21 ONZ'), '0.21 oz');
+  assert.equal(servingLabel('30 GRM'), '30 g');
+  assert.equal(servingLabel('2 MLT'), '2 ml');
+  // OZA is the US fluid ounce, established from the data rather than assumed:
+  // 2,053 records at a median 30.0 g per unit, all of them drinks.
+  assert.equal(servingLabel('12 OZA'), '12 fl oz');
+  assert.equal(servingLabel('8 OZA'), '8 fl oz');
+  assert.equal(servingLabel('1 EA'), '1 item');
+  // Already lowercased upstream on 11 records.
+  assert.equal(servingLabel('1 onz'), '1 oz');
+  // Fractions and comma decimals keep their count. Dropping a non-one count
+  // would silently halve a logged amount.
+  assert.equal(servingLabel('1/4 ONZ'), '1/4 oz');
+  assert.equal(servingLabel('1 1/4 ONZ'), '1 1/4 oz');
+
+  // Whole-word only: a real word that merely looks code-shaped is untouched.
+  assert.equal(servingLabel('1 ONZA'), '1 ONZA');
+  assert.equal(servingLabel('3 GRMS'), '3 GRMS');
+  assert.equal(servingLabel('1 cup'), '1 cup');
+  assert.equal(servingLabel('2 tbsp'), '2 tbsp');
+  assert.equal(servingLabel('1 CUP'), '1 CUP');
+  assert.equal(servingLabel('1 fl oz'), '1 fl oz');
+});
+
+test('a mapped unit code then falls to the mass-only rule, as a mass should', () => {
+  // The consequence worth pinning: "1 ONZ" was evading the entry rule because
+  // the rule did not know the code. Once mapped it is visibly a bare mass, and
+  // the rule that already rejects "1 oz" rejects it too. That is the rule being
+  // applied consistently, not a new rule.
+  const packaged = (/** @type {string} */ label) => ({
+    source: SOURCE.OFF,
+    sourceId: '1',
+    name: 'Classic Cream Cheese',
+    rawName: 'Classic Cream Cheese',
+    brand: 'Brandy',
+    gtin: 123456789,
+    gtinDigits: 9,
+    basis: /** @type {'g'} */ ('g'),
+    n: n({ kcal: 100, proteinG: 5, carbG: 10, fatG: 2 }),
+    servingGrams: 28,
+    servingLabel: servingLabel(label),
+    servingEstimated: false,
+    atwaterMismatch: false,
+    energyReported: true,
+    energyDerived: false,
+    highConfidence: true,
+    aliases: [],
+    popularity: 0,
+    countries: ['us'],
+  });
+  assert.equal(select([packaged('1 ONZ')]).stats.massOnlyLabel, 1);
+  assert.equal(select([packaged('30 GRM')]).stats.massOnlyLabel, 1);
+  // A real household measure is unaffected.
+  assert.equal(select([packaged('1 cup')]).records.length, 1);
+  assert.equal(select([packaged('1 EA')]).records.length, 1, '"1 item" names a thing, not a mass');
+});
+
+test('a brand is dropped only when it adds nothing the name does not say', () => {
+  // Real records nutrition found in the shipped index: an OFF row named "Milk"
+  // whose brand is also "Milk", and one named "Chicken Breast" branded "Chicken
+  // Breast ALDI". Both scored as though a brand had independently confirmed the
+  // name, and both took position 1 ahead of the plain USDA record.
+  assert.equal(brandUnlessItRepeatsName('Milk', 'Milk'), null);
+  assert.equal(brandUnlessItRepeatsName('Coca-Cola', 'Coca-Cola'), null);
+  // ...but NOT a strict subset. "Nestle" on "Nestle Milo" is redundant for
+  // display and still the only structured brand the record has, and deleting is
+  // the least recoverable thing this function can do. Measured: equality nulls
+  // 30,760 corpus-wide, subset containment would null 390,661.
+  assert.equal(brandUnlessItRepeatsName('Nestle', 'Nestle Milo'), 'Nestle');
+  assert.equal(brandUnlessItRepeatsName('MILK', 'Milk, whole'), 'MILK');
+
+  // THE OTHER DIRECTION, pinned because the first version of this rule had the
+  // containment backwards and deleted precisely the informative brands. It asked
+  // "is the NAME inside the BRAND" — which is the question the nutrition ranker
+  // asks when withholding a duplicate scoring bonus, and the wrong question for
+  // a function that writes null into the shipped artefact and into the published
+  // ODbL database. A brand that says MORE than the name must survive.
+  assert.equal(
+    brandUnlessItRepeatsName('Chicken Breast ALDI', 'Chicken Breast'),
+    'Chicken Breast ALDI',
+    'ALDI is the most informative token in that record and must not be deleted',
+  );
+  assert.equal(brandUnlessItRepeatsName('COCA-COLA', 'Cola'), 'COCA-COLA');
+  assert.equal(brandUnlessItRepeatsName('Coca-Cola', 'Diet Coke'), 'Coca-Cola');
+  assert.equal(brandUnlessItRepeatsName('Aldi', 'Chicken Breast'), 'Aldi');
+  // Real brands the containment version deleted, sampled from the corpus.
+  assert.equal(brandUnlessItRepeatsName('Macarons de Pauline', 'Macarons'), 'Macarons de Pauline');
+  assert.equal(brandUnlessItRepeatsName('Bubly Sparkling Water', 'Bubly'), 'Bubly Sparkling Water');
+  assert.equal(brandUnlessItRepeatsName('Davis Baking Powder', 'Baking Powder'), 'Davis Baking Powder');
+  assert.equal(
+    brandUnlessItRepeatsName('Optimum Nutrition', 'Gold Standard Whey (Vanilla Ice Cream Flavour)'),
+    'Optimum Nutrition',
+  );
+  assert.equal(brandUnlessItRepeatsName(null, 'Milk'), null);
+});
+
+test('the adapters apply the brand-repeats-name rule', () => {
+  const p = mapProduct({
+    code: '0000000000017',
+    product_name: 'Milk',
+    brands: 'Milk',
+    serving_size: '250 ml',
+    nutriments: { 'energy-kcal_100g': 64, proteins_100g: 3.3, carbohydrates_100g: 4.8, fat_100g: 3.6 },
+  });
+  assert.ok(p);
+  assert.equal(p.brand, null, 'the OFF adapter must not emit a brand that repeats the name');
 });
 
 test('a genuine zero-calorie food is left at zero', () => {

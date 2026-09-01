@@ -172,6 +172,14 @@ Pass the scanner output as a string. Non-digits are stripped. Leading zeros are
 handled: a GTIN-12 and the GTIN-13 that differs only by a leading zero are
 distinct barcodes and both round-trip exactly.
 
+**Several barcodes may resolve to the same `Food`.** One product is often
+catalogued under a barcode per region, and dedupe folds those rows into one
+(`docs/normalisation.md`, "The product cluster"). The barcodes of the folded
+rows are kept and point at the surviving record, so scanning any SKU of a
+product reaches it. Consequence for a caller: `byBarcode(x).barcode` is not
+necessarily `x` — it is the surviving row's primary barcode. If you need to
+record what was actually scanned, keep the scanner's string yourself.
+
 ## Versioning and integrity
 
 `manifest.json` carries:
@@ -205,9 +213,15 @@ history never changes retroactively because we rebuilt an index.
 
 ```json
 {"sourceId":"3017620422003","source":3,"name":"…","brand":"…","barcode":"3017620422003",
- "basis":"g","per100":{…},"servingGrams":15,"servingLabel":"1 tbsp","aliases":[],
+ "alsoBarcodes":[],"basis":"g","per100":{…},"servingGrams":15,"servingLabel":"1 tbsp",
+ "aliases":[],
  "flags":{"servingEstimated":false,"atwaterMismatch":false,"highConfidence":true}}
 ```
+
+`alsoBarcodes` lists the other barcodes for the same product, from rows dedupe
+folded into this one. They are published rather than dropped because each is a
+product an Open Food Facts contributor filled in, and OFF's terms credit
+contributors by a link to the product they contributed to (`NOTICE.md` §2.2).
 
 It exists to satisfy ODbL §4.6 and is the format a third party would consume.
 The app does not read it.

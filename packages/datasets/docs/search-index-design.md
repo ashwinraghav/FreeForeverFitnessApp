@@ -152,3 +152,42 @@ a full USDA extract before treating the core number as anything but indicative.
 The build does not rely on these projections: `fitToBudget` in
 `build-food-index.mjs` binary-searches the actual encoded size and drops the
 lowest-ranked tail until the artefacts genuinely fit.
+
+## Two scoring rules that only reveal themselves at full corpus size
+
+Both were written against a 486-record sample, both were correct there, and both
+were silently wrong at 97,000 records. Neither had a failing test, because a
+sample that small cannot express the difference.
+
+### An English plural is not a different word
+
+`#scoreToken` penalises a prefix expansion by `needle.length / term.length`, so
+that "milk" outranks "milkshake". USDA, however, names generic whole foods in the
+plural and derived products in the singular:
+
+| record | indexed term | penalty for query `potato` |
+|---|---|---|
+| `Potato flour` | `potato` | none — exact |
+| `Potatoes, russet, without skin, raw` | `potatoes` | 6/8 = 0.75 |
+
+A 0.25 handicap, which no record-order prior can repay. Measured on the shipped
+shard: `search("potatoes")` returned the three plain raw potatoes at ranks 1, 2
+and 3, while `search("potato")` put the first of them at **rank 539** — same
+index, same records, one letter of query. The records sat at positions 197-199
+all along, so this looked like a ranking problem and was not one.
+
+A trailing `s` or `es` now scores as exact. `milkshake` stays penalised.
+
+### A decay constant is not scale-free
+
+The record-order prior was `0.5 / (1 + doc / 500)`. At 784 records that spanned
+0.5 down to 0.31 and carried real signal. At 97,294 it reaches 0.045 by record
+5,000 and 0.0075 by record 33,000 — flat across 97% of the corpus, so every name
+match tied and the effective tie-break became the raw record id.
+
+It now decays over **log rank normalised by shard length**, which means the same
+thing at any corpus size: 0.5 at the top, ~0.13 at 5,000 of 97k, ~0.05 at 33,000.
+
+**The general lesson for anything in this file:** a constant expressed in records
+rather than in a fraction of the corpus is a constant that will rot the next time
+the index grows, and no test on the sample will notice.

@@ -23,6 +23,8 @@ import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 
 import { FoodIndex } from '../src/reader.mjs';
+import { atwaterKcal } from './lib/nutrients.mjs';
+import { PROBES, runProbes } from './lib/probes.mjs';
 import { SHARD_NAME } from '../src/schema.mjs';
 import { tokenise } from '../src/text.mjs';
 
@@ -30,6 +32,13 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
 const dir = resolve(ROOT, flag('--dir', 'build'));
 const releaseMode = argv.includes('--release');
+/**
+ * Acceptance probes name real foods and only make sense against a full build —
+ * the committed sample holds 600 products and cannot contain them. `--release`
+ * implies them: shipping an index that has lost the foods a user asked for is
+ * exactly the failure they are here to stop.
+ */
+const probeMode = releaseMode || argv.includes('--probes');
 
 /** @type {string[]} */
 const failures = [];
@@ -64,6 +73,9 @@ for (const artefact of manifest.artefacts ?? []) {
 }
 
 // ── the index actually works ───────────────────────────────────────────────
+/** @type {Record<string, FoodIndex>} */
+const readers = {};
+
 for (const [shard, b] of bodies) {
   if (!b.records) continue;
   const idx = new FoodIndex({
@@ -71,10 +83,12 @@ for (const [shard, b] of bodies) {
     ...(b.search ? { search: b.search } : {}),
     ...(b.barcodes ? { barcodes: b.barcodes } : {}),
   });
+  readers[shard] = idx;
   check(`${shard}: reader reports the manifest's record count`, idx.length === manifest.shards[shard].shipped);
   check(`${shard}: reader shard id matches its filename`, idx.shardName === shard);
 
   let decoded = 0;
+  let ingredients = 0;
   let withBarcode = 0;
   let barcodeHits = 0;
   let searchHits = 0;
@@ -93,6 +107,18 @@ for (const [shard, b] of bodies) {
       break;
     }
     decoded++;
+    // Must mirror `isPackaged()` in lib/select.mjs exactly, which is what
+    // `fitToBudget` reserves on. Source alone is not the definition: a Branded
+    // record with neither a brand nor a barcode counts as an ingredient too, and
+    // counting by source undercounted by 3 and reported a reservation failure
+    // that had not happened.
+    if (
+      food.source === 'usda-foundation' ||
+      food.source === 'usda-sr-legacy' ||
+      (!food.brand && !food.barcode)
+    ) {
+      ingredients++;
+    }
 
     // Compliance: no OFF-sourced record may appear in the core shard, and no
     // core-sourced record in the OFF shard. NOTICE.md §2.4.
@@ -128,7 +154,13 @@ for (const [shard, b] of bodies) {
 
     // A food with macros but zero energy should have had energy derived. If one
     // reaches the artefact, fillEnergy() has regressed and users see 0 kcal.
-    if (kcal === 0 && (proteinG > 0 || carbG > 0 || fatG > 0)) {
+    //
+    // Compare against the Atwater estimate rather than against "any macro is
+    // non-zero". A product stating 0.1 g of protein and nothing else really
+    // does have 0.4 kcal per 100 g, and the kcal column is integers, so zero
+    // is the correctly-rounded value and not a regression. The earlier form
+    // reported ten of those as failures.
+    if (kcal === 0 && atwaterKcal(food.per100) >= 0.5) {
       fail(`${shard}: record ${food.sourceId} has macros but zero energy`);
     }
 
@@ -159,28 +191,91 @@ for (const [shard, b] of bodies) {
       fail(`${shard}: record ${food.sourceId} (${JSON.stringify(food.name)}) has no indexable term`);
     } else if (i % probe === 0) {
       searchProbes++;
-      if (idx.search(terms[0], { limit: 500 }).some((h) => h.food.id === food.id)) searchHits++;
-      else fail(`${shard}: ${JSON.stringify(food.name)} is not findable by its own term "${terms[0]}"`);
+      // Probe with the CONJUNCTION of the record's own terms, not its first
+      // term alone.
+      //
+      // The single-term version was written against a 486-record sample, where
+      // `limit: 500` returned the whole shard and so "is it in the results"
+      // meant "is it in the index". At full-corpus scale that stops being true
+      // and the check becomes unpassable by construction: 1,619 core records
+      // match "beef", so 1,119 of them are absent from the top 500 no matter
+      // how correct the index is. It reported 403 failures on a build where
+      // every one of those records was present and reachable.
+      //
+      // What the check is actually for is dead weight — a record no query can
+      // reach. The conjunction of a record's own indexed terms is the query a
+      // user converges on as they type, it is selective enough to fit inside
+      // the limit, and it still fails loudly if a record is missing from the
+      // postings of any of its own terms.
+      //
+      // The limit is the whole shard, deliberately. "Is this record in the
+      // postings for its own terms" is the dead-weight question; "is it in the
+      // top twenty a user sees" is a relevance question, and answering the
+      // second one here is what made this check unpassable. Relevance is what
+      // `lib/probes.mjs` is for.
+      const query = terms.slice(0, 6).join(' ');
+      if (idx.search(query, { limit: idx.length }).some((h) => h.food.id === food.id)) searchHits++;
+      else fail(`${shard}: ${JSON.stringify(food.name)} is not findable by its own terms "${query}"`);
     }
   }
 
   check(`${shard}: all ${decoded} records decode`, decoded === idx.length);
+
+  // The reservation, asserted on the artefact rather than trusted from the
+  // build. `fitToBudget` promises the locale-independent ingredient corpus is
+  // never dropped for budget; this is what makes that a constraint instead of a
+  // comment. It catches the regression the reservation exists to prevent — a
+  // ranking change quietly pushing plain foods below the cut — because the
+  // manifest's count comes from the candidate pool while this one comes from
+  // what actually shipped.
+  const declaredReserved = manifest.shards[shard]?.reservedIngredients;
+  if (declaredReserved != null) {
+    check(
+      `${shard}: every reserved ingredient shipped (${ingredients}/${declaredReserved})`,
+      ingredients === declaredReserved,
+      `${declaredReserved - ingredients} locale-independent ingredient record(s) were dropped for budget`,
+    );
+  }
+  if (probeMode && shard === 'core') {
+    // A floor as well as an equality, so that losing ingredients upstream —
+    // a source that stops parsing, a gate that tightens — cannot pass merely by
+    // making the build declare a smaller reservation.
+    check(
+      `${shard}: the ingredient corpus is intact (${ingredients} records)`,
+      ingredients >= 8000,
+      `expected ~8,100 USDA Foundation + SR Legacy records, found ${ingredients}`,
+    );
+  }
   check(
     `${shard}: every record has at least one indexable term (${idx.length - unindexable}/${idx.length})`,
     unindexable === 0,
     `${unindexable} record(s) cannot be reached by any query`,
   );
-  // 100%, not a threshold. Anything less is a record a user cannot find by
-  // typing a word that is literally in its name, and there is no legitimate
-  // reason for one — the stopword case is handled by probing indexed terms.
+  // 100%, not a threshold. Anything less is a record no query built from its
+  // own name can reach, and there is no legitimate reason for one — the
+  // stopword case is handled by probing indexed terms, and the "thousands of
+  // records share my first word" case by probing their conjunction.
   check(
-    `${shard}: sampled records are findable by their own first indexed term (${searchHits}/${searchProbes})`,
+    `${shard}: sampled records are findable by their own indexed terms (${searchHits}/${searchProbes})`,
     searchHits === searchProbes,
     `${searchProbes - searchHits} of ${searchProbes} probes could not find themselves`,
   );
   if (withBarcode > 0) {
     check(`${shard}: sampled barcodes resolve`, barcodeHits > 0, 'no sampled barcode resolved');
   }
+}
+
+// ── acceptance probes: named foods a shipped index must still contain ──────
+if (probeMode) {
+  for (const r of runProbes(readers)) {
+    check(`probe ${r.id}`, r.ok, r.detail);
+    if (r.ok) console.log(`      ${r.detail}`);
+  }
+} else {
+  console.log(
+    `note  ${PROBES.length} acceptance probes skipped — pass --probes (or --release) ` +
+      'to run them against a full build',
+  );
 }
 
 // ── licence compliance that lives outside the binary ───────────────────────

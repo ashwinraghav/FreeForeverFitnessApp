@@ -157,6 +157,45 @@ test('attribution url is emitted for every OFF record', () => {
   assert.equal(food?.attributionUrl, 'https://world.openfoodfacts.org/product/3017620422003');
 });
 
+test('an English plural is not treated as a worse match than the singular', () => {
+  // The worst search defect the index had. USDA names generic whole foods in the
+  // plural ("Potatoes, russet, without skin, raw") and derived products in the
+  // singular ("Potato flour"), so a prefix penalty of needle/term length handed
+  // the flour a 0.25 advantage over the actual potato — far more than record
+  // order could repay. Measured on the shipped shard before the fix:
+  // search("potatoes") ranked the three plain raw potatoes 1-2-3, while
+  // search("potato") put the first of them at rank 539. Same index, one letter.
+  const idx = build([
+    rec({ sourceId: 'p1', name: 'Potato flour', rawName: 'Potato flour' }),
+    rec({ sourceId: 'p2', name: 'Potatoes, russet, without skin, raw', rawName: 'Potatoes, russet' }),
+  ]);
+  const viaPlural = idx.search('potatoes', { limit: 10 });
+  const viaSingular = idx.search('potato', { limit: 10 });
+
+  const plainIn = (/** @type {any[]} */ hits) => hits.findIndex((h) => /^Potatoes/i.test(h.food.name));
+  assert.ok(plainIn(viaPlural) >= 0, 'the plural query must find the plural-named food');
+  assert.ok(plainIn(viaSingular) >= 0, 'the singular query must also find it');
+  assert.equal(
+    viaSingular[plainIn(viaSingular)]?.score,
+    viaPlural[plainIn(viaPlural)]?.score,
+    'a plural inflection must score the same as an exact hit, not a fraction of one',
+  );
+});
+
+test('the plural exemption does not swallow a genuinely longer word', () => {
+  // "milkshake" is not the plural of "milk", and must stay penalised.
+  const idx = build();
+  const hits = idx.search('milk', { limit: 20 });
+  const milk = hits.findIndex((h) => /^Milk,/i.test(h.food.name));
+  const shake = hits.findIndex((h) => /^Milkshake/i.test(h.food.name));
+  assert.ok(milk >= 0 && shake >= 0, 'both records should be reachable');
+  assert.ok(milk < shake, '"milk" must still outrank "milkshake"');
+  assert.ok(
+    /** @type {number} */ (hits[milk]?.score) > /** @type {number} */ (hits[shake]?.score),
+    'and by score, not merely by record order',
+  );
+});
+
 test('an empty query returns nothing rather than everything', () => {
   const idx = build();
   assert.deepEqual(idx.search(''), []);

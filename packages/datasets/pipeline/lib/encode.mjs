@@ -231,6 +231,10 @@ export function encodeBarcodes(records, shard) {
     // and a GTIN-12 is not a GTIN-13 with a zero in front as far as a scanner,
     // a receipt, or Open Food Facts' URL scheme is concerned.
     if (r.gtin != null) entries.push({ gtin: r.gtin, doc, digits: r.gtinDigits ?? String(r.gtin).length });
+    // Barcodes of duplicate rows folded into this one by dedupe. Scanning any
+    // of a product's regional SKUs must reach the row we kept — see the
+    // attribution note in lib/dedupe.mjs `absorb`.
+    for (const g of r.extraGtins ?? []) entries.push({ gtin: g.value, doc, digits: g.digits });
   });
   entries.sort((a, b) => a.gtin - b.gtin);
 

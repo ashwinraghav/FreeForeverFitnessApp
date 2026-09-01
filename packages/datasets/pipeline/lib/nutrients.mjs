@@ -80,11 +80,21 @@ export function atwaterKcal(n) {
  * cannot misfire on a genuine zero-calorie food: diet soda and black coffee
  * have zero macros, so the Atwater estimate is zero and nothing changes.
  *
+ * It also fires on a stated energy too small for the kcal column to hold.
+ * Open Food Facts has `energy-kcal_100g: 0.038` for a Mooala oat milk — a
+ * contributor typed the per-serving figure into a per-serving field OFF then
+ * divided again. The old guard was `n.kcal > 0`, and 0.038 satisfies it, so the
+ * value passed through untouched and `quantise` rounded it to **zero**: oat
+ * milk shipped with no calories, which is the exact failure this function
+ * exists to prevent, arriving through the one door it left open. Rounding to
+ * zero is the test, not being zero.
+ *
  * @param {Nutrients} n
  * @returns {{n:Nutrients, derived:boolean}}
  */
 export function fillEnergy(n) {
-  if (n.kcal > 0) return { n, derived: false };
+  // The kcal column is integers, so anything under 0.5 stores as 0.
+  if (Math.round(n.kcal) > 0) return { n, derived: false };
   const est = atwaterKcal(n);
   if (!(est > 0)) return { n, derived: false };
   return { n: { ...n, kcal: est }, derived: true };
@@ -208,6 +218,44 @@ export function parseServing(raw) {
 }
 
 /**
+ * UN/CEFACT Recommendation 20 unit codes, as they appear in USDA's
+ * `householdServingFullText` and in Open Food Facts' `serving_size`.
+ *
+ * These are machine codes that reached the user's screen. 6,732 shipped records
+ * — 7.1% of every record carrying a label — rendered one, and not with the
+ * tidy leading "1" the bug was first reported as:
+ *
+ *     "10.05 ONZ" (285 g)   ->  picker read "1 serving — 10.05 onz (285 g)"
+ *     "0.21 ONZ"  (6 g)     ->  "0.21 onz"
+ *     "30 GRM"    (30 g)    ->  "30 grm"
+ *
+ * It cannot be fixed at the display layer: stripping a leading count works only
+ * when the count is 1, and keeping a non-one count is what stops "2 tbsp" being
+ * silently reduced to "tbsp" and halving a logged amount. So it is a
+ * data-cleaning problem and it belongs here.
+ */
+const UNIT_CODE = {
+  ONZ: 'oz',
+  // OZA is the US FLUID ounce, not the mass ounce, and the data says so
+  // unambiguously: median 30.0 g per OZA across 2,053 records, and the records
+  // are drinks — "8 OZA" -> 240 g, "12 OZA" -> 355 g (a standard can),
+  // "6.76 OZA" -> 200 g. Mapping it to "oz" would have been a 5% error and,
+  // worse, would have called a volume a mass.
+  OZA: 'fl oz',
+  LBR: 'lb',
+  GRM: 'g',
+  KGM: 'kg',
+  MGM: 'mg',
+  MLT: 'ml',
+  LTR: 'l',
+  DLT: 'dl',
+  CLT: 'cl',
+  // "each" is the code's literal meaning and reads badly on a portion sheet;
+  // "item" is the same fact in a word someone would say. Two records.
+  EA: 'item',
+};
+
+/**
  * Household measure text, cleaned for display ("1 cup (240 ml)" -> "1 cup").
  * Kept short: it renders inside a 48px row on a phone.
  * @param {string|null|undefined} raw
@@ -218,6 +266,14 @@ export function servingLabel(raw) {
   const s = String(raw)
     .replace(/\([^)]*\)/g, '')
     .replace(/\s+/g, ' ')
+    .trim()
+    // Whole-word only, so a product named "ONZA" or a unit "GRMS" is untouched.
+    // Case-insensitive because 11 records already carry a lowercased "1 onz";
+    // a word that is not a code (cup, tbsp, oz) simply misses the table.
+    .replace(
+      /\b([A-Za-z]{2,3})\b/g,
+      (m) => UNIT_CODE[/** @type {keyof typeof UNIT_CODE} */ (m.toUpperCase())] ?? m,
+    )
     .trim();
   if (!s || s.length > 32) return null;
   return s;

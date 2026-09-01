@@ -179,10 +179,24 @@ export class FoodIndex {
 
     /** @type {SearchHit[]} */
     const hits = [];
+    // Rank order is record order, so a lower id is a more likely food. Decay
+    // over LOG RANK, normalised by corpus size, so the prior means the same
+    // thing at any scale.
+    //
+    // The previous form was `0.5 / (1 + doc / 500)`, with 500 hard-coded against
+    // a 784-record sample. At 97,294 records it reaches 0.045 by record 5,000
+    // and 0.0075 by record 33,000 — flat across 97% of the corpus, so every
+    // name match tied at ~1.0 and the real tie-break became `a.doc - b.doc`.
+    // The prior was still there and no longer carried information. Log rank
+    // spreads the same 0.5 ceiling across the whole shard instead: at 97k that
+    // is 0.5 at the top, ~0.13 at 5,000 and ~0.05 at 33,000.
+    //
+    // The ceiling stays 0.5, which is half of one exact single-token name match,
+    // so a strong text match still wins over mere popularity.
+    const logSpan = Math.log1p(Math.max(1, this.length - 1));
     for (const [doc, s] of /** @type {Map<number, number>} */ (acc)) {
-      // Rank order is record order, so a lower id is a more likely food. The
-      // bonus decays smoothly rather than dominating a strong text match.
-      hits.push({ doc, score: s + 0.5 / (1 + doc / 500) });
+      const prior = logSpan > 0 ? 0.5 * (1 - Math.log1p(doc) / logSpan) : 0;
+      hits.push({ doc, score: s + Math.max(0, prior) });
     }
     hits.sort((a, b) => b.score - a.score || a.doc - b.doc);
 
@@ -265,7 +279,22 @@ export class FoodIndex {
       if (++matched > MAX_PREFIX_TERMS) break;
       // An exact hit is worth more than a longer term the prefix expanded into:
       // "milk" should outrank "milkshake" for the query "milk".
-      const lengthPenalty = term.length === needle.length ? 1 : needle.length / term.length;
+      //
+      // BUT AN ENGLISH PLURAL IS NOT A DIFFERENT WORD, and treating it as one
+      // was the single worst search defect in the index. USDA names generic
+      // whole foods in the plural — "Potatoes, russet, without skin, raw",
+      // "Apples, gala, with skin, raw", "Eggs, Grade A, Large" — while derived
+      // products take the singular: "Potato flour", "Apple juice", "Egg, white,
+      // dried". So the query "potato" scored the flour 1.0 and the actual potato
+      // 6/8 = 0.75, and a 0.25 handicap is far more than record order can repay.
+      // Measured on the shipped shard: `search("potatoes")` returned the three
+      // plain raw potatoes at ranks 1, 2 and 3, while `search("potato")` put the
+      // first one at rank 539 — same records, same index, one letter of query.
+      const extra = term.length - needle.length;
+      const isPlural =
+        (extra === 1 && term[needle.length] === 0x73) || // 's'
+        (extra === 2 && term[needle.length] === 0x65 && term[needle.length + 1] === 0x73); // 'es'
+      const lengthPenalty = extra === 0 || isPlural ? 1 : needle.length / term.length;
       for (const { doc, field } of this.#postingsAt(postOff)) {
         const w = (FIELD_WEIGHT[field] ?? 0.3) * lengthPenalty;
         const prev = scores.get(doc);

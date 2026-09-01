@@ -116,6 +116,60 @@ Records arrive already ranked, so the first record to claim a key is the keeper.
    Plain" and "Plain Greek Yogurt" match) plus a coarse nutrient bucket
    (10 kcal, 1 g macros). The nutrient part stops "Chicken breast, raw" and
    "Chicken breast, roasted" merging when the names happen to fingerprint alike.
+4. **Within a shard, by product cluster.** The case none of the above catch: one
+   branded product transcribed several times by different contributors, under
+   different barcodes. See below.
+
+### The product cluster (`lib/variants.mjs`)
+
+Three rows for Optimum Nutrition's Gold Standard vanilla whey reached a shipped
+index at 120, 122 and 126 kcal per scoop. The same tub, entered three times.
+Nothing above catches it: the GTINs really are different (regional SKUs), the
+names differ by punctuation and truncation, the serving labels differ ("1 scoop"
+vs "1 portion"), and the macros differ by label rounding, so the nutrient bucket
+does not collide either.
+
+Two records cluster when **all** of these hold:
+
+- same shard, same folded brand (with corporate suffixes stripped), same basis;
+- same serving weight, to the nearest gram;
+- the same **flavour signature** — the flavour *heads* named in the name, so
+  "Double Rich Chocolate" and "Chocolate Fudge" both reduce to `chocolate`;
+- the same **variant signature** — formulation words, so whey ≠ isolate ≠ casein
+  and zero ≠ regular;
+- per-100 macros agree within a per-field tolerance that is absolute *or*
+  relative, whichever is kinder: 15 kcal / 8%, 2 g / 10% on protein and carbs,
+  2 g / 20% on fat. Sodium and sugar are not tested — the three Gold Standard
+  rows state 323, 329 and 419 mg of sodium for one product;
+- the identity token sets (name minus packaging noise, numbers and units) are
+  **equal**, or one contains the other with every extra token in a short
+  allow-list of flavour modifiers (`ice`, `cream`, …) *and* both names name a
+  flavour explicitly.
+
+**That last clause is an allow-list on purpose.** The first version accepted any
+containment, and an audit of its merges over the shipped OFF shard found
+`Potato Chips Pepperoncini` → `Potato Chips`, `Salvado Sésamo` → `Salvado
+Natural`, `X-Large Eggs` → `Cage Free Large Eggs`, and `Reese's PB Cups` →
+`Reese's PB&J Cups` (484 vs 516 kcal). Each is a distinct product silently
+folded into another. No block-list fixes that: the distinguishing word is a
+flavour nobody enumerated, a flavour in another language, or a size. Inverting
+it makes the unknown case safe. The rule went from 1,292 merges to 354 over the
+same shard, and the wrong ones are the 938 it gave up.
+
+**The asymmetry that designs the whole file.** A surviving duplicate costs one
+unnecessary tap. A wrong merge makes the user log the wrong food and never see
+it. So every rule is a blocker — it looks for a reason to stay apart, and
+merging is what happens when none is found.
+
+**Which row survives.** Not the highest-ranked one. Within a cluster the
+representative is chosen on what a person would use looking at the rows side by
+side: a serving label that names something countable ("1 scoop" over
+"1 portion"), a name written like a product name rather than a lowercase paste,
+and a filled-in nutrition panel. Energy is deliberately not a criterion — when
+three rows disagree by 5% there is no way to tell which is right, and picking
+the middle would be false precision. The chosen row keeps the *slot* of the
+best-ranked member, so the merge cannot change where the product sits in the
+index.
 
 **Why suppression rather than merging across shards.** Copying an OFF field
 value into a core record would make the public-domain shard a derivative of an
@@ -158,6 +212,40 @@ pipeline over what people eat. Constitution rule 6 rules out data collection
 that exists to improve our product rather than the user's experience, and food
 logs are about as sensitive as personal data gets. Every signal in the table is
 either a public upstream statistic or computable from the record itself.
+
+### The category prior
+
+`rank.mjs` weights USDA's own `foodCategory` at 0.15, because name shape turned
+out to be a misleading proxy for "is this an ingredient or somebody else's
+finished dish". Measured on the shipped index before it existed: the top eight
+core hits for `chicken` were all Chinese restaurant dishes, and five of eight for
+`apple` were babyfood, pie and dessert.
+
+Whole-food categories (Vegetables, Fruits, Dairy and Egg, Cereal Grains, Legumes,
+Nut and Seed) score 1.0; meat and fish 0.9-0.95; Snacks and Sweets 0.4; Meals and
+Entrees 0.3; Baby Foods, Fast Foods and Restaurant Foods 0.2. An unlisted
+category gets a neutral 0.6 rather than a penalty, so a new USDA category never
+silently sinks.
+
+It is USDA's classification rather than a vocabulary of ours, which is the point:
+the two hand-built vocabularies in this pipeline (`lib/variants.mjs`) needed an
+audit against real merges before they were safe, and a third one guessing
+"is this a whole food" from a product name would have needed the same.
+
+Its 0.15 is paid for out of the two terms that measurement showed were weak —
+`nameQuality` 0.10 → 0.05 and `completeness` 0.15 → 0.10. `popularity` is
+deliberately untouched: it is the only signal ordering the branded OFF shard.
+
+### Why `nameQuality` gives the first two clauses away free
+
+USDA's canonical name for a generic whole food is comma-chained by convention.
+Charging per comma from the first one taxed precisely the staples and left
+derived products with short marketing-shaped names untaxed: "Potato flour" scored
+0.668 and landed at core record 4, "Potatoes, flesh and skin, raw" scored 0.636
+and landed at 1,785 — and the whole 0.032 gap was this one term. The penalty now
+starts at the third comma and the seventh word, which still costs
+"Beef, chuck, arm pot roast, separable lean only, trimmed to 0" fat, all grades,
+cooked, braised" most of the term.
 
 ### The known bias
 
