@@ -19,7 +19,11 @@ body {
 
 .ff-frame {
   display: grid;
-  grid-template-rows: 1fr auto;
+  /* Three rows: content, update prompt, tabs. The middle `auto` collapses to
+     zero height whenever the prompt is not rendered, so this costs nothing in
+     the normal case — and because it is a row rather than a fixed overlay, it
+     can never sit on top of a control. */
+  grid-template-rows: 1fr auto auto;
   height: 100%;
 }
 
@@ -155,4 +159,45 @@ body {
 .ff-more__note {
   border-inline-start: 2px solid var(--ff-color-accent);
   padding-inline-start: var(--ff-space-12);
+}
+
+/* ── The update prompt ────────────────────────────────────────────────────
+ *
+ * See UpdatePrompt.tsx for why this exists at all. Sized and coloured as a
+ * quiet notice rather than an alert: a new build is good news and interrupting
+ * a set for it would be worse than the wait.
+ */
+.ff-update {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ff-space-8);
+  padding: var(--ff-space-12) var(--ff-space-16);
+  border-top: var(--ff-border-hairline) solid var(--ff-color-hairline);
+  background: var(--ff-color-sunken);
+  color: var(--ff-color-fg-secondary);
+  font-size: var(--ff-text-body-sm);
+}
+
+.ff-update__text {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.ff-update__action,
+.ff-update__later {
+  min-block-size: var(--ff-hit-min);
+  padding-inline: var(--ff-space-16);
+  border-radius: var(--ff-radius-md);
+  font-weight: var(--ff-weight-label);
+}
+
+.ff-update__action {
+  background: var(--ff-color-accent);
+  color: var(--ff-color-on-accent);
+}
+
+.ff-update__later {
+  background: transparent;
+  color: var(--ff-color-fg-secondary);
 }

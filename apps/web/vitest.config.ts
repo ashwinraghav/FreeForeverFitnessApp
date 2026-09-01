@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
@@ -34,6 +35,20 @@ export default defineConfig({
       },
       {
         plugins: [react()],
+        /*
+         * `virtual:pwa-register/react` is created by the VitePWA plugin, which
+         * is not loaded here — tests have no business building a service
+         * worker. Without an alias the import cannot resolve and UpdatePrompt
+         * is untestable, which is how the app came to ship prompt-mode
+         * registration with nothing that ever prompted.
+         */
+        resolve: {
+          alias: {
+            'virtual:pwa-register/react': fileURLToPath(
+              new URL('./test/stubs/pwa-register.ts', import.meta.url),
+            ),
+          },
+        },
         test: {
           name: 'dom',
           include: ['src/**/*.test.tsx', 'src/**/*.dom.test.ts'],

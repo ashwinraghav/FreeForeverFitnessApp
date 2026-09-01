@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ROUTES } from '../app/routes';
+import { UpdatePrompt } from './UpdatePrompt';
 
 /**
  * The persistent frame. Navigation lives at the BOTTOM (ADR-0013): the user is
@@ -11,6 +12,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
   return (
     <div className="ff-frame">
       <main className="ff-main">{children}</main>
+      <UpdatePrompt />
       <nav className="ff-navbar" aria-label="Sections">
         <NavLink to={ROUTES.workout} className="ff-navtab">Train</NavLink>
         <NavLink to={ROUTES.nutrition} className="ff-navtab">Eat</NavLink>
