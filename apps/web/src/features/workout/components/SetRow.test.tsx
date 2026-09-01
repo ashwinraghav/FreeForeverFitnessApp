@@ -306,3 +306,71 @@ describe('warmups', () => {
     expect(row.getByRole('listitem', { name: /warmup/ })).toBeInTheDocument();
   });
 });
+
+describe('rep chips, centred on last time', () => {
+  /*
+   * The editor used to open straight into the OS keyboard, which costs about
+   * 400px — more than the rest bar and the action bar together. These chips
+   * exist so the common answer is reachable without it, and they are centred on
+   * the ghost because "same as last time, or one either side" is what
+   * progression actually looks like.
+   */
+  const chips = (container: HTMLElement) =>
+    [...container.querySelectorAll('.ffw-quick__chip')].map((c) => c.textContent?.trim());
+
+  it('centres the chips on last session’s reps', () => {
+    // GHOST.reps is 5, so 3..7 with 5 in the middle.
+    const row = setup({ openField: 'effort' });
+    expect(chips(row.container)).toEqual(['3', '4', '5', '6', '7']);
+  });
+
+  it('never offers a rep count below one', () => {
+    const row = setup({ openField: 'effort', ghost: { weightKg: null, reps: 1, durationSec: null, distanceM: null } });
+    // 1..3, not -1..3 — a set of zero reps is not a thing anyone means to log.
+    expect(chips(row.container)).toEqual(['1', '2', '3']);
+  });
+
+  it('offers nothing at all when there is no history to centre on', () => {
+    // Deliberate: with no ghost there is no "usual", and inventing a typical
+    // number would teach a default the lifter never chose.
+    const row = setup({ openField: 'effort', ghost: undefined });
+    expect(chips(row.container)).toEqual([]);
+  });
+
+  it('marks the chip matching the current value, not the ghost', () => {
+    const row = setup({ openField: 'effort', set: { reps: 6 } });
+    const pressed = [...row.container.querySelectorAll('.ffw-quick__chip')]
+      .filter((c) => c.getAttribute('aria-pressed') === 'true')
+      .map((c) => c.textContent?.trim());
+    expect(pressed).toEqual(['6']);
+  });
+
+  it('picking a chip sets the reps and closes the editor in one tap', () => {
+    const row = setup({ openField: 'effort' });
+    const seven = [...row.container.querySelectorAll('.ffw-quick__chip')].find(
+      (c) => c.textContent?.trim() === '7',
+    );
+    fireEvent.click(seven as Element);
+    expect(row.onEdit).toHaveBeenCalledWith({ reps: 7 });
+    // Closing is the half that makes it one tap rather than two.
+    expect(row.onOpenField).toHaveBeenCalledWith(null);
+  });
+
+  it('does not put focus in the text field, because that summons the keyboard', () => {
+    setup({ openField: 'effort' });
+    // The whole point of the change: focus follows the tap to a chip instead of
+    // an input, so the OS keyboard stays down. If this ever becomes an INPUT
+    // again the 400px problem is back.
+    expect(document.activeElement?.tagName).not.toBe('INPUT');
+  });
+
+  it('still offers the field, so an unusual number is one tap away', () => {
+    const row = setup({ openField: 'effort' });
+    expect(row.container.querySelector('.ff-number')).not.toBeNull();
+  });
+
+  it('leaves the weight editor alone — chips are a reps idea', () => {
+    const row = setup({ openField: 'weight' });
+    expect(chips(row.container)).toEqual([]);
+  });
+});

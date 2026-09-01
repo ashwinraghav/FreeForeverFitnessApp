@@ -160,9 +160,15 @@ export function createDevicePhotoStore(storage: Storage = localStorage): DeviceP
       if (blob === null) {
         // Metadata without pixels. Record it so the tile says "not on this
         // device" rather than spinning forever.
-        const next = refs.map((r) => (r.id === id ? { ...r, bytesLocation: 'absent' as const } : r));
-        if (next.some((r, i) => r !== refs[i])) {
-          refs = next;
+        //
+        // Checked BEFORE rebuilding the array, not after. A `map` that spreads
+        // the matching record produces a new object even when the field it sets
+        // is already correct, so an identity comparison afterwards is always
+        // true — every failed read announced a change, and a gallery of absent
+        // photos re-rendered on every one of them.
+        const known = refs.find((r) => r.id === id);
+        if (known !== undefined && known.bytesLocation !== 'absent') {
+          refs = refs.map((r) => (r.id === id ? { ...r, bytesLocation: 'absent' as const } : r));
           writeMeta(storage, refs);
           announce();
         }

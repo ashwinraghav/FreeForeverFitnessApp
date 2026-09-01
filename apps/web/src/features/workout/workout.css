@@ -1189,3 +1189,67 @@
   font-size: var(--ff-text-caption);
   line-height: var(--ff-leading-body);
 }
+
+/* ── Editing a set clears the deck ────────────────────────────────────────
+ *
+ * Reported from a phone: with the numeric keyboard open, the visible strip
+ * above it held the set row, the editor, the rest timer, the action bar and
+ * the tab bar — five things competing while you enter one number.
+ *
+ * The keyboard takes roughly half the screen, so the fix is not smaller
+ * chrome, it is less of it. While an editor is open the rest bar and the
+ * action bar are removed from the layout; both return the moment it closes,
+ * and the rest countdown keeps running while hidden.
+ *
+ * **The action bar is the important one.** `Finish` sits directly under the
+ * thumb reaching for a number, and hitting it ends the session — the worst
+ * available outcome mid-set. Removing it while a field is open makes that
+ * impossible rather than unlikely.
+ *
+ * `:has()` rather than lifting `openField` out of SetRow into screen state and
+ * threading it back down through props. The signal is already in the DOM;
+ * duplicating it as React state would give two sources of truth for the same
+ * fact, and they would eventually disagree.
+ */
+.ffw-screen:has(.ffw-editor) .ffw-restbar,
+.ffw-screen:has(.ffw-editor) .ffw-actions {
+  display: none;
+}
+
+/* Without `:has()` nothing is hidden and the screen behaves exactly as before —
+   crowded, but never broken. Worth stating because the rule above is the only
+   thing standing between a supporting browser and an unsupporting one. */
+
+/* ── Rep chips ────────────────────────────────────────────────────────────
+ *
+ * Sits above the number field so the common answer is reached before the
+ * keyboard is. Wraps rather than scrolls: a horizontal scroller hides options
+ * off-screen, and the whole point is that every candidate is visible at once.
+ */
+.ffw-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ff-space-8);
+  margin-block-end: var(--ff-space-12);
+}
+
+.ffw-quick__chip {
+  /* 56px: this is tapped mid-set, one-handed (ADR-0013). */
+  min-inline-size: var(--ff-hit-mid-set);
+  min-block-size: var(--ff-hit-mid-set);
+  padding-inline: var(--ff-space-12);
+  border: var(--ff-border, 1px) solid var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-md);
+  background: var(--ff-color-sunken);
+  color: var(--ff-color-fg-primary);
+  font-family: var(--ff-font-numeric);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--ff-text-title);
+  font-weight: var(--ff-weight-title);
+}
+
+.ffw-quick__chip[aria-pressed='true'] {
+  border-color: transparent;
+  background: var(--ff-color-accent);
+  color: var(--ff-color-on-accent);
+}

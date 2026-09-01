@@ -416,3 +416,65 @@ describe('one number per glance', () => {
     expect(label).not.toMatch(/\d+ weeks/);
   });
 });
+
+describe('the progress reel', () => {
+  const photo = (id: string, localDate: string, pose = 'front_relaxed') =>
+    ({
+      id,
+      localDate: localDate as LocalDate,
+      pose,
+      widthPx: 900,
+      heightPx: 1200,
+      bytesLocation: 'device',
+    }) as ProgressPhotoRef;
+
+  const store = (photos: ProgressPhotoRef[]): ProgressPhotoStore => ({
+    list: () => photos,
+    openLocal: async () => null,
+    subscribe: () => () => undefined,
+  });
+
+  /*
+   * A grid of tiles is a folder. The reel is the feature: frames in date order,
+   * one pose, in a fixed stage so change shows because the picture stays put.
+   */
+  it('plays in date order regardless of the order they were added', async () => {
+    await mount(
+      <BodyView />,
+      store([photo('c', '2026-09-01'), photo('a', '2026-06-01'), photo('b', '2026-07-01')]),
+    );
+    // Starts on the oldest frame: a reel of progress runs forwards.
+    expect(host.querySelector('.ff-in-reel__date')?.textContent).toMatch(/Jun/u);
+    expect(host.querySelector('.ff-in-reel__scrub input')?.getAttribute('max')).toBe('2');
+  });
+
+  it('shows one pose at a time, because mixing them is a slideshow not a reel', async () => {
+    await mount(
+      <BodyView />,
+      store([photo('a', '2026-06-01'), photo('b', '2026-07-01'), photo('s', '2026-06-15', 'side_relaxed')]),
+    );
+    // Two front frames in the reel, and a switch to reach the side one.
+    expect(host.querySelector('.ff-in-reel__scrub input')?.getAttribute('max')).toBe('1');
+    const poses = [...host.querySelectorAll('.ff-in-reel__pose')].map((b) => b.textContent?.trim());
+    expect(poses).toEqual(['Front', 'Side']);
+  });
+
+  it('offers no pose switch when every photo is the same pose', async () => {
+    await mount(<BodyView />, store([photo('a', '2026-06-01'), photo('b', '2026-07-01')]));
+    expect(host.querySelectorAll('.ff-in-reel__pose')).toHaveLength(0);
+  });
+
+  it('cannot play a single frame', async () => {
+    await mount(<BodyView />, store([photo('a', '2026-06-01')]));
+    const play = [...host.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Play');
+    expect(play?.hasAttribute('disabled')).toBe(true);
+  });
+
+  it('offers delete only when the store can actually remove', async () => {
+    // A read-only store — the ADR-0024 coach view — must not show a delete it
+    // cannot honour.
+    await mount(<BodyView />, store([photo('a', '2026-06-01')]));
+    const del = [...host.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Delete');
+    expect(del).toBeUndefined();
+  });
+});
