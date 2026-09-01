@@ -71,6 +71,9 @@ importers:
       react-router-dom:
         specifier: 7.1.5
         version: 7.1.5(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      workbox-window:
+        specifier: 7.4.1
+        version: 7.4.1
     devDependencies:
       '@testing-library/dom':
         specifier: 10.4.0
