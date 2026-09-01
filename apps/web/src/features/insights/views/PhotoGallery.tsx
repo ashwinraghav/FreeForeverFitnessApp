@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EmptyState } from '@freeforever/design-system';
+import type { PhotoPose } from '@freeforever/data';
 import type { ProgressPhotoRef } from '../data/ports';
 import { usePhotoStore } from '../data/context';
 import { formatDateShort } from '../select/format';
@@ -21,6 +22,94 @@ import { formatDateShort } from '../select/format';
  *    body-image-adjacent product with no public feed (ADR-0017); the affordances that
  *    turn a private log into a post do not get built here.
  */
+const POSE_LABELS: Readonly<Record<PhotoPose, string>> = {
+  front_relaxed: 'Front',
+  side_relaxed: 'Side',
+  back_relaxed: 'Back',
+  front_flexed: 'Front, flexed',
+  other: 'Other',
+};
+
+/**
+ * Capture, shown only when the store can actually accept a photo.
+ *
+ * A plain file input with `capture`: the camera on a phone, the picker on a
+ * desktop, and no getUserMedia stream to manage, no permission prompt on a
+ * screen the user opened to read a chart, and no preview surface to get wrong.
+ */
+function AddPhoto({ onAdded }: { readonly onAdded: () => void }) {
+  const store = usePhotoStore();
+  const input = useRef<HTMLInputElement>(null);
+  const [pose, setPose] = useState<PhotoPose>('front_relaxed');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const add = store.add;
+  if (add === undefined) return null;
+
+  const onFile = async (file: File): Promise<void> => {
+    setBusy(true);
+    setError(null);
+    try {
+      const today = new Date();
+      const localDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      await add(file, pose, localDate as Parameters<typeof add>[2]);
+      onAdded();
+    } catch {
+      // Storage can be full or blocked outright. Say so rather than appearing
+      // to succeed — a photo the user believes is saved and is not is worse
+      // than a refusal.
+      setError('Could not save that photo on this device.');
+    } finally {
+      setBusy(false);
+      if (input.current !== null) input.current.value = '';
+    }
+  };
+
+  return (
+    <div className="ff-in-addphoto">
+      <label className="ff-in-addphoto__pose">
+        <span className="ff-in-addphoto__poselabel">Pose</span>
+        <select
+          className="ff-control ff-focusable"
+          value={pose}
+          onChange={(event) => setPose(event.target.value as PhotoPose)}
+        >
+          {Object.entries(POSE_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        className="ff-control ff-focusable ff-in-addphoto__button"
+        disabled={busy}
+        onClick={() => input.current?.click()}
+      >
+        {busy ? 'Saving…' : 'Add photo'}
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file !== undefined) void onFile(file);
+        }}
+      />
+      {error !== null && (
+        <p className="ff-in-addphoto__error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function PhotoGallery() {
   const store = usePhotoStore();
   const [photos, setPhotos] = useState<readonly ProgressPhotoRef[]>(() => store.list());
@@ -30,21 +119,24 @@ export function PhotoGallery() {
     return store.subscribe(() => setPhotos(store.list()));
   }, [store]);
 
-  if (photos.length === 0) {
-    return (
-      <EmptyState
-        title="No photos"
-        body="Progress photos stay on this device unless you choose otherwise. Nothing here is uploaded."
-      />
-    );
-  }
+  const refresh = (): void => setPhotos(store.list());
 
   return (
-    <ul className="ff-in-photos">
-      {photos.map((photo) => (
-        <PhotoTile key={photo.id} photo={photo} />
-      ))}
-    </ul>
+    <>
+      <AddPhoto onAdded={refresh} />
+      {photos.length === 0 ? (
+        <EmptyState
+          title="No photos"
+          body="Progress photos stay on this device unless you choose otherwise. Nothing here is uploaded."
+        />
+      ) : (
+        <ul className="ff-in-photos">
+          {photos.map((photo) => (
+            <PhotoTile key={photo.id} photo={photo} />
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 

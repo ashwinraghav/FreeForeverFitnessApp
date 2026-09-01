@@ -1,4 +1,5 @@
 import InsightsRoutes from '../features/insights/InsightsRoutes';
+import { createDevicePhotoStore } from './photoStore';
 import { createLocalInsightsSource } from './insightsSource';
 
 /**
@@ -22,6 +23,10 @@ import { createLocalInsightsSource } from './insightsSource';
  */
 const source = createLocalInsightsSource();
 
+/* One store for the app. A per-render store would drop subscribers and lose
+   the in-memory metadata list on every navigation. */
+const photoStore = createDevicePhotoStore();
+
 export default function InsightsScreen() {
-  return <InsightsRoutes source={source} />;
+  return <InsightsRoutes source={source} photos={photoStore} />;
 }

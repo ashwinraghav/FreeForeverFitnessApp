@@ -61,11 +61,42 @@ describe('the aggregate adapter never goes to the network', () => {
     });
   }
 
+  /*
+   * The network bans above apply to EVERY file here, photos included — nothing in
+   * this directory may upload. Synchrony is narrower: it is a property of the
+   * aggregate read path, which ADR-0005 requires to answer from local state
+   * without awaiting anything, so the Progress tab cannot spin.
+   *
+   * Allowed by exception, and each exception says why — the same shape as the
+   * collapse exemption in the design system's hit-target suite.
+   */
+  const MAY_AWAIT: Record<string, string> = {
+    '../photoStore.ts':
+      'Binary blobs cannot live in localStorage and IndexedDB has no synchronous API. `list()` — the read the gallery renders from — IS synchronous, off localStorage metadata; only opening pixels and writing await.',
+  };
+
   it('keeps the read path synchronous', () => {
     const offenders = entries
       .filter(([path]) => !/\.test\.tsx?$/.test(path))
+      .filter(([path]) => !(path in MAY_AWAIT))
       .filter(([, source]) => /\basync\b|\bawait\b/.test(source))
       .map(([path]) => path);
     expect(offenders).toEqual([]);
+  });
+
+  it('every await exception still exists and is justified', () => {
+    // Otherwise the allowlist quietly becomes a list of files nobody deleted.
+    for (const [path, why] of Object.entries(MAY_AWAIT)) {
+      expect(entries.some(([p]) => p === path), `${path} is gone`).toBe(true);
+      expect(why.length).toBeGreaterThan(40);
+    }
+  });
+
+  it('the exempt file still keeps its own read synchronous', () => {
+    const photoStore = entries.find(([path]) => path === '../photoStore.ts')?.[1] ?? '';
+    // The exemption is for blobs, not a licence to make list() async — that is
+    // the one method the gallery renders from on every subscribe.
+    expect(photoStore).toMatch(/list:\s*\(\)\s*=>/u);
+    expect(photoStore).not.toMatch(/async\s+list\b/u);
   });
 });

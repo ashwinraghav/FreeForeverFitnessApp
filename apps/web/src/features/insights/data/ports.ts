@@ -86,6 +86,15 @@ export interface ProgressPhotoRef {
 export interface ProgressPhotoStore {
   list(): readonly ProgressPhotoRef[];
   /**
+   * Add and remove are OPTIONAL, and that is the contract, not laziness. A store
+   * may legitimately be read-only — `emptyPhotoStore`, a fixture, or the
+   * `photos`-scoped coach view ADR-0024 describes, which sees metadata it must
+   * never be able to change. The gallery shows a capture control only when a
+   * store can actually accept one.
+   */
+  add?(file: Blob, pose: PhotoPose, localDate: LocalDate, weightKg?: number): Promise<ProgressPhotoRef>;
+  remove?(id: string): Promise<void>;
+  /**
    * An object URL for the pixels, or null when they are not on this device. Never
    * uploads, never downloads-on-view, and never signs a URL: opting a photo into the
    * cloud is a separate, explicit action that lives outside this feature.

@@ -508,3 +508,55 @@
   line-height: var(--ff-leading-body-sm);
   color: var(--ff-color-fg-secondary);
 }
+
+/* ── Add a progress photo ─────────────────────────────────────────────────
+ *
+ * Sits above the gallery so the control is in the same place whether or not
+ * there are photos yet — an empty state that hides the way out of itself is a
+ * dead end.
+ */
+.ff-in-addphoto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--ff-space-8);
+  margin-block-end: var(--ff-space-12);
+}
+
+.ff-in-addphoto__pose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-4);
+  min-inline-size: 0;
+}
+
+.ff-in-addphoto__poselabel {
+  color: var(--ff-color-fg-muted);
+  font-size: var(--ff-text-caption);
+}
+
+.ff-in-addphoto__pose select {
+  min-block-size: var(--ff-hit-min);
+  padding-inline: var(--ff-space-8);
+  border: var(--ff-border-hairline) solid var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-md);
+  background: var(--ff-color-sunken);
+  color: var(--ff-color-fg-primary);
+}
+
+.ff-in-addphoto__button {
+  min-block-size: var(--ff-hit-min);
+  padding-inline: var(--ff-space-16);
+  border: var(--ff-border-hairline) solid transparent;
+  border-radius: var(--ff-radius-md);
+  background: var(--ff-color-accent);
+  color: var(--ff-color-on-accent);
+  font-weight: var(--ff-weight-label);
+}
+
+.ff-in-addphoto__error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--ff-color-danger);
+  font-size: var(--ff-text-body-sm);
+}
