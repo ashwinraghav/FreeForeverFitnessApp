@@ -190,36 +190,49 @@ export interface HitAnalysis {
 }
 
 /**
- * True when the brand field is just echoing the product name.
+ * The brand tokens that say something the name does not.
  *
- * Open Food Facts is contributor-entered and the brand field collects the
- * product name often enough to matter: the shipped index has a record named
- * "Milk" whose brand is "Milk", and one named "Chicken Breast" whose brand is
- * "Chicken Breast ALDI". Both then collect the full brand bonus for the query
- * "milk" or "chicken breast" and take position one from the record that IS
- * milk.
+ * A brand word the name already supplies is not independent evidence. "Honey"
+ * appearing in "WEEKS HONEY FARM" tells you the company sells honey, not that
+ * someone typing "honey" meant that company — so for the query "honey" this
+ * record must earn no brand bonus, or it takes position one from the plain
+ * USDA entry. Open Food Facts and USDA Branded are contributor-entered and full
+ * of this: the shipped index has 135 records whose brand contains the whole of
+ * the name, plus many more with partial overlap.
  *
- * A brand that contains the whole of the food's name distinguishes nothing, so
- * it earns no brand bonus. Detected structurally rather than from a list of bad
- * brands, because the list would be endless and would go stale on every
- * rebuild. This only withholds a bonus — such a record still ranks on its name.
+ * **Per token, not per record**, and that distinction is the whole point. An
+ * earlier version of this discarded the brand *entirely* when it contained the
+ * whole name, which suppressed the bonus correctly for "honey" and then also
+ * suppressed it for someone who typed "weeks honey farm" — withholding credit
+ * the user had explicitly asked for. Measured, that put "the candy tree" at
+ * rank 4 behind three other brands' candy. Discounting only the overlap keeps
+ * both cases right: `weeks` and `farm` are still distinctive, so naming the
+ * brand still works.
  *
- * **It now fires on zero shipped records**: the datasets adapter nulls such a
- * brand upstream, on the same condition, so this is a guard rather than a fix.
- * Kept because that upstream fix has no probe of its own, so a regression in
- * the OFF adapter would otherwise arrive silently — and because it still
- * applies to a user's own custom foods, which never pass through the pipeline.
+ * It also covers the partial-overlap case the old rule missed: brand "Yoplait
+ * Greek" on a food named "Greek Yogurt" earns nothing for the query "greek
+ * yogurt" and full credit for "yoplait".
+ *
+ * This only ever withholds a *bonus* — such a record still ranks on its name,
+ * which is why "COCA-COLA" on a food named "Cola" is still on the first screen
+ * for "cola". The datasets adapter separately nulls a brand that is exactly the
+ * name, on the narrower condition of set equality; the two compose, and neither
+ * is a substitute for the other.
  */
-function brandEchoesName(nameTokens: readonly string[], brandTokens: readonly string[]): boolean {
-  if (nameTokens.length === 0 || brandTokens.length === 0) return false;
-  return nameTokens.every((t) => brandTokens.includes(t));
+function distinctiveBrandTokens(
+  nameTokens: readonly string[],
+  brandTokens: readonly string[],
+): string[] {
+  return brandTokens.filter((t) => !nameTokens.includes(t));
 }
 
 export function analyseHit(food: RankableFood, tokens: readonly string[]): HitAnalysis {
   const nameTokens = tokenise(food.name);
   const headTokens = tokenise(food.name.split(',')[0] ?? food.name);
-  const rawBrandTokens = food.brand !== null ? tokenise(food.brand) : [];
-  const brandTokens = brandEchoesName(nameTokens, rawBrandTokens) ? [] : rawBrandTokens;
+  const brandTokens = distinctiveBrandTokens(
+    nameTokens,
+    food.brand !== null ? tokenise(food.brand) : [],
+  );
   const last = tokens.length - 1;
 
   let inName = 0;
