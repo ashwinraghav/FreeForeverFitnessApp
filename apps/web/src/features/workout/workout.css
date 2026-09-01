@@ -210,7 +210,12 @@
 .ffw-cell {
   -webkit-tap-highlight-color: transparent;
   display: flex;
-  align-items: baseline;
+  /* `center`, not `baseline`. This is a 56px box and baseline aligns the number
+     and its unit on their shared text baseline near the TOP of it, leaving the
+     dead space below that reads as the value being stuck to the ceiling. The
+     design system hit the same thing on `.ff-number__well` and its comment says
+     so — same bug, different component, and the fix is the same. */
+  align-items: center;
   justify-content: center;
   gap: var(--ff-space-4);
   inline-size: 100%;

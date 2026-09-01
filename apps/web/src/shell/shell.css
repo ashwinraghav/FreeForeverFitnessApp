@@ -201,3 +201,31 @@ body {
   background: transparent;
   color: var(--ff-color-fg-secondary);
 }
+
+/* ── Check for updates, in More ───────────────────────────────────────────── */
+.ff-update-status {
+  color: var(--ff-color-fg-secondary);
+}
+
+.ff-more__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ff-space-8);
+  margin-block-start: var(--ff-space-12);
+}
+
+.ff-more__action {
+  min-block-size: var(--ff-hit-min);
+  padding-inline: var(--ff-space-16);
+  border: var(--ff-border-hairline) solid var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-md);
+  background: transparent;
+  color: var(--ff-color-fg-primary);
+  font-weight: var(--ff-weight-label);
+}
+
+.ff-more__action--primary {
+  border-color: transparent;
+  background: var(--ff-color-accent);
+  color: var(--ff-color-on-accent);
+}

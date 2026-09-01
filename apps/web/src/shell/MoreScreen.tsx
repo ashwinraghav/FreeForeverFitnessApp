@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { AppUpdateSection } from './AppUpdateSection';
 import { ROUTES } from '../app/routes';
 
 /**
@@ -63,6 +64,8 @@ export function MoreScreen() {
           ))}
         </ul>
       </section>
+
+      <AppUpdateSection />
 
       <section className="ff-more__group" aria-labelledby="more-about">
         <h2 className="ff-more__grouptitle" id="more-about">

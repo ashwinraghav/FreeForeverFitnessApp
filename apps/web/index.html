@@ -2,7 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- `interactive-widget=resizes-content` is what makes the on-screen keyboard
+         shrink the LAYOUT viewport rather than just sliding over it. Without it the
+         app is still sized to the full screen while the keyboard covers the bottom
+         third, so a search results list scrolls away underneath it as you type. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
 
     <!--
       Content Security Policy is served as a real HTTP header, not a meta tag.
