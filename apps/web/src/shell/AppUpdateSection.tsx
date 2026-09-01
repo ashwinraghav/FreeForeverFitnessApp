@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
+import { downloadLocalData, type ExportSummary } from './exportData';
 
 type Status = 'idle' | 'checking' | 'uptodate' | 'ready' | 'unsupported';
 
@@ -23,6 +24,7 @@ type Status = 'idle' | 'checking' | 'uptodate' | 'ready' | 'unsupported';
  */
 export function AppUpdateSection() {
   const [status, setStatus] = useState<Status>('idle');
+  const [exported, setExported] = useState<ExportSummary | null>(null);
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
@@ -58,7 +60,7 @@ export function AppUpdateSection() {
   };
 
   const message: Record<Status, string> = {
-    idle: 'Your sessions and food log stay on this device — updating never clears them.',
+    idle: 'Everything is on this device. Updating never clears it, and you can take a copy whenever you like.',
     checking: 'Checking…',
     uptodate: 'You already have the newest version.',
     ready: 'A new version is ready to install.',
@@ -74,6 +76,14 @@ export function AppUpdateSection() {
         <p className="ff-update-status" role="status">
           {message[status]}
         </p>
+        {exported !== null && (
+          <p className="ff-update-status" role="status">
+            {`Saved ${exported.filename} — ${exported.keys} item${exported.keys === 1 ? '' : 's'}, ${Math.max(1, Math.round(exported.bytes / 1024))} KB.`}
+            {exported.unreadable.length > 0
+              ? ` ${exported.unreadable.length} could not be read: ${exported.unreadable.join(', ')}.`
+              : ''}
+          </p>
+        )}
         <div className="ff-more__actions">
           <button
             type="button"
@@ -81,6 +91,13 @@ export function AppUpdateSection() {
             onClick={() => void check()}
           >
             Check for updates
+          </button>
+          <button
+            type="button"
+            className="ff-control ff-focusable ff-more__action"
+            onClick={() => setExported(downloadLocalData())}
+          >
+            Download my data
           </button>
           {(status === 'ready' || needRefresh) && (
             <button

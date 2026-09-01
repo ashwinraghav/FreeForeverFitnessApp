@@ -34,7 +34,9 @@ describe('AppUpdateSection', () => {
    */
   it('says up front that updating does not clear your data', () => {
     render(<AppUpdateSection />);
-    expect(screen.getByRole('status')).toHaveTextContent(/never clears them/i);
+    // Asserted on the promise, not the sentence — the copy is allowed to change,
+    // the guarantee is not.
+    expect(screen.getByRole('status')).toHaveTextContent(/never clears/i);
   });
 
   it('actually polls the server rather than waiting for the browser to look', async () => {
@@ -63,6 +65,13 @@ describe('AppUpdateSection', () => {
     sw.needRefresh = true;
     render(<AppUpdateSection />);
     expect(screen.getByRole('button', { name: 'Install and reload' })).toBeInTheDocument();
+  });
+
+  it('offers a data export that does not depend on any backend', () => {
+    render(<AppUpdateSection />);
+    // Constitution rule 7. The synced exporter needs a Firestore this app has
+    // never had, so portability has to work off local storage or not at all.
+    expect(screen.getByRole('button', { name: 'Download my data' })).toBeInTheDocument();
   });
 
   it('degrades honestly where service workers are unavailable', async () => {
