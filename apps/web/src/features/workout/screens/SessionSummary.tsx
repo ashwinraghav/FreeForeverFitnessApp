@@ -1,5 +1,5 @@
 import { Badge, Button } from '@freeforever/design-system';
-import { sessionTotals } from '@freeforever/core';
+import { sessionTotals, sessionEnergyKcal } from '@freeforever/core';
 
 import { recordsThisSession } from '../model/coaching.js';
 import type { CompletedSession } from '../model/history.js';
@@ -61,6 +61,11 @@ export function SessionSummary({ workout, priorSessions, onStartNext }: SessionS
     Math.round(((workout.endedAt ?? workout.startedAt) - workout.startedAt) / 1000),
   );
 
+  const energyKcal = sessionEnergyKcal({
+    durationSec,
+    bodyweightKg: workout.bodyweightKg,
+  });
+
   const records = exercises.flatMap((exercise) =>
     recordsThisSession(exercise, workout, priorSessions).map((record) => ({
       exercise: exercise.exercise.name,
@@ -89,7 +94,31 @@ export function SessionSummary({ workout, priorSessions, onStartNext }: SessionS
           }
         />
         <Figure label="time" value={formatDuration(durationSec)} />
+        {/*
+          * An estimate, and marked as one. It is duration x bodyweight through a
+          * single MET value — it does not know your effort, your load or your
+          * rest, and nothing consumes it. In particular it never reaches the
+          * calorie target: that already assumes you train, via a standing
+          * activity multiplier, so feeding this in would count the same session
+          * twice. Same reason as "kg lifted" above, "—" means we cannot say
+          * rather than nothing happened.
+          */}
+        <Figure
+          label="kcal"
+          value={energyKcal === null ? '—' : `≈${formatNumber(energyKcal)}`}
+        />
       </dl>
+
+      {energyKcal === null ? (
+        <p className="ffw-summary-screen__note">
+          Add your bodyweight in Targets and sessions will show a rough energy estimate.
+        </p>
+      ) : (
+        <p className="ffw-summary-screen__note">
+          Energy is a rough estimate from time and bodyweight. Your calorie target already
+          accounts for training, so this is not added to it.
+        </p>
+      )}
 
       {records.length === 0 ? null : (
         <section className="ffw-summary-screen__records" aria-label="Personal records">

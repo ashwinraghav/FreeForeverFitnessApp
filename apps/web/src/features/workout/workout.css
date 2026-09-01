@@ -1180,3 +1180,12 @@
     grid-column: 4;
   }
 }
+
+/* A caption under the session figures. Quiet: it qualifies a number rather than
+   competing with it. */
+.ffw-summary-screen__note {
+  margin-block: var(--ff-space-8) 0;
+  color: var(--ff-color-fg-muted);
+  font-size: var(--ff-text-caption);
+  line-height: var(--ff-leading-body);
+}

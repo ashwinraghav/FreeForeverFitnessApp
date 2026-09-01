@@ -562,7 +562,16 @@ describe('finishing', () => {
 
     mountScreen(repository);
     fireEvent.click(button('Finish'));
-    expect(screen.getByText('—')).toBeInTheDocument();
+
+    // Named by its label rather than by the dash. Two figures now read "—" for
+    // this session — load and energy — and both are correct: neither is
+    // computable without a bodyweight. Asserting on the bare glyph would pass
+    // for the wrong figure, so it asserts on the pair.
+    const figureFor = (label: string): string | null =>
+      screen.getByText(label).parentElement?.querySelector('.ffw-figure__value')?.textContent ?? null;
+
+    expect(figureFor('kg lifted')).toBe('—');
+    expect(figureFor('kcal')).toBe('—');
     expect(screen.queryByText('0')).not.toBeInTheDocument();
   });
 

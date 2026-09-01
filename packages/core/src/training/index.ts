@@ -120,3 +120,10 @@ export type {
   RecordDetectionResult,
   RepMaxes,
 } from './records.js';
+
+export {
+  MAX_CREDITED_MINUTES,
+  RESISTANCE_TRAINING_MET,
+  sessionEnergyKcal,
+} from './energy.js';
+export type { SessionEnergyInput } from './energy.js';
