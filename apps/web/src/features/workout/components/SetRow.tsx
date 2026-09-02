@@ -1,6 +1,7 @@
 import { Button, CheckGlyph, CloseGlyph, NumberField, SegmentedControl } from '@freeforever/design-system';
 import type { SetState } from '@freeforever/data';
 import type { ReactNode } from 'react';
+import { useHoldDrag } from './useHoldDrag.js';
 import { useId } from 'react';
 
 import type { GhostValues } from '../model/ghosts.js';
@@ -121,6 +122,25 @@ export function SetRow({
   editorExtra,
 }: SetRowProps) {
   const rowId = useId();
+
+  /*
+   * Hold, then drag, on the WEIGHT cell only.
+   *
+   * Reps already resolve in one tap via the chips centred on last session, and
+   * two competing gestures on one cell is worse than either. Weight is where a
+   * drag earns its place: 20 kg to 60 kg is sixteen stepper taps otherwise.
+   *
+   * `onTap` rather than `onClick`, so a press that becomes a drag does not also
+   * open the editor when the finger lifts.
+   */
+  const weightDrag = useHoldDrag({
+    value: set.weightKg,
+    step: loadStepKg,
+    min: 0,
+    onChange: (weightKg) => onEdit({ weightKg }),
+    onTap: () => onOpenField(openField === 'weight' ? null : 'weight'),
+    disabled: set.loadKind === 'none',
+  });
   const isWarmup = set.type === 'warmup';
   const loadCell = cellFor(set.weightKg, ghost?.weightKg);
   const effortCell = effortCellFor(set, ghost);
@@ -154,6 +174,7 @@ export function SetRow({
             unit="kg"
             open={openField === 'weight'}
             onOpen={() => onOpenField(openField === 'weight' ? null : 'weight')}
+          drag={weightDrag}
           />
         )}
 
@@ -289,7 +310,16 @@ interface ValueCellProps {
   readonly onOpen: () => void;
 }
 
-function ValueCell({ id, label, value, source, unit, open, onOpen }: ValueCellProps) {
+function ValueCell({
+  id,
+  label,
+  value,
+  source,
+  unit,
+  open,
+  onOpen,
+  drag,
+}: ValueCellProps & { readonly drag?: HoldDragBinding | undefined }) {
   const shown = value === null ? '—' : formatNumber(value);
   return (
     <button
@@ -298,13 +328,22 @@ function ValueCell({ id, label, value, source, unit, open, onOpen }: ValueCellPr
       className="ffw-cell ff-focusable"
       data-ff-source={source}
       data-ff-open={open ? 'true' : 'false'}
+      data-ff-dragging={drag?.armed === true ? 'true' : undefined}
       aria-expanded={open}
       // Screen readers get told a ghost is a suggestion; sighted users get the muted,
       // lighter, dashed treatment. Same information, two channels.
       aria-label={`${label}: ${value === null ? 'not set' : `${shown} ${unit}`}${
         source === 'ghost' ? ', suggested from last time' : ''
       }`}
-      onClick={onOpen}
+      // `onClick` always stays. Enter, a screen reader's activate and a mouse all
+      // produce a click with no pointer sequence, so a pointer-only tap would
+      // lock keyboard users out of editing. When a pointer sequence DID happen it
+      // already delivered the tap, and this swallows the click that trails it.
+      onClick={() => {
+        if (drag?.consumeClickAfterDrag() === true) return;
+        onOpen();
+      }}
+      {...(drag?.handlers ?? {})}
     >
       <span className="ffw-cell__number">{shown}</span>
       <span className="ffw-cell__unit" aria-hidden="true">
@@ -312,6 +351,12 @@ function ValueCell({ id, label, value, source, unit, open, onOpen }: ValueCellPr
       </span>
     </button>
   );
+}
+
+export interface HoldDragBinding {
+  readonly armed: boolean;
+  readonly consumeClickAfterDrag: () => boolean;
+  readonly handlers: Record<string, unknown>;
 }
 
 /**
