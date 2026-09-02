@@ -28,11 +28,11 @@ import type { HeatLevel, MuscleHeatmap } from '../select/muscles';
  * yesterday" and "trained six days ago" are the same fact here. See `select/muscles`.
  */
 
-type Shape =
+export type Shape =
   | { readonly kind: 'rect'; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly r: number }
   | { readonly kind: 'ellipse'; readonly cx: number; readonly cy: number; readonly rx: number; readonly ry: number };
 
-interface Region {
+export interface Region {
   readonly muscle: MuscleGroup;
   readonly shapes: readonly Shape[];
 }
@@ -41,7 +41,7 @@ const rect = (x: number, y: number, w: number, h: number, r = 3): Shape => ({ ki
 const ell = (cx: number, cy: number, rx: number, ry: number): Shape => ({ kind: 'ellipse', cx, cy, rx, ry });
 
 /** Anterior view, drawn in a 100 x 200 box. Schematic on purpose — a diagram, not a plate. */
-const FRONT: readonly Region[] = [
+export const FRONT: readonly Region[] = [
   { muscle: 'neck', shapes: [rect(44, 24, 12, 8, 2)] },
   { muscle: 'chest', shapes: [rect(30, 33, 18, 16, 4), rect(52, 33, 18, 16, 4)] },
   { muscle: 'front_delts', shapes: [ell(26, 38, 7, 8), ell(74, 38, 7, 8)] },
@@ -55,7 +55,7 @@ const FRONT: readonly Region[] = [
 ];
 
 /** Posterior view, same box, rendered translated. */
-const BACK: readonly Region[] = [
+export const BACK: readonly Region[] = [
   { muscle: 'traps', shapes: [rect(37, 26, 26, 18, 6)] },
   { muscle: 'rear_delts', shapes: [ell(26, 40, 7, 8), ell(74, 40, 7, 8)] },
   { muscle: 'upper_back', shapes: [rect(36, 46, 28, 14, 4)] },
@@ -69,13 +69,60 @@ const BACK: readonly Region[] = [
   { muscle: 'calves', shapes: [rect(35, 144, 12, 26, 5), rect(53, 144, 12, 26, 5)] },
 ];
 
-/** The silhouette both views are drawn on. Never carries data — it is the ground. */
-const SILHOUETTE =
-  'M50 4c-6 0-10 4-10 10 0 5 2 8 4 10-8 2-16 6-20 12-4 6-6 16-7 26-1 8-3 20-5 28-1 5 6 7 8 2 ' +
-  '2-7 4-16 5-22 1 8 1 18 1 26 0 10-1 22-1 34 0 10 1 22 2 32 1 8 2 18 2 26 0 5 8 5 9 0 1-8 2-18 ' +
-  '3-28 1-8 2-18 3-24 1 6 2 16 3 24 1 10 2 20 3 28 1 5 9 5 9 0 0-8 1-18 2-26 1-10 2-22 2-32 ' +
-  '0-12-1-24-1-34 0-8 0-18 1-26 1 6 3 15 5 22 2 5 9 3 8-2-2-8-4-20-5-28-1-10-3-20-7-26-4-6-12-10-20-12 ' +
-  '2-2 4-5 4-10 0-6-4-10-10-10z';
+/**
+ * The silhouette both views are drawn on. Never carries data — it is the ground.
+ *
+ * ## Why this is shapes and not a path
+ *
+ * It used to be a hand-written bezier, and it did not fit the body it was the ground
+ * for. Measured: the muscle regions span x 12–88 and are centred on 50; that path
+ * spanned 11.9–76.1 and was centred on **44**. So every region on the right sat up to
+ * twelve units outside the figure, the whole overlay read as shifted, and the head
+ * outline crossed itself and drew a small bowtie above each head.
+ *
+ * None of that was visible in the source. Two lists of numbers in one coordinate space
+ * disagreeing is checkable arithmetic; a relative-bezier `d` string against a table of
+ * rectangles is not — you have to render it and look. So the ground is now built from
+ * the same `rect`/`ell` vocabulary as the regions, in the same 100 x 200 box, which
+ * makes "every muscle sits inside the body" a test (`MuscleMap.test.ts`) rather than
+ * something somebody notices on a phone.
+ *
+ * Drawn as one filled group, so the overlapping parts read as a single figure rather
+ * than a stack of boxes. Schematic on purpose — a diagram, not a plate.
+ */
+export const SILHOUETTE: readonly Shape[] = [
+  ell(50, 13, 9, 11), //           head
+  rect(44, 20, 12, 14, 5), //      neck
+  rect(28, 25, 44, 26, 12), //     yoke — the traps reach y=26, above the chest
+  ell(23, 40, 14, 16), //          left deltoid cap
+  ell(77, 40, 14, 16), //          right deltoid cap
+  rect(28, 31, 44, 54, 8), //      torso
+  rect(24, 78, 52, 28, 10), //     hips
+  rect(11, 40, 17, 62, 8), //      left arm
+  rect(72, 40, 17, 62, 8), //      right arm
+  rect(44, 90, 12, 34, 6), //      inner thigh, so the adductors have ground under them
+  rect(29, 88, 20, 88, 9), //      left leg
+  rect(51, 88, 20, 88, 9), //      right leg
+];
+
+/**
+ * The nominal box every shape above is authored in, and where each view sits inside the
+ * `viewBox`. Exported so the test can assert against the same numbers the render uses
+ * rather than a copy of them.
+ */
+export const BOX = {
+  /** Centre line of the figure. Both the regions and the silhouette are built on it. */
+  centreX: 50,
+  /** Half of `viewBox` width — each view gets one half and is centred in it. */
+  halfWidth: 108,
+  viewBoxWidth: 216,
+  viewBoxHeight: 180,
+} as const;
+
+/** Where view `index` is translated to, so its centre lands in the middle of its half. */
+export function offsetFor(index: number): number {
+  return BOX.halfWidth * index + (BOX.halfWidth / 2 - BOX.centreX);
+}
 
 const LEVEL_TEXT: Readonly<Record<HeatLevel, string>> = {
   0: 'not trained this week',
@@ -126,10 +173,31 @@ export function MuscleMap({ heatmap }: MuscleMapProps) {
 
   return (
     <figure className="ff-in-map">
-      <svg viewBox="0 0 216 190" role="img" aria-label={summary} className="ff-in-map__svg">
+      <svg viewBox={`0 0 ${BOX.viewBoxWidth} ${BOX.viewBoxHeight}`} role="img" aria-label={summary} className="ff-in-map__svg">
         {[FRONT, BACK].map((regions, viewIndex) => (
-          <g key={viewIndex} transform={`translate(${viewIndex * 116} 0) scale(0.95)`}>
-            <path className="ff-in-silhouette" d={SILHOUETTE} />
+          /*
+           * `translate` only — the `scale(0.95)` that used to be here existed to squeeze
+           * a 200-tall drawing into a 190-tall viewBox, which is the kind of magic number
+           * that hides a mismatch instead of fixing it. The shapes are 2..176 tall and
+           * the viewBox is 180, so nothing needs scaling.
+           */
+          <g key={viewIndex} transform={`translate(${offsetFor(viewIndex)} 0)`}>
+            <g className="ff-in-silhouette">
+              {SILHOUETTE.map((shape, index) =>
+                shape.kind === 'rect' ? (
+                  <rect
+                    key={index}
+                    x={shape.x}
+                    y={shape.y}
+                    width={shape.w}
+                    height={shape.h}
+                    rx={shape.r}
+                  />
+                ) : (
+                  <ellipse key={index} cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} />
+                ),
+              )}
+            </g>
             {regions.map((region) => (
               <RegionShapes key={region.muscle} region={region} level={levelOf(region.muscle)} />
             ))}

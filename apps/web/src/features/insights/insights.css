@@ -286,10 +286,20 @@
   color: var(--ff-color-fg-muted);
 }
 
+/*
+ * Fill only, deliberately no stroke.
+ *
+ * The ground is now a group of overlapping shapes rather than one path, and `stroke` on
+ * a `<g>` strokes every child — so a hairline drew the seam where the arm meets the
+ * torso and where each deltoid cap crosses the yoke. Invisible in dark, where hairline
+ * and sunken are within two values of each other; plainly visible in light, where the
+ * figure stopped reading as a body and started reading as a pile of blobs.
+ *
+ * Nothing is lost: rule 1 in `MuscleMap.tsx` is about outlining the *regions*, which
+ * still carry `line-strong` at 3:1, and the silhouette is only ever the ground.
+ */
 .ff-in-silhouette {
   fill: var(--ff-color-sunken);
-  stroke: var(--ff-color-hairline);
-  stroke-width: 1;
 }
 
 /*
