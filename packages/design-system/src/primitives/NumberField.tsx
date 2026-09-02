@@ -1,4 +1,5 @@
 import type { InputHTMLAttributes } from 'react';
+import { useAutoRepeat } from './useAutoRepeat.js';
 import { useId, useRef, useState } from 'react';
 
 import { cx } from '../lib/cx.js';
@@ -101,13 +102,24 @@ export function NumberField({
   const describedBy =
     cx(unit ? unitId : '', hint ? hintId : '', error ? errorId : '').trim() || undefined;
 
-  const nudge = (direction: 1 | -1) => {
+  const repeatDown = useAutoRepeat((m) => nudge(-1, m), disabled ?? false);
+  const repeatUp = useAutoRepeat((m) => nudge(1, m), disabled ?? false);
+
+  const nudge = (direction: 1 | -1, multiplier = 1) => {
     // Stepping from a ghost commits the ghost first, then moves. Tapping "+" on a
     // carried-over 60kg should give 62.5kg, not 2.5kg.
     const base = value ?? ghostValue ?? 0;
     setDraft(null);
-    onValueChange(clamp(Number((base + direction * step).toFixed(4)), min, max));
-    inputRef.current?.focus();
+    onValueChange(clamp(Number((base + direction * step * multiplier).toFixed(4)), min, max));
+    /*
+     * Focus is NOT moved to the input.
+     *
+     * It used to be, and on a phone that opens the OS keyboard on every single
+     * stepper tap — roughly 400px of screen, for a control whose entire purpose
+     * is to avoid typing. The keyboard is still one tap away on the number
+     * itself. Keyboard users are unaffected: they are already focused on the
+     * button they just activated, and moving focus off it would be worse.
+     */
   };
 
   return (
@@ -123,7 +135,12 @@ export function NumberField({
           aria-label={decrementLabel ?? `Decrease ${label}`}
           variant="secondary"
           size="xl"
-          onClick={() => nudge(-1)}
+          onClick={() => {
+            // A hold already stepped; ignore the click that trails it.
+            if (repeatDown.consumeTrailingClick()) return;
+            nudge(-1);
+          }}
+          {...repeatDown.handlers}
           disabled={disabled ?? false}
         />
 
@@ -199,7 +216,11 @@ export function NumberField({
           aria-label={incrementLabel ?? `Increase ${label}`}
           variant="secondary"
           size="xl"
-          onClick={() => nudge(1)}
+          onClick={() => {
+            if (repeatUp.consumeTrailingClick()) return;
+            nudge(1);
+          }}
+          {...repeatUp.handlers}
           disabled={disabled ?? false}
         />
       </div>

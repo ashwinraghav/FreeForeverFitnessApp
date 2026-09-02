@@ -2518,32 +2518,3 @@
   border-color: var(--ff-color-accent);
   background: var(--ff-color-surface);
 }
-
-/* ── Weight slider ────────────────────────────────────────────────────────
- *
- * Coarse travel only; the steppers beside it do precision. A native range so
- * the browser owns the gesture — the hold-drag this replaced lost every move to
- * the scroll container it sat inside.
- */
-.ffw-slider {
-  display: block;
-  margin-block-end: var(--ff-space-12);
-}
-
-.ffw-slider__label {
-  display: block;
-  margin-block-end: var(--ff-space-4);
-  color: var(--ff-color-fg-muted);
-  font-size: var(--ff-text-caption);
-}
-
-.ffw-slider__input {
-  inline-size: 100%;
-  /* 56px of vertical target: this is dragged mid-set with one thumb, and a
-     native range's default track is a few pixels tall. */
-  min-block-size: var(--ff-hit-mid-set);
-  accent-color: var(--ff-color-accent);
-  /* The browser handles the gesture, but say so explicitly: the control lives
-     inside a vertical scroller and must own horizontal movement outright. */
-  touch-action: pan-y;
-}

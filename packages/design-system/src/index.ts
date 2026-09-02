@@ -99,3 +99,6 @@ export type { GlyphProps } from './lib/glyphs.js';
 export { cx } from './lib/cx.js';
 export type { AccessibleName, NamedProps } from './lib/a11y.js';
 export { contrastRatio, relativeLuminance } from './lib/contrast.js';
+
+export { useAutoRepeat } from './primitives/useAutoRepeat.js';
+export type { AutoRepeat } from './primitives/useAutoRepeat.js';

@@ -191,23 +191,15 @@ export function SetRow({
         <li>
           <div className="ffw-editor" aria-label={`Edit ${rowLabel}`}>
             {openField === 'weight' ? (
-              <>
-                <WeightSlider
-                  value={set.weightKg}
-                  ghost={ghost?.weightKg ?? null}
-                  step={loadStepKg}
-                  onChange={(weightKg) => onEdit({ weightKg })}
-                />
-                <NumberField
-                  label={loadFieldName(set)}
-                  unit="kg"
-                  step={loadStepKg}
-                  min={0}
-                  value={set.weightKg}
-                  ghostValue={ghost?.weightKg ?? null}
-                  onValueChange={(value) => onEdit({ weightKg: value })}
-                />
-              </>
+              <NumberField
+                label={loadFieldName(set)}
+                unit="kg"
+                step={loadStepKg}
+                min={0}
+                value={set.weightKg}
+                ghostValue={ghost?.weightKg ?? null}
+                onValueChange={(value) => onEdit({ weightKg: value })}
+              />
             ) : (
               <EffortField
                 set={set}
@@ -377,58 +369,6 @@ function QuickReps({
         </button>
       ))}
     </div>
-  );
-}
-
-/**
- * A coarse slider for weight, inside the editor.
- *
- * The first attempt was a hold-then-drag on the cell itself and it did not work.
- * `touch-action` is consulted when the touch BEGINS, so a cell inside a
- * scrolling list has already been claimed by the scroller; arming afterwards and
- * setting `touch-action: none` is too late. The browser fires `pointercancel` on
- * the first move, which is exactly the reported symptom — one 2.5 kg increment
- * and then nothing.
- *
- * A real `<input type="range">` sidesteps the whole class. The browser owns the
- * gesture so there is no scroll to fight, and keyboard arrows, Home/End and
- * screen-reader announcement come free rather than being reimplemented badly.
- *
- * **Three tiers, deliberately.** The slider gets you near — 20 kg to 60 kg in one
- * motion, which is the thing that was sixteen taps. The steppers land you
- * exactly. The number takes anything unusual. Precision is not the slider's job,
- * and pretending otherwise would make it worse at the one thing it is for.
- *
- * The range is anchored to what you lift rather than fixed: a fixed 0–200 gives
- * someone pressing 100 kg a usable thumb and someone curling 12 kg almost no
- * resolution at all.
- */
-function WeightSlider({
-  value,
-  ghost,
-  step,
-  onChange,
-}: {
-  readonly value: number | null;
-  readonly ghost: number | null;
-  readonly step: number;
-  readonly onChange: (value: number) => void;
-}) {
-  const anchor = value ?? ghost ?? 20;
-  const max = Math.max(20, Math.ceil((anchor * 2) / step) * step);
-  return (
-    <label className="ffw-slider">
-      <span className="ffw-slider__label">Slide for a rough weight, then fine-tune</span>
-      <input
-        className="ffw-slider__input"
-        type="range"
-        min={0}
-        max={max}
-        step={step}
-        value={value ?? 0}
-        onChange={(event) => onChange(Number(event.target.value))}
-      />
-    </label>
   );
 }
 
