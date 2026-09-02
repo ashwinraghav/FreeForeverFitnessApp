@@ -7,6 +7,7 @@ Public by design (ADR-0002). These documents are the reasoning behind the produc
 | [`business-plan.md`](business-plan.md) | Market analysis, the full paywall teardown, unit economics, the coach strategy, and what pays for "free". |
 | [`execution-plan.md`](execution-plan.md) | The Blueprint design system, stack decisions, repository layout, the open-source secrets policy, and the team structure. |
 | [`costs/`](costs/) | Monthly cloud bills, published (ADR-0020). |
+| [`usage-model.md`](usage-model.md) | **Open question.** How the app is meant to be used, and why nobody can currently tell. |
 
 ## The finding, in one paragraph
 
