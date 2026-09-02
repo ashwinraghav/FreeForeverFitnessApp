@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { downloadLocalData, type ExportSummary } from './exportData';
+import {
+  clearDiagnostics,
+  diagnosticsEnabled,
+  setDiagnostics,
+  shareDiagnostics,
+} from './diagnostics';
 
 type Status = 'idle' | 'checking' | 'uptodate' | 'ready' | 'unsupported';
 
@@ -25,6 +31,8 @@ type Status = 'idle' | 'checking' | 'uptodate' | 'ready' | 'unsupported';
 export function AppUpdateSection() {
   const [status, setStatus] = useState<Status>('idle');
   const [exported, setExported] = useState<ExportSummary | null>(null);
+  const [diagOn, setDiagOn] = useState(diagnosticsEnabled);
+  const [diagResult, setDiagResult] = useState<string | null>(null);
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
@@ -73,7 +81,7 @@ export function AppUpdateSection() {
         App
       </h2>
       <div className="ff-more__prose">
-        <p className="ff-update-status" role="status">
+        <p className="ff-update-status" role="status" aria-label="App version status">
           {message[status]}
         </p>
         {exported !== null && (
@@ -106,6 +114,63 @@ export function AppUpdateSection() {
               onClick={() => void updateServiceWorker(true)}
             >
               Install and reload
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/*
+        * Diagnostics.
+        *
+        * Added because a held stepper stopped after three increments on a phone
+        * and worked everywhere else, and the only tools to hand were reading the
+        * code and jsdom — neither of which has a thumb. Two plausible causes were
+        * found and fixed; whether either was THE cause on a real device is not
+        * something code review can settle.
+        *
+        * Off by default, kept in memory, never sent anywhere on its own. It
+        * records event names, timings and capability flags — no workout
+        * contents, no food, no photos.
+        */}
+      <div className="ff-more__prose">
+        <p className="ff-update-status" role="status" aria-label="Problem recording status">
+          {diagResult ??
+            (diagOn
+              ? 'Recording. Reproduce the problem, then copy the log and send it over.'
+              : 'Only if something is misbehaving and you have been asked for it.')}
+        </p>
+        <div className="ff-more__actions">
+          <button
+            type="button"
+            className="ff-control ff-focusable ff-more__action"
+            aria-pressed={diagOn}
+            onClick={() => {
+              const next = !diagOn;
+              setDiagnostics(next);
+              if (next) clearDiagnostics();
+              setDiagOn(next);
+              setDiagResult(null);
+            }}
+          >
+            {diagOn ? 'Stop recording' : 'Record a problem'}
+          </button>
+          {diagOn && (
+            <button
+              type="button"
+              className="ff-control ff-focusable ff-more__action ff-more__action--primary"
+              onClick={() => {
+                void shareDiagnostics().then((how) => {
+                  setDiagResult(
+                    how === 'copied'
+                      ? 'Copied to the clipboard — paste it wherever you are reporting this.'
+                      : how === 'downloaded'
+                        ? 'Saved as a file — the clipboard was not available here.'
+                        : 'Could not copy or save the log on this browser.',
+                  );
+                });
+              }}
+            >
+              Copy the log
             </button>
           )}
         </div>

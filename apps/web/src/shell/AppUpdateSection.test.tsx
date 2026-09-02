@@ -36,7 +36,7 @@ describe('AppUpdateSection', () => {
     render(<AppUpdateSection />);
     // Asserted on the promise, not the sentence — the copy is allowed to change,
     // the guarantee is not.
-    expect(screen.getByRole('status')).toHaveTextContent(/never clears/i);
+    expect(screen.getByRole('status', { name: 'App version status' })).toHaveTextContent(/never clears/i);
   });
 
   it('actually polls the server rather than waiting for the browser to look', async () => {
@@ -48,7 +48,7 @@ describe('AppUpdateSection', () => {
   it('reports being current when nothing is waiting', async () => {
     render(<AppUpdateSection />);
     await userEvent.click(screen.getByRole('button', { name: 'Check for updates' }));
-    expect(screen.getByRole('status')).toHaveTextContent(/newest version/i);
+    expect(screen.getByRole('status', { name: 'App version status' })).toHaveTextContent(/newest version/i);
     expect(screen.queryByRole('button', { name: 'Install and reload' })).not.toBeInTheDocument();
   });
 
@@ -56,7 +56,7 @@ describe('AppUpdateSection', () => {
     registration.waiting = {};
     render(<AppUpdateSection />);
     await userEvent.click(screen.getByRole('button', { name: 'Check for updates' }));
-    expect(screen.getByRole('status')).toHaveTextContent(/ready to install/i);
+    expect(screen.getByRole('status', { name: 'App version status' })).toHaveTextContent(/ready to install/i);
     await userEvent.click(screen.getByRole('button', { name: 'Install and reload' }));
     expect(sw.updateServiceWorker).toHaveBeenCalledWith(true);
   });
@@ -78,6 +78,6 @@ describe('AppUpdateSection', () => {
     Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: undefined });
     render(<AppUpdateSection />);
     await userEvent.click(screen.getByRole('button', { name: 'Check for updates' }));
-    expect(screen.getByRole('status')).toHaveTextContent(/cannot check for updates/i);
+    expect(screen.getByRole('status', { name: 'App version status' })).toHaveTextContent(/cannot check for updates/i);
   });
 });

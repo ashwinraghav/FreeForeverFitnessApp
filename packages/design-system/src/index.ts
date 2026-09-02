@@ -102,3 +102,6 @@ export { contrastRatio, relativeLuminance } from './lib/contrast.js';
 
 export { useAutoRepeat } from './primitives/useAutoRepeat.js';
 export type { AutoRepeat } from './primitives/useAutoRepeat.js';
+
+export { setDiagSink } from './primitives/diagSink.js';
+export type { DiagSink } from './primitives/diagSink.js';

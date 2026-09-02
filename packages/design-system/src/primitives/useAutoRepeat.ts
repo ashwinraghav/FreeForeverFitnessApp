@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
+import { emitDiag } from './diagSink.js';
 
 /**
  * Press and hold a stepper to keep stepping, faster the longer you hold.
@@ -84,6 +85,7 @@ export function useAutoRepeat(step: (multiplier: number) => void, disabled = fal
     fired.current = true;
     // Two doublings, so the increment tops out at 4x rather than running away.
     const multiplier = count.current > GROW_AFTER * 2 ? 4 : count.current > GROW_AFTER ? 2 : 1;
+    emitDiag('repeat.tick', { n: count.current, multiplier, interval: Math.round(interval.current) });
     stepRef.current(multiplier);
     interval.current = Math.max(MIN_MS, interval.current * DECAY);
     timer.current = setTimeout(tick, interval.current);
@@ -109,10 +111,12 @@ export function useAutoRepeat(step: (multiplier: number) => void, disabled = fal
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
       captured.current = true;
+      emitDiag('repeat.down', { captured: true, pointerType: event.pointerType });
     } catch {
       // Not fatal: without capture the leave handler is the safety net it
       // always was.
       captured.current = false;
+      emitDiag('repeat.down', { captured: false, pointerType: event.pointerType });
     }
     // Nothing happens here for a tap: the button's own click does that single
     // step, for every input method. This only arms the repeat.
@@ -140,6 +144,7 @@ export function useAutoRepeat(step: (multiplier: number) => void, disabled = fal
   );
 
   const onPointerLeave = useCallback(() => {
+    emitDiag('repeat.leave', { captured: captured.current });
     // While captured this never fires. It remains the fallback for a mouse
     // dragged off the button, and for any browser that refused capture.
     if (!captured.current) stop();
@@ -152,7 +157,16 @@ export function useAutoRepeat(step: (multiplier: number) => void, disabled = fal
   }, []);
 
   return {
-    handlers: { onPointerDown, onPointerUp, onPointerLeave, onPointerCancel: stop },
+    handlers: {
+      onPointerDown,
+      onPointerUp,
+      onPointerLeave,
+      onPointerCancel: () => {
+        // The interesting one: if a phone stops mid-hold, this is usually why.
+        emitDiag('repeat.cancel');
+        stop();
+      },
+    },
     consumeTrailingClick,
   };
 }

@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
-import { NavLink } from 'react-router-dom';
+import { useEffect, type ReactNode } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { ROUTES } from '../app/routes';
+import { recordRoute } from './diagnostics';
 import { UpdatePrompt } from './UpdatePrompt';
 
 /**
@@ -9,6 +10,13 @@ import { UpdatePrompt } from './UpdatePrompt';
  * third of the screen. Never move this to a top bar or a hamburger.
  */
 export function AppFrame({ children }: { children: ReactNode }) {
+  // Where the user was is the first question any report has to answer. The
+  // recorder is off unless they turned it on, so this costs nothing by default.
+  const location = useLocation();
+  useEffect(() => {
+    recordRoute(location.pathname);
+  }, [location.pathname]);
+
   return (
     <div className="ff-frame">
       <main className="ff-main">{children}</main>
