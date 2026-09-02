@@ -5,10 +5,11 @@ import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { notifyLocalDataChanged } from '../../../data/insightsSource.js';
-import { STARTER_CATALOGUE } from '../catalogue/starter.js';
+import { useCatalogue } from '../catalogue/useCatalogue.js';
 import { toExerciseRef, type CatalogueEntry } from '../catalogue/types.js';
 import { ExerciseCard } from '../components/ExerciseCard.js';
 import { ExercisePicker } from '../components/ExercisePicker.js';
+import { recommendedExerciseIds } from '../model/recommend.js';
 import type { EditableField } from '../components/SetRow.js';
 import { recordsThisSession, suggestionFor, suggestionLine } from '../model/coaching.js';
 import { commitValuesFor, ghostsForExercise } from '../model/ghosts.js';
@@ -75,7 +76,7 @@ interface OpenEditor {
 
 export function ActiveWorkoutScreen({
   repository,
-  catalogue = STARTER_CATALOGUE,
+  catalogue: catalogueProp,
   loadStepKg = 2.5,
   now = Date.now,
   onFinished,
@@ -93,6 +94,9 @@ export function ActiveWorkoutScreen({
   // so tapping Done froze the elapsed time until something else touched the screen.
   const sessionNow = useSessionClock(state.workout.endedAt === undefined, now);
 
+  // Tests and stories can pin the list; everything else gets the full ~900.
+  const loaded = useCatalogue();
+  const catalogue = catalogueProp ?? loaded;
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [openEditor, setOpenEditor] = useState<OpenEditor | null>(null);
@@ -110,6 +114,18 @@ export function ActiveWorkoutScreen({
 
   const history = useMemo(() => repository.loadHistory(), [repository]);
   const recentIds = useMemo(() => recentExerciseIds(history), [history]);
+  /*
+   * The light-touch coach: the picker leads with muscles the last few sessions left
+   * short. Exercises already in this session are excluded — recommending what is
+   * on screen would be noise.
+   */
+  const recommendedIds = useMemo(
+    () =>
+      recommendedExerciseIds(history, catalogue, {
+        excludeIds: state.workout.exercises.map((exercise) => exercise.exercise.exerciseId),
+      }),
+    [history, catalogue, state.workout.exercises],
+  );
   const today = useMemo(() => localDateOf(new Date(now())), [now]);
 
   const timer = useRestTimer({ repository, now });
@@ -486,6 +502,7 @@ export function ActiveWorkoutScreen({
         onPick={addExercise}
         catalogue={catalogue}
         recentIds={recentIds}
+        recommendedIds={recommendedIds}
       />
 
       {/*

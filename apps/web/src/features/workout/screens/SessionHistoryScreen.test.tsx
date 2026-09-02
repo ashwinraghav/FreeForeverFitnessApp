@@ -108,7 +108,25 @@ const button = (name: string | RegExp) => screen.getByRole('button', { name });
  * dialog is open or shut, and an assertion built on it passes in both states. That is
  * the "test passes for the wrong reason" trap CLAUDE.md warns about, hit for real here.
  */
-const dialogOpen = (): boolean => document.querySelector('dialog')?.open === true;
+const deleteDialog = (): HTMLDialogElement | undefined =>
+  [...document.querySelectorAll('dialog')].find((el) =>
+    el.textContent?.includes('will be removed from your history'),
+  ) as HTMLDialogElement | undefined;
+
+/*
+ * Was `document.querySelector('dialog')`, on the reasoning that this feature had one
+ * dialog. It has two now — "log a past workout" is also one — and the bare selector
+ * silently started reading the wrong element, so a test about the delete confirmation
+ * was asserting against the date prompt. Found by that test failing; it would have been
+ * far worse the other way round, with the assertion quietly passing.
+ */
+const dialogOpen = (): boolean => deleteDialog()?.open === true;
+
+/** The "log a past workout" prompt, found by its own copy. */
+const logDialog = (): HTMLDialogElement | undefined =>
+  [...document.querySelectorAll('dialog')].find((el) =>
+    el.textContent?.includes('Which day did you train'),
+  ) as HTMLDialogElement | undefined;
 
 /** Open the first session in the list, the way a thumb does. */
 function expandFirst(): void {
@@ -394,8 +412,118 @@ describe('adding an exercise to a session that is already finished', () => {
   });
 });
 
+describe('writing up a workout you have already done', () => {
+  /*
+   * The second of the two ways this app is meant to be used. One is live, phone on the
+   * bench, rest timer running. This is the other: you trained, your phone stayed in the
+   * bag, and now you are sitting down afterwards. Before this there was no entry point
+   * at all — you could only edit a session the live flow had already created.
+   */
+  const logButton = () => button('Log a past workout');
+
+  it('offers the button even with no sessions at all', () => {
+    // The person most likely to want this is the one with an empty history: they
+    // trained before they installed the app. This used to be unreachable, because the
+    // empty state returned early and never mounted the dialog.
+    mount(repositoryWith());
+    expect(logButton()).toBeInTheDocument();
+  });
+
+  it('defaults the date to today and will not accept a future one', () => {
+    mount(repositoryWith(session(1)));
+    fireEvent.click(logButton());
+
+    const field = screen.getByLabelText(/Which day did you train/i) as HTMLInputElement;
+    const today = new Date(clock);
+    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    expect(field.value).toBe(iso);
+    expect(field.max).toBe(iso);
+  });
+
+  it('files the session on the day chosen, not the day it was typed', () => {
+    const repository = repositoryWith();
+    mount(repository);
+    fireEvent.click(logButton());
+
+    fireEvent.change(screen.getByLabelText(/Which day did you train/i), {
+      target: { value: '2025-10-07' },
+    });
+    fireEvent.click(button('Start writing it up'));
+
+    const saved = repository.loadHistory();
+    expect(saved).toHaveLength(1);
+    expect(saved[0]!.localDate).toBe('2025-10-07');
+  });
+
+  it('does not drift a day west or east of Greenwich', () => {
+    // `new Date('2025-10-07')` is UTC midnight, which in Chennai is already the 7th at
+    // 05:30 but in Los Angeles is still the 6th. The field speaks local dates, so the
+    // parse must too — this is the bug that would put every Indian session a day early.
+    const repository = repositoryWith();
+    mount(repository);
+    fireEvent.click(logButton());
+    fireEvent.change(screen.getByLabelText(/Which day did you train/i), {
+      target: { value: '2025-01-01' },
+    });
+    fireEvent.click(button('Start writing it up'));
+
+    expect(repository.loadHistory()[0]!.localDate).toBe('2025-01-01');
+  });
+
+  it('opens straight into editing with the picker up', () => {
+    // Two taps from the button to typing a weight. The next thing anybody doing this
+    // wants is to name the first lift.
+    mount(repositoryWith());
+    fireEvent.click(logButton());
+    fireEvent.click(button('Start writing it up'));
+
+    expect(screen.getByPlaceholderText(/Search/i)).toBeInTheDocument();
+  });
+
+  it('fills in like any other session, and persists', () => {
+    const repository = repositoryWith();
+    mount(repository);
+    fireEvent.click(logButton());
+    fireEvent.click(button('Start writing it up'));
+    fireEvent.click(screen.getByRole('button', { name: /Back Squat/i }));
+
+    const saved = repository.loadHistory()[0]!;
+    expect(saved.exercises).toHaveLength(1);
+    expect(saved.exercises[0]!.exercise.exerciseId).toBe(squat.exerciseId);
+  });
+
+  it('carries no end time, so nothing invents a duration', () => {
+    // The lifter knows the date and nothing else. `endedAt` absent is the honest
+    // record; a fabricated hour would flow straight into the energy estimate.
+    const repository = repositoryWith();
+    mount(repository);
+    fireEvent.click(logButton());
+    fireEvent.click(button('Start writing it up'));
+
+    expect(repository.loadHistory()[0]!.endedAt).toBeUndefined();
+  });
+
+  it('can be abandoned without filing anything', () => {
+    const repository = repositoryWith();
+    mount(repository);
+    fireEvent.click(logButton());
+    expect(logDialog()?.open).toBe(true);
+
+    fireEvent.click(button('Cancel'));
+
+    expect(repository.loadHistory()).toHaveLength(0);
+    /*
+     * `.open`, not `queryByLabelText`. A closed `<dialog>` is still in the DOM — the
+     * browser hides it with a UA style jsdom does not apply — so the field is findable
+     * whether the prompt is open or shut, and asserting absence passes in both states.
+     * Exactly the trap CLAUDE.md documents; hit again here.
+     */
+    expect(logDialog()?.open).toBe(false);
+  });
+});
+
 describe('deleting a whole session', () => {
-  it('asks first — the one dialog in this feature', () => {
+  it('asks first, in a dialog', () => {
     /*
      * CLAUDE.md bans modals *during a workout*, where a dismissed dialog can take entered
      * sets with it. This is a sofa activity with two hands and nothing in flight, and the
@@ -419,7 +547,7 @@ describe('deleting a whole session', () => {
     fireEvent.click(button('Delete session'));
     // Volume and records are derived from history, so deleting a session changes both.
     // Saying so is the difference between a confirmation and a speed bump.
-    expect(document.querySelector('.ff-dialog')?.textContent).toMatch(/volume totals and your records/);
+    expect(deleteDialog()?.textContent).toMatch(/volume totals and your records/);
   });
 
   it('keeps the session when the lifter backs out', () => {

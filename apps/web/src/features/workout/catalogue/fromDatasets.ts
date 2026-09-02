@@ -31,24 +31,22 @@ import type { CatalogueEntry } from './types.js';
  *      `external` + `reps`, which is the shape that degrades most gracefully — a
  *      lifter can always log a number of reps against a weight.
  *
- * ## Why nothing imports this yet
+ * ## What imports this now
  *
- * `@freeforever/datasets` is a dependency of `@freeforever/web`, but its `exports`
- * field publishes only `"."`, and `src/index.mjs` exposes the food index and the media
- * helpers — not the exercise catalogue. So `build/exercises.json.gz` is unreachable:
+ * `load.ts` does: `openExerciseCatalogue({ url: '/data/exercises.json.gz' })`, then
+ * `adaptCatalogue`, then `mergeCatalogues` behind the hand-written starter set.
  *
- *     Missing "./build/exercises.json.gz" specifier in "@freeforever/datasets"
+ * This section used to say the artefact was unreachable, because `@freeforever/datasets`
+ * published only `"."` and the exercise catalogue was not on it. That was true when it
+ * was written, and stayed in place after it stopped being true — the package now exports
+ * `./exercises` with a reader, and the build copies the artefact into `public/data/`. So
+ * for a while the picker searched seventy entries while eight hundred and seventy-three
+ * sat in the deployed bundle, and "straight-arm pulldown" could not be found. A stale
+ * note about a blocker is worse than no note: it reads as a live reason not to look.
  *
- * The datasets team needs to publish one of the two, and either is a small change:
- * an `exports` entry for the artefact, or (better) a reader alongside `FoodIndex` —
- * `openExerciseCatalogue()` — so the gunzip and the parse live with the data rather
- * than in every consumer.
- *
- * When it lands, `STARTER_CATALOGUE` in `starter.ts` is replaced by
- * `adaptCatalogue(await loadExercises())` and nothing else changes: the picker, the
- * search and their tests all sit behind {@link CatalogueEntry}. `fromDatasets.test.ts`
- * already validates this adapter against the real 873 rows read off disk, so the swap
- * is covered before it happens.
+ * `fromDatasets.test.ts` had been validating this adapter against the real 873 rows the
+ * whole time, so the swap was covered before it happened — which is the only reason it
+ * was a small change when someone finally asked why the list was so short.
  */
 
 /** The subset of `@freeforever/datasets`' `Exercise` this adapter reads. */

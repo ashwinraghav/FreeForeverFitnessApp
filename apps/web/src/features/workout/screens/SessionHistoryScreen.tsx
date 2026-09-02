@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { notifyLocalDataChanged } from '../../../data/insightsSource.js';
-import { STARTER_CATALOGUE } from '../catalogue/starter.js';
+import { useCatalogue } from '../catalogue/useCatalogue.js';
 import { toExerciseRef, type CatalogueEntry } from '../catalogue/types.js';
 import { ExercisePicker } from '../components/ExercisePicker.js';
 import { longDate, PastSessionCard } from '../components/PastSessionCard.js';
@@ -15,6 +15,7 @@ import { localDateOf } from '../model/ids.js';
 import {
   addExerciseToPastSession,
   editPastSession,
+  emptyPastSession,
   isEmptyNow,
   type PastSessionEdit,
 } from '../model/pastSession.js';
@@ -73,8 +74,11 @@ export function SessionHistoryScreen({
   repository,
   loadStepKg = 2.5,
   now = Date.now,
-  catalogue = STARTER_CATALOGUE,
+  catalogue: catalogueProp,
 }: SessionHistoryScreenProps) {
+  // Tests and stories can pin the list; everything else gets the full ~900.
+  const loaded = useCatalogue();
+  const catalogue = catalogueProp ?? loaded;
   /*
    * The history is held in state rather than re-read on every render, because a write
    * has to re-render the list and `loadHistory()` returns a fresh array each call — so
@@ -97,6 +101,8 @@ export function SessionHistoryScreen({
   const [emptiedId, setEmptiedId] = useState<string | null>(null);
   /** Which session the picker is adding to. Null when it is closed. */
   const [pickerFor, setPickerFor] = useState<string | null>(null);
+  /** The date field of the "log a past workout" prompt, or null when it is shut. */
+  const [logDate, setLogDate] = useState<string | null>(null);
 
   const today = useMemo(() => localDateOf(new Date(now())), [now]);
   const ordered = useMemo(() => byMostRecent(sessions), [sessions]);
@@ -163,6 +169,31 @@ export function SessionHistoryScreen({
     [sessions, repository, reload, now],
   );
 
+  /**
+   * Write up a workout that already happened.
+   *
+   * Creates the empty session, files it, and drops straight into editing it with the
+   * exercise picker already open — because the very next thing anybody doing this wants
+   * is to name the first lift. Two taps from the button to typing a weight.
+   */
+  const logPastWorkout = useCallback(
+    (isoDate: string) => {
+      const parsed = fromDateInput(isoDate);
+      if (parsed === null) return;
+
+      const session = emptyPastSession(parsed, now());
+      repository.putSession(session);
+      reload();
+      setLogDate(null);
+      setExpandedId(session.id);
+      setEditingId(session.id);
+      setPickerFor(session.id);
+      // No undo offer. An empty session is not a change worth reverting, and it deletes
+      // itself from the retract prompt the moment the lifter looks away.
+    },
+    [repository, reload, now],
+  );
+
   const restore = useCallback(() => {
     if (undo === null) return;
     repository.putSession(undo.session);
@@ -183,21 +214,23 @@ export function SessionHistoryScreen({
     setEmptiedId(null);
   }, [pendingDelete, repository, reload]);
 
-  if (ordered.length === 0) {
-    return (
-      <div className="ffw-history-screen">
-        <Header count={0} />
-        <EmptyState
-          title="No sessions yet"
-          body="Finish a workout and it will show up here, where you can look it over and fix anything you mistyped."
-        />
-      </div>
-    );
-  }
 
   return (
     <div className="ffw-history-screen">
       <Header count={ordered.length} />
+
+      {/*
+        No early return for the empty case any more. It used to short-circuit above,
+        which meant the "log a past workout" dialog was not mounted for the one person
+        most likely to want it: somebody with no sessions yet, writing up the training
+        they did before they installed this.
+      */}
+      {ordered.length === 0 ? (
+        <EmptyState
+          title="No sessions yet"
+          body="Finish a workout and it will show up here. Trained already? Write it up with the button below."
+        />
+      ) : null}
 
       <ul className="ffw-history-list" aria-label="Past sessions">
         {ordered.map((session) => (
@@ -269,6 +302,12 @@ export function SessionHistoryScreen({
         recentIds={recentIds}
       />
 
+      <p className="ffw-history-screen__logpast">
+        <Button size="lg" variant="secondary" onClick={() => setLogDate(toDateInput(new Date(now())))}>
+          Log a past workout
+        </Button>
+      </p>
+
       {/*
         The cap, stated only once it is actually reached.
         `MAX_LOCAL_HISTORY` is a real limit and a user who edits their 61st-oldest session
@@ -282,6 +321,44 @@ export function SessionHistoryScreen({
           not stored.
         </p>
       ) : null}
+
+      {/*
+        Recording a workout that already happened — the second way people use this app.
+        A dialog is right here in a way it never is mid-workout: nothing is entered yet,
+        so there is nothing a dismissal could lose.
+      */}
+      <Dialog
+        open={logDate !== null}
+        onClose={() => setLogDate(null)}
+        title="Log a workout you have already done"
+        actions={
+          <>
+            <Button size="lg" variant="secondary" onClick={() => setLogDate(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="lg"
+              variant="primary"
+              onClick={() => {
+                if (logDate !== null) logPastWorkout(logDate);
+              }}
+            >
+              Start writing it up
+            </Button>
+          </>
+        }
+      >
+        <label className="ffw-logpast">
+          <span className="ffw-logpast__label">Which day did you train?</span>
+          <input
+            className="ffw-logpast__date ff-focusable"
+            type="date"
+            value={logDate ?? ''}
+            max={toDateInput(new Date(now()))}
+            onChange={(event) => setLogDate(event.target.value)}
+          />
+        </label>
+      </Dialog>
 
       <Dialog
         open={pendingDelete !== null}
@@ -334,6 +411,26 @@ export function SessionHistoryScreen({
       )}
     </div>
   );
+}
+
+/**
+ * `<input type="date">` speaks `YYYY-MM-DD` in the *local* calendar, and `new Date(iso)`
+ * parses that same string as **UTC** — so east of Greenwich a session logged for today
+ * lands on yesterday. Parsed by hand into local parts instead.
+ */
+function fromDateInput(iso: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(iso);
+  if (match === null) return null;
+  const [, year, month, day] = match;
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  // Rejects the 31st of February, which the constructor would happily roll forward.
+  return Number.isNaN(date.getTime()) || date.getMonth() !== Number(month) - 1 ? null : date;
+}
+
+/** The same format, going the other way, for the field's initial value. */
+function toDateInput(at: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
 }
 
 function Header({ count }: { readonly count: number }) {

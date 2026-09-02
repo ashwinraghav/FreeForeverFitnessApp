@@ -15,13 +15,10 @@ import type {
  * turn the core interaction into a recurring per-user cost. It is also the only way
  * the picker works in a basement with no signal.
  *
- * **Note for the integrator.** `@freeforever/datasets` already builds a real 873-entry
- * catalogue (`build/exercises.json.gz`), but it is not a dependency of `@freeforever/web`
- * and installs are yours to run. So this feature ships a hand-written starter set
- * behind the {@link CatalogueEntry} shape and searches that. Adding the dependency and
- * writing one adapter from `datasets`' `Exercise` to this type swaps the data over
- * with no change to the picker, the search or their tests — that is why the boundary
- * is a type rather than a direct import.
+ * The catalogue is the hand-written seventy plus ~830 adapted from
+ * `@freeforever/datasets` — see `load.ts` and `merge.ts`. The boundary is this type
+ * rather than a direct import, which is what made adding the dataset a matter of one
+ * loader and one merge rather than a change to the picker, the search or their tests.
  */
 
 export interface CatalogueEntry {

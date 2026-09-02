@@ -30,6 +30,11 @@ export interface SearchOptions {
   readonly limit?: number;
   /** Exercise ids in most-recently-used order. Ranked above equally good matches. */
   readonly recentIds?: readonly string[];
+  /**
+   * Ids to float to the very top of an empty query, from `recommendedExerciseIds`.
+   * Ignored once the lifter types: they have said what they want, and relevance wins.
+   */
+  readonly recommendedIds?: readonly string[];
   /** Show only these equipment kinds. Empty or absent means all. */
   readonly equipment?: readonly string[];
   /** Show only exercises that train this muscle at all. */
@@ -110,16 +115,36 @@ export function searchExercises(
   const tokens = tokenise(query);
 
   if (tokens.length === 0) {
-    // Empty query: recents first, in use order, then everything else alphabetically.
+    /*
+     * Empty query is the browsing case: recommended, then recents, then the catalogue
+     * in its own order.
+     *
+     * That last tier used to be alphabetical, which was fine for 70 hand-written
+     * entries and became actively bad at ~900: the picker opened on "3/4 Sit-Up" and
+     * "90/90 Hamstring" and buried every lift anybody actually does. Catalogue order is
+     * the better key because `mergeCatalogues` already puts the curated seventy first
+     * and the dataset — which is itself alphabetical — after them. So the common lifts
+     * lead, and no new notion of "important" has to be invented or maintained.
+     */
+    const recommendedRank = rankMap(options.recommendedIds ?? []);
+    const position = new Map(indexed.map((item, index) => [item.entry.id, index]));
+    const tierOf = (id: string): number =>
+      recommendedRank.get(id) ?? recentRank.get(id) ?? Number.POSITIVE_INFINITY;
+
     return [...indexed]
       .sort((left, right) => {
-        const leftRank = recentRank.get(left.entry.id) ?? Number.POSITIVE_INFINITY;
-        const rightRank = recentRank.get(right.entry.id) ?? Number.POSITIVE_INFINITY;
-        if (leftRank !== rightRank) return leftRank - rightRank;
-        return left.name < right.name ? -1 : left.name > right.name ? 1 : 0;
+        // Recommended above recent, both above the rest, each in their own order.
+        const leftGroup = recommendedRank.has(left.entry.id) ? 0 : recentRank.has(left.entry.id) ? 1 : 2;
+        const rightGroup = recommendedRank.has(right.entry.id) ? 0 : recentRank.has(right.entry.id) ? 1 : 2;
+        if (leftGroup !== rightGroup) return leftGroup - rightGroup;
+        if (leftGroup < 2) return tierOf(left.entry.id) - tierOf(right.entry.id);
+        return (position.get(left.entry.id) ?? 0) - (position.get(right.entry.id) ?? 0);
       })
       .slice(0, limit)
-      .map((item) => ({ entry: item.entry, score: recentRank.has(item.entry.id) ? 1 : 0 }));
+      .map((item) => ({
+        entry: item.entry,
+        score: recommendedRank.has(item.entry.id) ? 2 : recentRank.has(item.entry.id) ? 1 : 0,
+      }));
   }
 
   const hits: SearchHit[] = [];

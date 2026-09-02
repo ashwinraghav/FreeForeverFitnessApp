@@ -64,7 +64,20 @@ export default defineConfig({
       // sets. The user is told an update is ready and takes it between sessions.
       workbox: {
         // Precache the shell so a cold start in a basement gym works offline.
-        globPatterns: ['**/*.{js,css,html,woff2,svg}'],
+        /*
+         * `json.gz` is here for `data/exercises.json.gz` — 216 KB, and the only
+         * `.json.gz` in the build (the food index shards are `.bin.gz`, and are
+         * deliberately runtime-cached instead: 4.2 MB does not belong in an install).
+         *
+         * Precached rather than runtime-cached because the filename carries no
+         * version, so CacheFirst would pin the first copy forever and a new build's
+         * catalogue would never arrive. Workbox revisions precached assets by content
+         * hash, which is exactly the freshness rule an unversioned artefact needs.
+         *
+         * It has to be offline: the picker is the highest-frequency read in the app
+         * and the design context is a basement gym (ADR-0006).
+         */
+        globPatterns: ['**/*.{js,css,html,woff2,svg}', 'data/exercises.json.gz'],
         // The recording harnesses are built into dist but excluded from the
         // deploy by firebase.json's `ignore`. Without this they land in the
         // precache manifest, and because hosting rewrites `**` to /index.html

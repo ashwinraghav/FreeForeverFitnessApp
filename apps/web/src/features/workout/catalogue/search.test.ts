@@ -86,9 +86,33 @@ describe('recents', () => {
     expect(names('', { recentIds }).slice(0, 2)).toEqual(['Deadlift', 'Bench Press']);
   });
 
-  it('is alphabetical below the recents', () => {
-    const listed = names('', { recentIds: ['deadlift'] }).slice(1);
-    expect(listed).toEqual([...listed].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
+  it('follows catalogue order below the recents, not the alphabet', () => {
+    /*
+     * This used to assert alphabetical, which was right for a 70-entry hand-written
+     * list and wrong the moment the 873-row dataset was merged in: the picker opened
+     * on "3/4 Sit-Up" and "90/90 Hamstring" and buried every lift anybody does.
+     *
+     * Catalogue order is now the key, because `mergeCatalogues` puts the curated
+     * seventy first and the dataset after them. The alphabet was never the point — the
+     * point was a stable, predictable order, and this is a more useful one.
+     */
+    const listed = names('', { recentIds: ['deadlift'] });
+    const expected = STARTER_CATALOGUE.filter((entry) => entry.id !== 'deadlift').map(
+      (entry) => entry.name,
+    );
+    expect(listed[0]).toBe('Deadlift');
+    expect(listed.slice(1)).toEqual(expected.slice(0, listed.length - 1));
+  });
+
+  it('puts recommendations above even the recents', () => {
+    // The whole of coach mode: what you have not trained lately leads the browse list.
+    const listed = names('', { recentIds: ['deadlift'], recommendedIds: ['face-pull'] });
+    expect(listed.slice(0, 2)).toEqual(['Face Pull', 'Deadlift']);
+  });
+
+  it('stops reordering once the lifter types', () => {
+    // They have said what they want; a recommendation must not outrank a real match.
+    expect(names('bench press', { recommendedIds: ['face-pull'] })[0]).toBe('Bench Press');
   });
 
   it('breaks a tie between two equally good matches', () => {

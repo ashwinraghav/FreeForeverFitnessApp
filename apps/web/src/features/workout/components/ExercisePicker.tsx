@@ -2,6 +2,7 @@ import { Chip, Sheet, TextField } from '@freeforever/design-system';
 import { useMemo, useState } from 'react';
 
 import { searchExercises } from '../catalogue/search.js';
+import { RECOMMEND_LOOKBACK } from '../model/recommend.js';
 import type { CatalogueEntry } from '../catalogue/types.js';
 
 /**
@@ -36,6 +37,12 @@ export interface ExercisePickerProps {
   readonly catalogue: readonly CatalogueEntry[];
   /** Exercise ids most recently used, most recent first. */
   readonly recentIds: readonly string[];
+  /**
+   * Ids to surface first, from {@link recommendedExerciseIds} — the muscles the last
+   * few sessions left short. Optional: a caller with no history passes nothing and the
+   * picker behaves exactly as it did before.
+   */
+  readonly recommendedIds?: readonly string[];
 }
 
 export function ExercisePicker({
@@ -44,16 +51,34 @@ export function ExercisePicker({
   onPick,
   catalogue,
   recentIds,
+  recommendedIds = [],
 }: ExercisePickerProps) {
   const [query, setQuery] = useState('');
   const [equipment, setEquipment] = useState<readonly string[]>([]);
 
   const results = useMemo(
-    () => searchExercises(query, catalogue, { recentIds, equipment, limit: 60 }),
-    [query, catalogue, recentIds, equipment],
+    () => searchExercises(query, catalogue, { recentIds, recommendedIds, equipment, limit: 60 }),
+    [query, catalogue, recentIds, recommendedIds, equipment],
   );
 
   const recent = useMemo(() => new Set(recentIds), [recentIds]);
+  const recommended = useMemo(() => new Set(recommendedIds), [recommendedIds]);
+
+  /*
+   * `searchExercises` already puts recommendations first for an empty query, so there
+   * is nothing to re-sort here — only to measure, so the heading can go in the right
+   * place. Reordering a second time in this component would have been a second ranking
+   * rule to keep in step with the first.
+   *
+   * Once the lifter types, relevance wins and the run is empty: they have said what
+   * they want. The badge still shows on matching rows, so the hint is not lost.
+   */
+  const ordered = results;
+  const leadCount = useMemo(() => {
+    if (query.trim() !== '') return 0;
+    const index = ordered.findIndex((hit) => !recommended.has(hit.entry.id));
+    return index === -1 ? ordered.length : index;
+  }, [ordered, recommended, query]);
 
   const toggle = (value: string) => {
     setEquipment((current) =>
@@ -103,15 +128,33 @@ export function ExercisePicker({
           </p>
         ) : (
           <ul className="ffw-picker__results" aria-label="Exercises">
-            {results.map((hit) => (
+            {ordered.map((hit, index) => (
               <li key={hit.entry.id}>
+                {/*
+                  Headings inside the list rather than two lists, so arrow-key and
+                  screen-reader traversal stays one sequence. `aria-hidden` because the
+                  per-row badge already names the group for anyone not seeing the layout,
+                  and hearing "Recommended" twice per row is worse than not styling it.
+                */}
+                {index === 0 && leadCount > 0 ? (
+                  <p className="ffw-picker__group" aria-hidden="true">
+                    Recommended — muscles your last {RECOMMEND_LOOKBACK} sessions left short
+                  </p>
+                ) : null}
+                {index === leadCount && leadCount > 0 ? (
+                  <p className="ffw-picker__group" aria-hidden="true">
+                    Everything else
+                  </p>
+                ) : null}
                 <button
                   type="button"
                   className="ffw-picker__result ff-focusable"
                   onClick={() => pick(hit.entry)}
                 >
                   <span>{hit.entry.name}</span>
-                  {recent.has(hit.entry.id) ? (
+                  {recommended.has(hit.entry.id) ? (
+                    <span className="ffw-picker__flag">recommended</span>
+                  ) : recent.has(hit.entry.id) ? (
                     <span className="ffw-picker__recent">recent</span>
                   ) : null}
                   <span className="ffw-picker__equipment">{labelFor(hit.entry.equipment)}</span>

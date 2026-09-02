@@ -728,6 +728,35 @@
   color: var(--ff-color-accent);
 }
 
+/*
+ * The recommended badge. Deliberately the same shape and position as `recent` — one
+ * slot in the row, never both, because two badges on a 390px line pushes the exercise
+ * name into an ellipsis and the name is the thing being read.
+ */
+.ffw-picker__flag {
+  flex: none;
+  font-size: var(--ff-text-caption);
+  font-weight: var(--ff-weight-label);
+  color: var(--ff-color-accent);
+}
+
+/*
+ * A heading between rows in the results list. Not a colour-only distinction: it is a
+ * separate line with its own weight and a rule above it (ADR-0013).
+ */
+.ffw-picker__group {
+  margin-block: var(--ff-space-12) var(--ff-space-4);
+  font-size: var(--ff-text-caption);
+  font-weight: var(--ff-weight-label);
+  color: var(--ff-color-fg-secondary);
+}
+
+/* The first heading opens the list, so it needs no separating rule above it. */
+.ffw-picker__results > li:not(:first-child) > .ffw-picker__group {
+  padding-block-start: var(--ff-space-12);
+  border-block-start: var(--ff-border) solid var(--ff-color-hairline);
+}
+
 /* ------------------------------------------------------------------- misc */
 
 .ffw-note {
@@ -1278,4 +1307,45 @@
   border-color: transparent;
   background: var(--ff-color-accent);
   color: var(--ff-color-on-accent);
+}
+
+
+/* ------------------------------------------------ log a past workout */
+
+/*
+ * The other way in. A workout written up afterwards is as normal as one logged live,
+ * so the control is a plain part of the history screen rather than something hidden
+ * behind an overflow menu.
+ */
+.ffw-history-screen__logpast {
+  margin-block: var(--ff-space-20);
+  text-align: center;
+}
+
+.ffw-logpast {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-8);
+}
+
+.ffw-logpast__label {
+  font-size: var(--ff-text-body-sm);
+  color: var(--ff-color-fg-secondary);
+}
+
+/*
+ * `min-inline-size: 0` so the native date control can shrink inside the dialog rather
+ * than forcing it wider than a 390px screen — Safari's date input has a stubborn
+ * intrinsic width. `inline-size: 100%` then lets it fill whatever is left.
+ */
+.ffw-logpast__date {
+  min-inline-size: 0;
+  inline-size: 100%;
+  min-block-size: var(--ff-hit-min);
+  padding: var(--ff-space-8) var(--ff-space-12);
+  border: var(--ff-border, 1px) solid var(--ff-color-hairline);
+  border-radius: var(--ff-radius-md);
+  background: var(--ff-color-surface);
+  color: var(--ff-color-fg-primary);
+  font: inherit;
 }

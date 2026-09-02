@@ -1,6 +1,7 @@
 import type { ExerciseRef, SetId, SetState, WorkoutExerciseId, WorkoutId } from '@freeforever/data';
 
 import type { CompletedSession } from './history.js';
+import { localDateOf, newWorkoutId } from './ids.js';
 import { type SetPatch, workoutReducer } from './session.js';
 import type { DraftWorkout } from './types.js';
 
@@ -157,6 +158,43 @@ function actionFor(
         now,
       };
   }
+}
+
+/**
+ * A finished session with nothing in it yet, dated whenever the lifter says.
+ *
+ * This is the other half of how people use the app. One mode is live — the rest timer
+ * runs, sets are logged one at a time, the phone is on the bench. The other is: you
+ * trained, you did not have your phone out, and now you are sitting down afterwards
+ * writing it up. That second mode had no entry point at all; you could only edit a
+ * session the live flow had already created.
+ *
+ * It is deliberately a `CompletedSession` from the first instant rather than a draft
+ * that gets finished. A workout being written up afterwards is not in progress — giving
+ * it a running clock and a Finish button would be a lie about what the lifter is doing,
+ * and it would collide with a live session if one were genuinely running.
+ *
+ * `startedAt` is noon on the chosen day, not `now`. The date is the only temporal fact
+ * anybody actually knows here, and noon is the hour that survives a timezone shift
+ * without sliding onto the day before or after. `endedAt` is deliberately absent: the
+ * duration is unknown, and `sessionEnergyKcal` returning null is the honest outcome —
+ * better than a fabricated hour.
+ */
+export function emptyPastSession(date: Date, now: number): CompletedSession {
+  const startedAt = noonOn(date);
+  return {
+    id: newWorkoutId(now),
+    localDate: localDateOf(date),
+    startedAt,
+    exercises: [],
+  };
+}
+
+/** Midday on the given calendar date, in the device's own timezone. */
+function noonOn(date: Date): number {
+  const at = new Date(date);
+  at.setHours(12, 0, 0, 0);
+  return at.getTime();
 }
 
 /**
