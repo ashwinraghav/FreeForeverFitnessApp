@@ -2509,12 +2509,3 @@
   background: var(--ff-color-accent);
   color: var(--ff-color-on-accent);
 }
-
-/* Armed for a hold-drag: the cell says so, because an invisible mode is a
-   trap. Also takes the pointer for the duration — once armed the finger is
-   adjusting a number, not scrolling a list. */
-.ffw-cell[data-ff-dragging='true'] {
-  touch-action: none;
-  border-color: var(--ff-color-accent);
-  background: var(--ff-color-surface);
-}
