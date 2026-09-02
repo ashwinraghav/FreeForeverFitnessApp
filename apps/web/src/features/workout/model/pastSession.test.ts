@@ -4,10 +4,11 @@ import { describe, expect, it } from 'vitest';
 import { STARTER_CATALOGUE } from '../catalogue/starter.js';
 import { toExerciseRef } from '../catalogue/types.js';
 import { toCompletedSession, type CompletedSession } from './history.js';
-import { editPastSession, isEmptyNow, wasEdited } from './pastSession.js';
+import { addExerciseToPastSession, editPastSession, isEmptyNow, wasEdited } from './pastSession.js';
 import { orderedSets, startWorkout, workoutReducer } from './session.js';
 
 const bench = toExerciseRef(STARTER_CATALOGUE.find((entry) => entry.id === 'bench-press')!);
+const squat = toExerciseRef(STARTER_CATALOGUE.find((entry) => entry.id === 'back-squat')!);
 const NOW = 1_760_000_000_000;
 const LATER = NOW + 86_400_000;
 
@@ -189,5 +190,75 @@ describe('a session with nothing logged left in it', () => {
     }
     expect(orderedSets(firstExercise(session))).toHaveLength(1);
     expect(isEmptyNow(session)).toBe(true);
+  });
+});
+
+describe('adding an exercise you forgot to log', () => {
+  it('appends it to the session and stamps the edit', () => {
+    const before = finished();
+    const after = addExerciseToPastSession(before, squat, LATER);
+
+    expect(after).not.toBe(before);
+    expect(after.exercises).toHaveLength(2);
+    // Appended, not prepended: the order a session is read in is the order it happened.
+    expect(after.exercises[1]!.exercise.exerciseId).toBe(squat.exerciseId);
+    expect(wasEdited(after)).toBe(true);
+    expect(after.editedAt).toBe(LATER);
+  });
+
+  it('leaves everything already logged untouched', () => {
+    const before = finished();
+    const after = addExerciseToPastSession(before, squat, LATER);
+
+    expect(after.id).toBe(before.id);
+    expect(after.localDate).toBe(before.localDate);
+    expect(after.startedAt).toBe(before.startedAt);
+    expect(after.endedAt).toBe(before.endedAt);
+    expect(after.exercises[0]).toEqual(before.exercises[0]);
+  });
+
+  it('arrives as one empty pending set, inventing no numbers', () => {
+    const after = addExerciseToPastSession(finished(), squat, LATER);
+    const added = after.exercises[1]!;
+
+    // One, not the live screen's three: nothing is being planned here.
+    expect(added.sets).toHaveLength(1);
+    const set = added.sets[0]!;
+    expect(set.state).toBe('pending');
+    // `null`, the codebase's "no number was entered" — not a zero, which would be a
+    // number somebody could believe.
+    expect(set.weightKg).toBeNull();
+    expect(set.reps).toBeNull();
+  });
+
+  it('does not make an emptied session look like it has work in it again', () => {
+    // Strip the session back to nothing, the state that offers to retract it.
+    let session = finished();
+    for (const set of orderedSets(firstExercise(session))) {
+      session = editPastSession(
+        session,
+        { exerciseId: firstExercise(session).id as WorkoutExerciseId, setId: set.id as SetId },
+        { kind: 'remove' },
+        LATER,
+      );
+    }
+    expect(isEmptyNow(session)).toBe(true);
+
+    const after = addExerciseToPastSession(session, squat, LATER);
+    // The added set is pending, and pending is not logged work — so the retract offer
+    // must survive. Otherwise adding an exercise would silently resurrect a phantom
+    // session into the streak and the session count insights reads.
+    expect(after.exercises).toHaveLength(2);
+    expect(isEmptyNow(after)).toBe(true);
+  });
+
+  it('can be added twice, as two separate exercises', () => {
+    const once = addExerciseToPastSession(finished(), squat, LATER);
+    const twice = addExerciseToPastSession(once, squat, LATER);
+
+    expect(twice.exercises).toHaveLength(3);
+    // Distinct rows, not a merge: two entries of the same lift in one session is a
+    // normal thing to have done.
+    expect(twice.exercises[1]!.id).not.toBe(twice.exercises[2]!.id);
   });
 });

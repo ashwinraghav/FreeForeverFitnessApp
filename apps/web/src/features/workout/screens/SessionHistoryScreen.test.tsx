@@ -325,6 +325,75 @@ describe('editing a session that is already finished', () => {
   });
 });
 
+describe('adding an exercise to a session that is already finished', () => {
+  /*
+   * Reported by the owner: "When I edit a session, I can't seem to add an exercise. only
+   * edit existing exercises." It was accurate — `PastSessionEdit` had four kinds and all
+   * four named a set, so there was no way in for a whole exercise.
+   */
+  it('offers Add exercise only while editing', () => {
+    mount(repositoryWith(session(1)));
+    expandFirst();
+    expect(screen.queryByRole('button', { name: 'Add exercise' })).toBeNull();
+
+    fireEvent.click(button('Edit session'));
+    expect(screen.getByRole('button', { name: 'Add exercise' })).toBeInTheDocument();
+  });
+
+  it('adds the picked exercise and persists it', () => {
+    const repository = repositoryWith(session(1));
+    mount(repository);
+    expandFirst();
+    fireEvent.click(button('Edit session'));
+    fireEvent.click(button('Add exercise'));
+
+    fireEvent.click(screen.getByRole('button', { name: /Back Squat/i }));
+
+    const saved = repository.loadHistory()[0]!;
+    expect(saved.exercises).toHaveLength(2);
+    expect(saved.exercises[1]!.exercise.exerciseId).toBe(squat.exerciseId);
+    // One empty set, and no numbers invented into a session that already happened.
+    expect(saved.exercises[1]!.sets).toHaveLength(1);
+    expect(saved.exercises[1]!.sets[0]!.weightKg).toBeNull();
+  });
+
+  it('shows the new exercise on screen, not just in storage', () => {
+    const view = mount(repositoryWith(session(1)));
+    expandFirst();
+    fireEvent.click(button('Edit session'));
+    fireEvent.click(button('Add exercise'));
+    fireEvent.click(screen.getByRole('button', { name: /Back Squat/i }));
+
+    expect(view.container.textContent).toContain('Back Squat');
+  });
+
+  it('can be undone like any other edit', () => {
+    const repository = repositoryWith(session(1));
+    mount(repository);
+    expandFirst();
+    fireEvent.click(button('Edit session'));
+    fireEvent.click(button('Add exercise'));
+    fireEvent.click(screen.getByRole('button', { name: /Back Squat/i }));
+    expect(repository.loadHistory()[0]!.exercises).toHaveLength(2);
+
+    fireEvent.click(button('Undo'));
+    expect(repository.loadHistory()[0]!.exercises).toHaveLength(1);
+  });
+
+  it('closes the picker once something is picked', () => {
+    mount(repositoryWith(session(1)));
+    expandFirst();
+    fireEvent.click(button('Edit session'));
+    fireEvent.click(button('Add exercise'));
+    // Prove the positive: the picker really is open, so the assertion below is not just
+    // agreeing with a picker that never rendered.
+    expect(screen.getByPlaceholderText(/Search/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Back Squat/i }));
+    expect(screen.queryByPlaceholderText(/Search/i)).toBeNull();
+  });
+});
+
 describe('deleting a whole session', () => {
   it('asks first — the one dialog in this feature', () => {
     /*

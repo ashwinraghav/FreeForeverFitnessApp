@@ -60,6 +60,7 @@ export interface PastSessionCardProps {
   ) => void;
   readonly onRemoveSet: (exerciseId: WorkoutExerciseId, setId: SetId) => void;
   readonly onAddSetAfter: (exerciseId: WorkoutExerciseId, setId: SetId) => void;
+  readonly onAddExercise: () => void;
   readonly onDiscard: () => void;
   readonly loadStepKg: number;
 }
@@ -142,7 +143,10 @@ export function PastSessionCard(props: PastSessionCardProps) {
       {expanded ? (
         <div className="ffw-past__detail" id={summaryId}>
           {session.exercises.length === 0 ? (
-            <p className="ffw-past__empty">Every set in this session has been removed.</p>
+            <p className="ffw-past__empty">
+              Every set in this session has been removed.
+              {editing ? ' Add an exercise below to rebuild it.' : ''}
+            </p>
           ) : (
             session.exercises.map((exercise) => (
               <PastExercise
@@ -161,6 +165,14 @@ export function PastSessionCard(props: PastSessionCardProps) {
           )}
 
           <div className="ffw-past__tools">
+            {/* Outside the `exercises.length === 0` branch above on purpose: a session
+                whose sets were all removed is exactly the one that most needs this, and
+                putting the button inside that branch would hide it there. */}
+            {editing ? (
+              <Button size="lg" variant="secondary" onClick={props.onAddExercise}>
+                Add exercise
+              </Button>
+            ) : null}
             {editing ? (
               <Button size="lg" variant="primary" onClick={props.onStopEditing}>
                 Done editing

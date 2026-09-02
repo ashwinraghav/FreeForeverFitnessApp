@@ -4,12 +4,20 @@ import { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { notifyLocalDataChanged } from '../../../data/insightsSource.js';
+import { STARTER_CATALOGUE } from '../catalogue/starter.js';
+import { toExerciseRef, type CatalogueEntry } from '../catalogue/types.js';
+import { ExercisePicker } from '../components/ExercisePicker.js';
 import { longDate, PastSessionCard } from '../components/PastSessionCard.js';
 import type { EditableField } from '../components/SetRow.js';
 import type { CompletedSession } from '../model/history.js';
-import { byMostRecent } from '../model/history.js';
+import { byMostRecent, recentExerciseIds } from '../model/history.js';
 import { localDateOf } from '../model/ids.js';
-import { editPastSession, isEmptyNow, type PastSessionEdit } from '../model/pastSession.js';
+import {
+  addExerciseToPastSession,
+  editPastSession,
+  isEmptyNow,
+  type PastSessionEdit,
+} from '../model/pastSession.js';
 import type { SetPatch } from '../model/session.js';
 import { MAX_LOCAL_HISTORY, type WorkoutRepository } from '../storage/workoutStore.js';
 
@@ -51,6 +59,8 @@ export interface SessionHistoryScreenProps {
   readonly loadStepKg?: number;
   /** Injectable clock, for tests. */
   readonly now?: () => number;
+  /** The exercises the picker can offer. Same default as the live screen. */
+  readonly catalogue?: readonly CatalogueEntry[];
 }
 
 interface OpenEditor {
@@ -63,6 +73,7 @@ export function SessionHistoryScreen({
   repository,
   loadStepKg = 2.5,
   now = Date.now,
+  catalogue = STARTER_CATALOGUE,
 }: SessionHistoryScreenProps) {
   /*
    * The history is held in state rather than re-read on every render, because a write
@@ -84,9 +95,13 @@ export function SessionHistoryScreen({
   } | null>(null);
   /** Set when the last edit left a session with nothing logged in it. */
   const [emptiedId, setEmptiedId] = useState<string | null>(null);
+  /** Which session the picker is adding to. Null when it is closed. */
+  const [pickerFor, setPickerFor] = useState<string | null>(null);
 
   const today = useMemo(() => localDateOf(new Date(now())), [now]);
   const ordered = useMemo(() => byMostRecent(sessions), [sessions]);
+  // The picker opens on what you actually train, exactly as the live screen does.
+  const recentIds = useMemo(() => recentExerciseIds(sessions), [sessions]);
 
   const reload = useCallback(() => {
     setSessions(repository.loadHistory());
@@ -118,6 +133,32 @@ export function SessionHistoryScreen({
       reload();
       setUndo({ session: before, label });
       setEmptiedId(isEmptyNow(after) ? after.id : null);
+    },
+    [sessions, repository, reload, now],
+  );
+
+  /**
+   * Add an exercise to a finished session.
+   *
+   * Its own handler rather than a fifth `PastSessionEdit`, because every edit in that
+   * union names the set it acts on and this one has no set to name. Same undo, same
+   * persistence, same reload as `applyEdit` — only the model call differs.
+   */
+  const applyAddExercise = useCallback(
+    (sessionId: string, entry: CatalogueEntry) => {
+      const before = sessions.find((candidate) => candidate.id === sessionId);
+      if (before === undefined) return;
+
+      const after = addExerciseToPastSession(before, toExerciseRef(entry), now());
+      if (after === before) return;
+
+      repository.putSession(after);
+      reload();
+      setUndo({ session: before, label: `${entry.name} added` });
+      // Deliberately not touching `emptiedId`: the new exercise arrives with one pending
+      // set, which is not logged work, so a session that was empty is still empty and
+      // the retract offer must stand.
+      setPickerFor(null);
     },
     [sessions, repository, reload, now],
   );
@@ -204,10 +245,29 @@ export function SessionHistoryScreen({
             onAddSetAfter={(exerciseId, setId) =>
               applyEdit(session.id, exerciseId, setId, { kind: 'add_after' }, 'Set added')
             }
+            onAddExercise={() => setPickerFor(session.id)}
             onDiscard={() => setPendingDelete(session)}
           />
         ))}
       </ul>
+
+      {/*
+        One picker for the whole list, not one per card: only one session can be adding
+        at a time, and sixty mounted pickers would each hold their own query state.
+
+        An overlay is fine here in a way it is not on the live screen. The rule against
+        modals is about losing entered sets mid-workout (CLAUDE.md); this screen is read
+        after the fact, with nothing half-typed to lose.
+      */}
+      <ExercisePicker
+        open={pickerFor !== null}
+        onClose={() => setPickerFor(null)}
+        onPick={(entry) => {
+          if (pickerFor !== null) applyAddExercise(pickerFor, entry);
+        }}
+        catalogue={catalogue}
+        recentIds={recentIds}
+      />
 
       {/*
         The cap, stated only once it is actually reached.

@@ -1,4 +1,4 @@
-import type { SetId, SetState, WorkoutExerciseId, WorkoutId } from '@freeforever/data';
+import type { ExerciseRef, SetId, SetState, WorkoutExerciseId, WorkoutId } from '@freeforever/data';
 
 import type { CompletedSession } from './history.js';
 import { type SetPatch, workoutReducer } from './session.js';
@@ -157,6 +157,39 @@ function actionFor(
         now,
       };
   }
+}
+
+/**
+ * Add a whole exercise to a finished session.
+ *
+ * Not a `PastSessionEdit`: every member of that union names a set it acts on, and this
+ * one has no target — there is no set yet. Folding it in would mean an optional
+ * `setId` on `PastSessionTarget`, which would make the field optional for the four
+ * edits that genuinely require it. A separate entry point keeps that type honest.
+ *
+ * **One empty set, not the live screen's three.** Three empty rows on a live session are
+ * a plan for what you are about to do. On a session that finished three weeks ago there
+ * is nothing to plan — you are recording one thing you forgot to log — and two extra
+ * blank rows in history are noise you then have to delete. `add_after` already covers
+ * the second and third set.
+ *
+ * The set arrives `pending` with no numbers. A finished session has no ghosts to inherit
+ * from, and inventing numbers into history is the one thing this module must never do.
+ * Pending sets in a completed session are already a normal state: `sessionVolume` skips
+ * them, and `isEmptyNow` does not count them as work, so an exercise added and never
+ * filled in still leaves the session retractable.
+ */
+export function addExerciseToPastSession(
+  session: CompletedSession,
+  exercise: ExerciseRef,
+  now: number,
+): CompletedSession {
+  const before = { workout: asDraft(session), undoStack: [] };
+  const after = workoutReducer(before, { type: 'add_exercise', exercise, sets: 1, now });
+  // The reducer refuses past its own ceilings (`canAddExercise`) by returning the state
+  // it was given. Same identity check as `editPastSession`: no change, no `editedAt`.
+  if (after.workout === before.workout) return session;
+  return asSession(session, after.workout, now);
 }
 
 /** Has this session been changed since it was logged? */
