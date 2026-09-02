@@ -1,6 +1,6 @@
 import type { InputHTMLAttributes } from 'react';
 import { useAutoRepeat } from './useAutoRepeat.js';
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { cx } from '../lib/cx.js';
 import { MinusGlyph, PlusGlyph } from '../lib/glyphs.js';
@@ -105,12 +105,30 @@ export function NumberField({
   const repeatDown = useAutoRepeat((m) => nudge(-1, m), disabled ?? false);
   const repeatUp = useAutoRepeat((m) => nudge(1, m), disabled ?? false);
 
+  /*
+   * The value as of the last nudge, advanced synchronously.
+   *
+   * A held stepper fires faster than React re-renders, and under batching
+   * several repeats can run before the new `value` prop arrives. Reading the
+   * prop each time then computes every repeat from the same base and the number
+   * sticks after two or three notches — which is precisely what shipped and was
+   * reported. Writing here on every nudge makes the sequence independent of when
+   * React catches up, and the effect below resyncs whenever the prop really
+   * changes, so a parent that clamps or rejects a value still wins.
+   */
+  const liveRef = useRef<number | null>(value);
+  useEffect(() => {
+    liveRef.current = value;
+  }, [value]);
+
   const nudge = (direction: 1 | -1, multiplier = 1) => {
     // Stepping from a ghost commits the ghost first, then moves. Tapping "+" on a
     // carried-over 60kg should give 62.5kg, not 2.5kg.
-    const base = value ?? ghostValue ?? 0;
+    const base = liveRef.current ?? ghostValue ?? 0;
     setDraft(null);
-    onValueChange(clamp(Number((base + direction * step * multiplier).toFixed(4)), min, max));
+    const next = clamp(Number((base + direction * step * multiplier).toFixed(4)), min, max);
+    liveRef.current = next;
+    onValueChange(next);
     /*
      * Focus is NOT moved to the input.
      *

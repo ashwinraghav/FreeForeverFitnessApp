@@ -126,3 +126,4 @@ describe('press and hold to keep stepping', () => {
     expect(onStep).not.toHaveBeenCalled();
   });
 });
+

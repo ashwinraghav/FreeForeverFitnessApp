@@ -370,7 +370,23 @@
   text-transform: uppercase;
 }
 
+/*
+ * Held to repeat, so the platform must not interrupt the hold.
+ *
+ * `touch-action: none` — the button is not a scroll surface, and without this a
+ * held finger can be reinterpreted as a pan, which fires `pointercancel` and
+ * ends the repeat. Safe here in a way it was not on the value cells, which sit
+ * inside the scroller.
+ *
+ * The callout and selection rules stop a long press raising the OS text
+ * magnifier or context menu over the control — which also cancels the pointer,
+ * and is why this only ever misbehaved on a phone.
+ */
 .ff-number__step {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
   flex: 0 0 auto;
   min-inline-size: var(--ff-hit-mid-set);
   min-block-size: var(--ff-hit-mid-set);

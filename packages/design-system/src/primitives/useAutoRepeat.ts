@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 
 /**
  * Press and hold a stepper to keep stepping, faster the longer you hold.
@@ -33,8 +34,8 @@ export const GROW_AFTER = 20;
 
 export interface AutoRepeat {
   readonly handlers: {
-    onPointerDown: () => void;
-    onPointerUp: () => void;
+    onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
+    onPointerUp: (event: ReactPointerEvent<HTMLElement>) => void;
     onPointerLeave: () => void;
     onPointerCancel: () => void;
   };
@@ -46,6 +47,19 @@ export interface AutoRepeat {
  * @param step Called for each repeat with the increment multiplier to apply.
  */
 export function useAutoRepeat(step: (multiplier: number) => void, disabled = false): AutoRepeat {
+  /*
+   * `step` is held in a ref, refreshed every render, and `tick` reads it from
+   * there rather than closing over it.
+   *
+   * This is not tidiness. `tick` reschedules itself with `setTimeout(tick, …)`,
+   * so the running chain is whichever closure existed when the hold began. Each
+   * repeat changes the value, which re-renders, which builds a NEW `step` over
+   * the new value — but the chain keeps calling the old one. Every repeat after
+   * the first then computes from the same stale base and lands on the same
+   * number, so the control moves two or three notches and appears to jam. That
+   * is exactly what shipped.
+   */
+  const stepRef = useRef(step);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fired = useRef(false);
   const count = useRef(0);
@@ -58,6 +72,10 @@ export function useAutoRepeat(step: (multiplier: number) => void, disabled = fal
     }
   }, []);
 
+  useEffect(() => {
+    stepRef.current = step;
+  });
+
   // A press outliving the component would otherwise leave a live timer behind.
   useEffect(() => stop, [stop]);
 
@@ -66,20 +84,66 @@ export function useAutoRepeat(step: (multiplier: number) => void, disabled = fal
     fired.current = true;
     // Two doublings, so the increment tops out at 4x rather than running away.
     const multiplier = count.current > GROW_AFTER * 2 ? 4 : count.current > GROW_AFTER ? 2 : 1;
-    step(multiplier);
+    stepRef.current(multiplier);
     interval.current = Math.max(MIN_MS, interval.current * DECAY);
     timer.current = setTimeout(tick, interval.current);
-  }, [step]);
+    // Stable identity on purpose: the chain must not depend on a closure that
+    // goes stale the instant the value it reads changes.
+  }, []);
 
-  const onPointerDown = useCallback(() => {
+  const captured = useRef(false);
+
+  const onPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
     if (disabled) return;
+    /*
+     * Capture the pointer for the whole hold.
+     *
+     * This is the mobile-only half of the bug. A thumb resting on a button is
+     * never perfectly still, and without capture a millimetre of drift fires
+     * `pointerleave`, which stopped the repeat — so on a phone it moved a couple
+     * of notches and quit while a mouse, which does not wobble, was fine.
+     * Capture keeps every move bound to this element until release, and
+     * suppresses `pointerleave` entirely while it holds.
+     */
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+      captured.current = true;
+    } catch {
+      // Not fatal: without capture the leave handler is the safety net it
+      // always was.
+      captured.current = false;
+    }
     // Nothing happens here for a tap: the button's own click does that single
     // step, for every input method. This only arms the repeat.
     count.current = 0;
     interval.current = START_MS;
     fired.current = false;
     timer.current = setTimeout(tick, HOLD_MS);
-  }, [disabled, tick]);
+    },
+    [disabled, tick],
+  );
+
+  const onPointerUp = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      if (captured.current) {
+        try {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        } catch {
+          /* already gone */
+        }
+        captured.current = false;
+      }
+      stop();
+    },
+    [stop],
+  );
+
+  const onPointerLeave = useCallback(() => {
+    // While captured this never fires. It remains the fallback for a mouse
+    // dragged off the button, and for any browser that refused capture.
+    if (!captured.current) stop();
+  }, [stop]);
 
   const consumeTrailingClick = useCallback(() => {
     if (!fired.current) return false;
@@ -88,7 +152,7 @@ export function useAutoRepeat(step: (multiplier: number) => void, disabled = fal
   }, []);
 
   return {
-    handlers: { onPointerDown, onPointerUp: stop, onPointerLeave: stop, onPointerCancel: stop },
+    handlers: { onPointerDown, onPointerUp, onPointerLeave, onPointerCancel: stop },
     consumeTrailingClick,
   };
 }
