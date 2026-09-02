@@ -1,7 +1,6 @@
 import { Button, CheckGlyph, CloseGlyph, NumberField, SegmentedControl } from '@freeforever/design-system';
 import type { SetState } from '@freeforever/data';
 import type { ReactNode } from 'react';
-import { useHoldDrag } from './useHoldDrag.js';
 import { useId } from 'react';
 
 import type { GhostValues } from '../model/ghosts.js';
@@ -123,24 +122,6 @@ export function SetRow({
 }: SetRowProps) {
   const rowId = useId();
 
-  /*
-   * Hold, then drag, on the WEIGHT cell only.
-   *
-   * Reps already resolve in one tap via the chips centred on last session, and
-   * two competing gestures on one cell is worse than either. Weight is where a
-   * drag earns its place: 20 kg to 60 kg is sixteen stepper taps otherwise.
-   *
-   * `onTap` rather than `onClick`, so a press that becomes a drag does not also
-   * open the editor when the finger lifts.
-   */
-  const weightDrag = useHoldDrag({
-    value: set.weightKg,
-    step: loadStepKg,
-    min: 0,
-    onChange: (weightKg) => onEdit({ weightKg }),
-    onTap: () => onOpenField(openField === 'weight' ? null : 'weight'),
-    disabled: set.loadKind === 'none',
-  });
   const isWarmup = set.type === 'warmup';
   const loadCell = cellFor(set.weightKg, ghost?.weightKg);
   const effortCell = effortCellFor(set, ghost);
@@ -174,7 +155,6 @@ export function SetRow({
             unit="kg"
             open={openField === 'weight'}
             onOpen={() => onOpenField(openField === 'weight' ? null : 'weight')}
-          drag={weightDrag}
           />
         )}
 
@@ -211,16 +191,23 @@ export function SetRow({
         <li>
           <div className="ffw-editor" aria-label={`Edit ${rowLabel}`}>
             {openField === 'weight' ? (
-              <NumberField
-                label={loadFieldName(set)}
-                unit="kg"
-                step={loadStepKg}
-                min={0}
-                value={set.weightKg}
-                ghostValue={ghost?.weightKg ?? null}
-                onValueChange={(value) => onEdit({ weightKg: value })}
-                autoFocus
-              />
+              <>
+                <WeightSlider
+                  value={set.weightKg}
+                  ghost={ghost?.weightKg ?? null}
+                  step={loadStepKg}
+                  onChange={(weightKg) => onEdit({ weightKg })}
+                />
+                <NumberField
+                  label={loadFieldName(set)}
+                  unit="kg"
+                  step={loadStepKg}
+                  min={0}
+                  value={set.weightKg}
+                  ghostValue={ghost?.weightKg ?? null}
+                  onValueChange={(value) => onEdit({ weightKg: value })}
+                />
+              </>
             ) : (
               <EffortField
                 set={set}
@@ -310,16 +297,7 @@ interface ValueCellProps {
   readonly onOpen: () => void;
 }
 
-function ValueCell({
-  id,
-  label,
-  value,
-  source,
-  unit,
-  open,
-  onOpen,
-  drag,
-}: ValueCellProps & { readonly drag?: HoldDragBinding | undefined }) {
+function ValueCell({ id, label, value, source, unit, open, onOpen }: ValueCellProps) {
   const shown = value === null ? '—' : formatNumber(value);
   return (
     <button
@@ -328,22 +306,13 @@ function ValueCell({
       className="ffw-cell ff-focusable"
       data-ff-source={source}
       data-ff-open={open ? 'true' : 'false'}
-      data-ff-dragging={drag?.armed === true ? 'true' : undefined}
       aria-expanded={open}
       // Screen readers get told a ghost is a suggestion; sighted users get the muted,
       // lighter, dashed treatment. Same information, two channels.
       aria-label={`${label}: ${value === null ? 'not set' : `${shown} ${unit}`}${
         source === 'ghost' ? ', suggested from last time' : ''
       }`}
-      // `onClick` always stays. Enter, a screen reader's activate and a mouse all
-      // produce a click with no pointer sequence, so a pointer-only tap would
-      // lock keyboard users out of editing. When a pointer sequence DID happen it
-      // already delivered the tap, and this swallows the click that trails it.
-      onClick={() => {
-        if (drag?.consumeClickAfterDrag() === true) return;
-        onOpen();
-      }}
-      {...(drag?.handlers ?? {})}
+      onClick={onOpen}
     >
       <span className="ffw-cell__number">{shown}</span>
       <span className="ffw-cell__unit" aria-hidden="true">
@@ -353,11 +322,6 @@ function ValueCell({
   );
 }
 
-export interface HoldDragBinding {
-  readonly armed: boolean;
-  readonly consumeClickAfterDrag: () => boolean;
-  readonly handlers: Record<string, unknown>;
-}
 
 /**
  * Rep chips, centred on what you did last time.
@@ -413,6 +377,58 @@ function QuickReps({
         </button>
       ))}
     </div>
+  );
+}
+
+/**
+ * A coarse slider for weight, inside the editor.
+ *
+ * The first attempt was a hold-then-drag on the cell itself and it did not work.
+ * `touch-action` is consulted when the touch BEGINS, so a cell inside a
+ * scrolling list has already been claimed by the scroller; arming afterwards and
+ * setting `touch-action: none` is too late. The browser fires `pointercancel` on
+ * the first move, which is exactly the reported symptom — one 2.5 kg increment
+ * and then nothing.
+ *
+ * A real `<input type="range">` sidesteps the whole class. The browser owns the
+ * gesture so there is no scroll to fight, and keyboard arrows, Home/End and
+ * screen-reader announcement come free rather than being reimplemented badly.
+ *
+ * **Three tiers, deliberately.** The slider gets you near — 20 kg to 60 kg in one
+ * motion, which is the thing that was sixteen taps. The steppers land you
+ * exactly. The number takes anything unusual. Precision is not the slider's job,
+ * and pretending otherwise would make it worse at the one thing it is for.
+ *
+ * The range is anchored to what you lift rather than fixed: a fixed 0–200 gives
+ * someone pressing 100 kg a usable thumb and someone curling 12 kg almost no
+ * resolution at all.
+ */
+function WeightSlider({
+  value,
+  ghost,
+  step,
+  onChange,
+}: {
+  readonly value: number | null;
+  readonly ghost: number | null;
+  readonly step: number;
+  readonly onChange: (value: number) => void;
+}) {
+  const anchor = value ?? ghost ?? 20;
+  const max = Math.max(20, Math.ceil((anchor * 2) / step) * step);
+  return (
+    <label className="ffw-slider">
+      <span className="ffw-slider__label">Slide for a rough weight, then fine-tune</span>
+      <input
+        className="ffw-slider__input"
+        type="range"
+        min={0}
+        max={max}
+        step={step}
+        value={value ?? 0}
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
+    </label>
   );
 }
 
