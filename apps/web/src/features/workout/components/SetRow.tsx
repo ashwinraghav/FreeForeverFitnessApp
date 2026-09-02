@@ -1,5 +1,6 @@
 import { Button, CheckGlyph, CloseGlyph, NumberField, SegmentedControl } from '@freeforever/design-system';
 import type { SetState } from '@freeforever/data';
+import type { ReactNode } from 'react';
 import { useId } from 'react';
 
 import type { GhostValues } from '../model/ghosts.js';
@@ -75,6 +76,8 @@ export interface SetRowProps {
   readonly onRemove: () => void;
   /** Load step for the weight field, from the lifter's gym. Canonical kg. */
   readonly loadStepKg?: number;
+  /** Rendered under the editor — the plate breakdown, when there is one. */
+  readonly editorExtra?: ReactNode;
 }
 
 export const STATE_LABEL: Record<SetState, string> = {
@@ -115,6 +118,7 @@ export function SetRow({
   onEdit,
   onRemove,
   loadStepKg = 2.5,
+  editorExtra,
 }: SetRowProps) {
   const rowId = useId();
 
@@ -205,6 +209,7 @@ export function SetRow({
               />
             )}
 
+            {editorExtra}
 
             {/*
               * How the set went, in words.

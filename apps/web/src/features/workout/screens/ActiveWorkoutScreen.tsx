@@ -116,6 +116,20 @@ export function ActiveWorkoutScreen({
 
   const exercises = orderedExercises(state.workout);
 
+  /*
+   * Equipment, resolved from the catalogue.
+   *
+   * `ExerciseRef` carries `loadKind` but not `equipment`, which is why the plate
+   * hint originally keyed off `loadKind === 'external'` — and why it offered
+   * "20 kg bar, each side" on lateral raises, since a dumbbell is externally
+   * loaded too. The catalogue is already on this screen for the picker, so the
+   * real answer is one lookup away.
+   */
+  const equipmentById = useMemo(
+    () => new Map(catalogue.map((entry) => [entry.id, entry.equipment])),
+    [catalogue],
+  );
+
   const totals = useMemo(
     () =>
       sessionTotals(
@@ -355,6 +369,7 @@ export function ActiveWorkoutScreen({
           <ExerciseCard
             key={exercise.id}
             exercise={exercise}
+            equipment={equipmentById.get(exercise.exercise.exerciseId)}
             position={position}
             total={exercises.length}
             ghosts={ghostsForExercise(exercise, history)}

@@ -1,11 +1,13 @@
 import { Badge, Button, ChevronDownGlyph, IconButton, PlusGlyph } from '@freeforever/design-system';
-import type { SetId, SetState, WorkoutExerciseId } from '@freeforever/data';
+import type { Equipment, SetId, SetState, WorkoutExerciseId } from '@freeforever/data';
+import { OLYMPIC_BAR_KG, METRIC_PLATE_STOCK } from '@freeforever/core';
 
 import type { GhostMap } from '../model/ghosts.js';
 import type { ExerciseHistoryEntry } from '../model/history.js';
 import { orderedSets, type SetPatch } from '../model/session.js';
 import type { DraftExercise, DraftSet } from '../model/types.js';
 import { HistoryStrip, summariseSets } from './HistoryStrip.js';
+import { PlateHint } from './PlateHint.js';
 import { SetRow, type EditableField } from './SetRow.js';
 
 /**
@@ -45,6 +47,8 @@ function headlineRecord(types: readonly string[]): string | null {
 }
 
 export interface ExerciseCardProps {
+  /** From the catalogue; `undefined` for a custom exercise with no entry. */
+  readonly equipment?: Equipment | undefined;
   readonly exercise: DraftExercise;
   readonly position: number;
   readonly total: number;
@@ -76,7 +80,23 @@ export function ExerciseCard(props: ExerciseCardProps) {
   const sets = orderedSets(exercise);
   const lastTime = history[0] ?? null;
 
+  // A barbell lift gets a plate breakdown in its editor. Everything else does not:
+  // there is nothing to solve for a cable stack or a fixed dumbbell.
   const headline = headlineRecord(props.records);
+
+  /*
+   * Plate maths, and only where there are plates and a bar.
+   *
+   * Barbell alone, deliberately. A trap bar and an EZ bar are plate-loaded too,
+   * but they do not weigh 20 kg — showing them an Olympic bar's setup would be
+   * the same class of wrong this replaced, just less obviously. A Smith machine
+   * is worse again: the effective bar weight depends on the counterbalance and
+   * is not knowable from here.
+   */
+  const barbellSetup =
+    props.equipment === 'barbell' && exercise.exercise.loadKind === 'external'
+      ? { barKg: OLYMPIC_BAR_KG, plates: METRIC_PLATE_STOCK }
+      : null;
 
   // Warmups and working sets are numbered in separate lanes, so the first working set
   // is "1" whether or not three warmups came before it — and so the "last" column
@@ -167,6 +187,11 @@ export function ExerciseCard(props: ExerciseCardProps) {
               onChangeState={(state) => props.onChangeSetState(set.id, state)}
               onEdit={(patch) => props.onEditSet(set.id, patch)}
               onRemove={() => props.onRemoveSet(set.id)}
+              editorExtra={
+                open === 'weight' && barbellSetup !== null ? (
+                  <PlateHint targetKg={set.weightKg} setup={barbellSetup} />
+                ) : null
+              }
             />
           );
         })}

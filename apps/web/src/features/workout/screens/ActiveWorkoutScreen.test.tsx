@@ -896,3 +896,51 @@ describe('a session left running does not become a thirty-nine-hour workout', ()
     );
   });
 });
+
+describe('the plate hint appears only where there are plates', () => {
+  /*
+   * Reported as "20 kg bar · each side" on lateral raises. The hint keyed off
+   * `loadKind === 'external'`, and a dumbbell is externally loaded — so it
+   * offered bar maths for every loaded exercise in the catalogue.
+   *
+   * `ExerciseRef` carries `loadKind` but not `equipment`, which is why that
+   * proxy was reached for. The catalogue has it, and the screen already holds
+   * the catalogue for the picker.
+   */
+  const openWeightEditorFor = (id: string) => {
+    const repository = memoryWorkoutRepository();
+    const ref = toExerciseRef(STARTER_CATALOGUE.find((entry) => entry.id === id)!);
+    const started = workoutReducer(startWorkout({ now: NOW }), {
+      type: 'add_exercise',
+      exercise: ref,
+      sets: 1,
+      now: NOW,
+    });
+    // A weight, because the hint has nothing to solve without one — it returns
+    // null for an empty value, which is right and is not what is under test.
+    const exercise = started.workout.exercises[0]!;
+    const withWeight = workoutReducer(started, {
+      type: 'edit_set',
+      exerciseId: exercise.id,
+      setId: exercise.sets[0]!.id,
+      patch: { weightKg: 60 },
+    });
+    repository.saveActive(withWeight.workout);
+    mountScreen(repository);
+    const cell = document.querySelector('.ffw-cell');
+    if (cell !== null) fireEvent.click(cell);
+    return document.body;
+  };
+
+  it('shows the bar breakdown for a barbell lift', () => {
+    const body = openWeightEditorFor('back-squat');
+    expect(body.textContent).toMatch(/kg bar/u);
+  });
+
+  it('shows nothing of the sort for a dumbbell lift', () => {
+    // The actual bug: a dumbbell has no bar and no sides.
+    const body = openWeightEditorFor('dumbbell-bench-press');
+    expect(body.textContent).not.toMatch(/kg bar/u);
+    expect(body.textContent).not.toMatch(/each side/u);
+  });
+});

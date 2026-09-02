@@ -394,6 +394,34 @@
   padding-inline: var(--ff-space-8);
 }
 
+.ffw-plates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ff-space-4);
+  font-size: var(--ff-text-body-sm);
+  color: var(--ff-color-fg-secondary);
+}
+
+.ffw-plate {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: var(--ff-space-40);
+  padding: var(--ff-space-4) var(--ff-space-8);
+  /* Always outlined: the 5kg white and the 1.25kg grey do not separate from a
+     light surface on their own. */
+  border: var(--ff-border, 1px) solid var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-sm);
+  font-size: var(--ff-text-caption);
+  font-weight: var(--ff-weight-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.ffw-plates__note {
+  color: var(--ff-color-fg-muted);
+  font-size: var(--ff-text-caption);
+}
+
 /* --------------------------------------------------------------- history strip */
 
 .ffw-history {
@@ -1620,6 +1648,34 @@
 .ffw-editor__remove {
   color: var(--ff-color-danger);
   padding-inline: var(--ff-space-8);
+}
+
+.ffw-plates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ff-space-4);
+  font-size: var(--ff-text-body-sm);
+  color: var(--ff-color-fg-secondary);
+}
+
+.ffw-plate {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: var(--ff-space-40);
+  padding: var(--ff-space-4) var(--ff-space-8);
+  /* Always outlined: the 5kg white and the 1.25kg grey do not separate from a
+     light surface on their own. */
+  border: var(--ff-border, 1px) solid var(--ff-color-line-strong);
+  border-radius: var(--ff-radius-sm);
+  font-size: var(--ff-text-caption);
+  font-weight: var(--ff-weight-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.ffw-plates__note {
+  color: var(--ff-color-fg-muted);
+  font-size: var(--ff-text-caption);
 }
 
 /* --------------------------------------------------------------- history strip */
