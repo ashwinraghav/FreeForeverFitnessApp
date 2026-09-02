@@ -1,13 +1,11 @@
 import { Badge, Button, ChevronDownGlyph, IconButton, PlusGlyph } from '@freeforever/design-system';
 import type { SetId, SetState, WorkoutExerciseId } from '@freeforever/data';
-import { OLYMPIC_BAR_KG, METRIC_PLATE_STOCK } from '@freeforever/core';
 
 import type { GhostMap } from '../model/ghosts.js';
 import type { ExerciseHistoryEntry } from '../model/history.js';
 import { orderedSets, type SetPatch } from '../model/session.js';
 import type { DraftExercise, DraftSet } from '../model/types.js';
 import { HistoryStrip, summariseSets } from './HistoryStrip.js';
-import { PlateHint } from './PlateHint.js';
 import { SetRow, type EditableField } from './SetRow.js';
 
 /**
@@ -78,14 +76,7 @@ export function ExerciseCard(props: ExerciseCardProps) {
   const sets = orderedSets(exercise);
   const lastTime = history[0] ?? null;
 
-  // A barbell lift gets a plate breakdown in its editor. Everything else does not:
-  // there is nothing to solve for a cable stack or a fixed dumbbell.
   const headline = headlineRecord(props.records);
-
-  const barbellSetup =
-    exercise.exercise.loadKind === 'external'
-      ? { barKg: OLYMPIC_BAR_KG, plates: METRIC_PLATE_STOCK }
-      : null;
 
   // Warmups and working sets are numbered in separate lanes, so the first working set
   // is "1" whether or not three warmups came before it — and so the "last" column
@@ -176,11 +167,6 @@ export function ExerciseCard(props: ExerciseCardProps) {
               onChangeState={(state) => props.onChangeSetState(set.id, state)}
               onEdit={(patch) => props.onEditSet(set.id, patch)}
               onRemove={() => props.onRemoveSet(set.id)}
-              editorExtra={
-                open === 'weight' && barbellSetup !== null ? (
-                  <PlateHint targetKg={set.weightKg} setup={barbellSetup} />
-                ) : null
-              }
             />
           );
         })}
