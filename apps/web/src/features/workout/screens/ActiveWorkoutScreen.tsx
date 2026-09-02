@@ -36,6 +36,7 @@ import type { WorkoutRepository } from '../storage/workoutStore.js';
 import { primeAudio, SET_LOGGED_PATTERN, vibrate } from '../timer/feedback.js';
 import { RestBar } from '../timer/RestBar.js';
 import { DEFAULT_REST_SEC } from '../timer/restTimer.js';
+import { useSessionClock } from '../timer/useSessionClock.js';
 import { useRestTimer } from '../timer/useRestTimer.js';
 
 /**
@@ -87,6 +88,11 @@ export function ActiveWorkoutScreen({
   const [resumed] = useState(() => resumeSession(repository, now()));
   const [state, dispatch] = useReducer(workoutReducer, resumed.state);
   const [recovered, setRecovered] = useState<string | null>(resumed.recoveredTitle);
+
+  // The header clock ticks on its own. It used to re-render only when the rest timer did,
+  // so tapping Done froze the elapsed time until something else touched the screen.
+  const sessionNow = useSessionClock(state.workout.endedAt === undefined, now);
+
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [openEditor, setOpenEditor] = useState<OpenEditor | null>(null);
@@ -307,7 +313,7 @@ export function ActiveWorkoutScreen({
             session, and the idle cap stops it on one left open in a locker — a header
             reading 39:22:01 is how this screen most visibly lies. */}
           <span className="ffw-elapsed">
-            {elapsed(state.workout.startedAt, clockAt(state.workout, now()))}
+            {elapsed(state.workout.startedAt, clockAt(state.workout, sessionNow))}
           </span>
           {/*
             A link, not a button: it navigates, so middle-click and long-press-to-open

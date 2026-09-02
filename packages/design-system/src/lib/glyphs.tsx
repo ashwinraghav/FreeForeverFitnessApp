@@ -34,6 +34,11 @@ export const CheckGlyph = (p: GlyphProps) => <Glyph {...p} path="M4 12.5 9.5 18 
 export const MinusGlyph = (p: GlyphProps) => <Glyph {...p} path="M5 12h14" />;
 export const PlusGlyph = (p: GlyphProps) => <Glyph {...p} path="M12 5v14M5 12h14" />;
 export const ChevronDownGlyph = (p: GlyphProps) => <Glyph {...p} path="M5 9l7 7 7-7" />;
+// A clock face reading two o'clock. Hands at 12 and 2 rather than 12 and 3 so the two
+// strokes stay distinguishable at 1em on a phone, where a right angle blurs into a corner.
+export const TimerGlyph = (p: GlyphProps) => (
+  <Glyph {...p} path="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3.5 2M9 1.5h6" />
+);
 export const CloseGlyph = (p: GlyphProps) => <Glyph {...p} path="M6 6l12 12M18 6L6 18" />;
 export const AlertGlyph = (p: GlyphProps) => (
   <Glyph {...p} path="M12 3 1.5 21h21L12 3zM12 9v5M12 17.5v.01" />

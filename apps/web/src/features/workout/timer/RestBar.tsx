@@ -1,4 +1,4 @@
-import { Button, IconButton, MinusGlyph, PlusGlyph } from '@freeforever/design-system';
+import { Button, IconButton, MinusGlyph, PlusGlyph, TimerGlyph } from '@freeforever/design-system';
 
 import { announceClock, formatClock, isFinished, progress, remainingMs, type RestTimerState } from './restTimer.js';
 
@@ -80,7 +80,14 @@ export function RestBar({ rest, now, forLabel, onAdjust, onSkip }: RestBarProps)
       {/* Under the clock, not beside it: on a 390px screen the clock and three
           controls take every pixel of the first row. */}
       <span className="ffw-restbar__for" aria-hidden="true">
-        {done ? 'Rest over' : 'Rest'} · {forLabel}
+        {/* Two clocks are on this screen at once — the session clock in the header and
+            this one — and both read mm:ss. The glyph plus the word is what tells them
+            apart at a glance, which is the only kind of look this screen gets. It sits on
+            the caption row rather than beside the clock: the first row is measured to the
+            pixel at 390px, and a second display-sized element does not fit. */}
+        <TimerGlyph className="ffw-restbar__icon" />
+        <strong className="ffw-restbar__kind">{done ? 'Rest over' : 'Rest'}</strong> ·{' '}
+        {forLabel}
       </span>
 
       <div

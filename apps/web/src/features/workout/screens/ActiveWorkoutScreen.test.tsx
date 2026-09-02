@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -281,6 +281,64 @@ describe('every change is persisted immediately', () => {
     const cell = second.container.querySelector('.ffw-cell');
     expect(cell?.getAttribute('data-ff-source')).toBe('entered');
     expect(cell?.textContent).toContain('102.5');
+  });
+});
+
+describe('the session clock', () => {
+  /*
+   * Regression, reported from a phone: "the session timer stops when I click on done in
+   * the rest timer".
+   *
+   * The header read `now()` during render but owned no interval, so it only advanced as a
+   * side effect of the rest timer re-rendering the screen. Tap Done and the elapsed time
+   * froze until something else happened to re-render — logging a set, opening an editor —
+   * which is why it looked intermittent rather than broken.
+   *
+   * Both tests below drive real timers forward with no rest timer on screen. Before the
+   * fix they fail; the ones in `the rest timer` above passed throughout, because a running
+   * rest timer is exactly the condition that hid this.
+   */
+  it('advances on its own interval when no rest timer is running', async () => {
+    vi.useFakeTimers();
+    try {
+      const view = mountScreen(repositoryWithActiveSession());
+      // Prove the precondition rather than assuming it: with a rest bar present this
+      // test would pass against the old, broken code.
+      expect(view.container.querySelector('.ffw-restbar')).toBeNull();
+      expect(view.container.querySelector('.ffw-elapsed')?.textContent).toBe('0:00');
+
+      clock = NOW + 5_000;
+      await act(async () => {
+        vi.advanceTimersByTime(1_000);
+      });
+
+      expect(view.container.querySelector('.ffw-elapsed')?.textContent).toBe('0:05');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps advancing after the rest timer is dismissed', async () => {
+    vi.useFakeTimers();
+    try {
+      const view = mountScreen(repositoryWithActiveSession());
+      fireEvent.click(nextLogButton());
+      expect(view.container.querySelector('.ffw-restbar')).not.toBeNull();
+
+      fireEvent.click(button('Skip'));
+      expect(view.container.querySelector('.ffw-restbar')).toBeNull();
+
+      const before = view.container.querySelector('.ffw-elapsed')?.textContent;
+      clock = NOW + 30_000;
+      await act(async () => {
+        vi.advanceTimersByTime(1_000);
+      });
+
+      expect(view.container.querySelector('.ffw-elapsed')?.textContent).not.toBe(before);
+      expect(view.container.querySelector('.ffw-elapsed')?.textContent).toBe('0:30');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

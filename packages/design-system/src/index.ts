@@ -92,6 +92,7 @@ export {
   InfoGlyph,
   MinusGlyph,
   PlusGlyph,
+  TimerGlyph,
 } from './lib/glyphs.js';
 export type { GlyphProps } from './lib/glyphs.js';
 
