@@ -12,39 +12,74 @@
       }
     },
     "assert": {
-      "assertions": {
-        "categories:accessibility": [
-          "error",
-          {
-            "minScore": 0.95
+      "_why": "assertMatrix, not one assertions block, because dist holds two different kinds of page. index.html is the PWA and carries the full bar. welcome/index.html is a static landing page with no manifest and no service worker, so categories:pwa scored 0.38 and installable-manifest scored 0 - correctly. Asserting installability on a marketing page is the assertion being wrong, not the page. Accessibility is identical for both: the landing page is the first thing anyone sees.",
+      "assertMatrix": [
+        {
+          "matchingUrlPattern": "^https?://[^/]+/index\\.html$",
+          "assertions": {
+            "categories:accessibility": [
+              "error",
+              {
+                "minScore": 0.95
+              }
+            ],
+            "categories:pwa": [
+              "error",
+              {
+                "minScore": 0.95
+              }
+            ],
+            "categories:best-practices": [
+              "warn",
+              {
+                "minScore": 0.9
+              }
+            ],
+            "categories:performance": [
+              "warn",
+              {
+                "minScore": 0.9
+              }
+            ],
+            "color-contrast": "error",
+            "target-size": "error",
+            "html-has-lang": "error",
+            "meta-viewport": "error",
+            "installable-manifest": "error",
+            "unsized-images": "off",
+            "uses-responsive-images": "off"
           }
-        ],
-        "categories:pwa": [
-          "error",
-          {
-            "minScore": 0.95
+        },
+        {
+          "matchingUrlPattern": ".*/welcome/index\\.html$",
+          "assertions": {
+            "categories:accessibility": [
+              "error",
+              {
+                "minScore": 0.95
+              }
+            ],
+            "categories:best-practices": [
+              "warn",
+              {
+                "minScore": 0.9
+              }
+            ],
+            "categories:performance": [
+              "warn",
+              {
+                "minScore": 0.9
+              }
+            ],
+            "color-contrast": "error",
+            "target-size": "error",
+            "html-has-lang": "error",
+            "meta-viewport": "error",
+            "unsized-images": "off",
+            "uses-responsive-images": "off"
           }
-        ],
-        "categories:best-practices": [
-          "warn",
-          {
-            "minScore": 0.9
-          }
-        ],
-        "categories:performance": [
-          "warn",
-          {
-            "minScore": 0.9
-          }
-        ],
-        "color-contrast": "error",
-        "target-size": "error",
-        "html-has-lang": "error",
-        "meta-viewport": "error",
-        "installable-manifest": "error",
-        "unsized-images": "off",
-        "uses-responsive-images": "off"
-      }
+        }
+      ]
     },
     "upload": {
       "target": "filesystem",
