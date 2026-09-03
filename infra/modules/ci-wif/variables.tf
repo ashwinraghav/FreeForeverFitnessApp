@@ -110,3 +110,19 @@ variable "region" {
   type        = string
   default     = "europe-west1"
 }
+
+variable "subject_prefix" {
+  description = <<-EOT
+    The literal prefix GitHub puts in the OIDC `sub` claim, without the trailing
+    `:environment:...` or `:ref:...`.
+
+    Null means the classic `repo:OWNER/NAME`. Supply it when the account emits the
+    newer ID-embedded form, `repo:OWNER@OWNER_ID/NAME@REPO_ID`, which is now the
+    default on some accounts even with `use_default: true`.
+
+    Read the actual value rather than guessing:
+      gh api repos/OWNER/NAME/actions/oidc/customization/sub --jq .sub_claim_prefix
+  EOT
+  type        = string
+  default     = null
+}

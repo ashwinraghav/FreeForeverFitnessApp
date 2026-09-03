@@ -5,3 +5,7 @@ github_repository_owner_id = "REPLACE-ME-numeric-owner-id"
 state_bucket               = "REPLACE-ME-tfstate"
 deploy_environment         = "production"
 region                     = "europe-west1"
+
+# Read the real value; do not assume `repo:owner/name`:
+#   gh api repos/OWNER/NAME/actions/oidc/customization/sub --jq .sub_claim_prefix
+subject_prefix = "repo:REPLACE-ME-owner@OWNER_ID/REPLACE-ME-repo@REPO_ID"

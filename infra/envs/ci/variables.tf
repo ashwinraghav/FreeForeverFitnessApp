@@ -34,3 +34,9 @@ variable "state_bucket" {
   description = "Terraform state bucket created by envs/bootstrap."
   type        = string
 }
+
+variable "subject_prefix" {
+  description = "Literal OIDC `sub` prefix this repository emits. See the module variable."
+  type        = string
+  default     = null
+}

@@ -88,6 +88,10 @@ module "ci" {
   deploy_gate        = "environment"
   deploy_environment = var.deploy_environment
 
+  # This account emits the ID-embedded subject. Read from the API, not guessed:
+  #   gh api repos/.../actions/oidc/customization/sub --jq .sub_claim_prefix
+  subject_prefix = var.subject_prefix
+
   # The state bucket bootstrap created. The deployer needs it so a future `terraform
   # apply` from CI can read and write state; it is not needed to deploy Hosting.
   state_bucket = var.state_bucket

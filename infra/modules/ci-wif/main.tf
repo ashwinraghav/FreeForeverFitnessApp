@@ -58,10 +58,21 @@ locals {
   # GitHub's `sub` claim, reconstructed. Binding on the full subject rather
   # than on a mapped attribute means the branch/environment is checked by
   # IAM against the raw token, not against something we derived.
+  /*
+   * The `sub` prefix is read from configuration, not assumed.
+   *
+   * Assuming `repo:OWNER/NAME` cost four failed deploys. GitHub now emits
+   * `repo:OWNER@OWNER_ID/NAME@REPO_ID` on some accounts — as the *default*, with
+   * `use_default: true` — and the failure is a bare
+   * `iam.serviceAccounts.getAccessToken denied`, with every visible part of the binding
+   * looking exactly correct. There is nothing to see; the two strings simply differ.
+   */
+  subject_prefix = coalesce(var.subject_prefix, "repo:${var.github_repository}")
+
   deploy_subject = (
     var.deploy_gate == "environment"
-    ? "repo:${var.github_repository}:environment:${var.deploy_environment}"
-    : "repo:${var.github_repository}:ref:refs/heads/${var.deploy_branch}"
+    ? "${local.subject_prefix}:environment:${var.deploy_environment}"
+    : "${local.subject_prefix}:ref:refs/heads/${var.deploy_branch}"
   )
 }
 
