@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { matchesBodyParts } from './bodyParts.js';
 import { STARTER_CATALOGUE } from './starter.js';
 import { fold, searchExercises, tokenise } from './search.js';
 import { toExerciseRef, type CatalogueEntry } from './types.js';
@@ -141,12 +142,39 @@ describe('filters', () => {
     expect(results.every((hit) => hit.entry.equipment === 'bodyweight')).toBe(true);
   });
 
-  it('narrows by muscle', () => {
-    const results = searchExercises('', STARTER_CATALOGUE, { muscle: 'calves', limit: 100 });
+  it('narrows by body part', () => {
+    // Replaces a one-muscle-at-a-time filter that nothing ever called. A lifter picks
+    // exercises for a session, so the axis is the training day.
+    const results = searchExercises('', STARTER_CATALOGUE, { bodyParts: ['legs'], limit: 100 });
     expect(results.map((hit) => hit.entry.name)).toContain('Standing Calf Raise');
-    expect(
-      results.every((hit) => hit.entry.muscles.some((m) => m.muscle === 'calves')),
-    ).toBe(true);
+    expect(results.every((hit) => matchesBodyParts(hit.entry, ['legs']))).toBe(true);
+    // And it genuinely excludes: no bench press on leg day.
+    expect(results.map((hit) => hit.entry.name)).not.toContain('Bench Press');
+  });
+
+  it('unions two body parts rather than intersecting them', () => {
+    const push = searchExercises('', STARTER_CATALOGUE, { bodyParts: ['push'], limit: 200 });
+    const legs = searchExercises('', STARTER_CATALOGUE, { bodyParts: ['legs'], limit: 200 });
+    const both = searchExercises('', STARTER_CATALOGUE, {
+      bodyParts: ['push', 'legs'],
+      limit: 200,
+    });
+    // Two chips widen the list. Intersecting them would return almost nothing, which is
+    // the wrong reading of "I am training chest and legs today".
+    expect(both.length).toBe(push.length + legs.length);
+  });
+
+  it('ands the two filter axes together', () => {
+    const results = searchExercises('', STARTER_CATALOGUE, {
+      bodyParts: ['legs'],
+      equipment: ['barbell'],
+      limit: 100,
+    });
+    expect(results.length).toBeGreaterThan(0);
+    for (const hit of results) {
+      expect(hit.entry.equipment).toBe('barbell');
+      expect(matchesBodyParts(hit.entry, ['legs'])).toBe(true);
+    }
   });
 
   it('combines a filter with a query', () => {

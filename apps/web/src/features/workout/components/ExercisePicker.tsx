@@ -1,6 +1,7 @@
 import { Chip, Sheet, TextField } from '@freeforever/design-system';
 import { useMemo, useState } from 'react';
 
+import { BODY_PART_FILTERS, type BodyPart } from '../catalogue/bodyParts.js';
 import { searchExercises } from '../catalogue/search.js';
 import { RECOMMEND_LOOKBACK } from '../model/recommend.js';
 import type { CatalogueEntry } from '../catalogue/types.js';
@@ -55,14 +56,23 @@ export function ExercisePicker({
 }: ExercisePickerProps) {
   const [query, setQuery] = useState('');
   const [equipment, setEquipment] = useState<readonly string[]>([]);
+  const [bodyParts, setBodyParts] = useState<readonly BodyPart[]>([]);
 
   const results = useMemo(
-    () => searchExercises(query, catalogue, { recentIds, recommendedIds, equipment, limit: 60 }),
-    [query, catalogue, recentIds, recommendedIds, equipment],
+    () =>
+      searchExercises(query, catalogue, {
+        recentIds,
+        recommendedIds,
+        equipment,
+        bodyParts,
+        limit: 60,
+      }),
+    [query, catalogue, recentIds, recommendedIds, equipment, bodyParts],
   );
 
   const recent = useMemo(() => new Set(recentIds), [recentIds]);
   const recommended = useMemo(() => new Set(recommendedIds), [recommendedIds]);
+  const activeFilterCount = equipment.length + bodyParts.length;
 
   /*
    * `searchExercises` already puts recommendations first for an empty query, so there
@@ -82,6 +92,12 @@ export function ExercisePicker({
 
   const toggle = (value: string) => {
     setEquipment((current) =>
+      current.includes(value) ? current.filter((item) => item !== value) : [...current, value],
+    );
+  };
+
+  const togglePart = (value: BodyPart) => {
+    setBodyParts((current) =>
       current.includes(value) ? current.filter((item) => item !== value) : [...current, value],
     );
   };
@@ -110,6 +126,24 @@ export function ExercisePicker({
           autoFocus
         />
 
+        {/*
+          Body part above equipment, because it is the coarser question: a lifter knows
+          it is a pull day before they know whether they want the cable or the dumbbell
+          version. Its own scroller, so a long row cannot push the page sideways at 200%
+          text — the failure this repo has shipped three times.
+        */}
+        <div className="ffw-picker__filters" role="group" aria-label="Filter by body part">
+          {BODY_PART_FILTERS.map((filter) => (
+            <Chip
+              key={filter.value}
+              selected={bodyParts.includes(filter.value)}
+              onClick={() => togglePart(filter.value)}
+            >
+              {filter.label}
+            </Chip>
+          ))}
+        </div>
+
         <div className="ffw-picker__filters" role="group" aria-label="Filter by equipment">
           {EQUIPMENT_FILTERS.map((filter) => (
             <Chip
@@ -123,8 +157,19 @@ export function ExercisePicker({
         </div>
 
         {results.length === 0 ? (
+          /*
+            Names the filters that are actually on, and does not quote an empty query.
+            The old copy always blamed the search term and always named the equipment
+            filter — so with a body-part chip set and the box empty it read: Nothing
+            matches "". Try a shorter word.
+          */
           <p className="ffw-note">
-            Nothing matches “{query}”. Try a shorter word, or clear the equipment filter.
+            {query.trim() === ''
+              ? 'No exercises match those filters.'
+              : `Nothing matches “${query}”.`}{' '}
+            {activeFilterCount > 0
+              ? `Try clearing ${activeFilterCount === 1 ? 'the filter' : 'a filter'} above.`
+              : 'Try a shorter word.'}
           </p>
         ) : (
           <ul className="ffw-picker__results" aria-label="Exercises">

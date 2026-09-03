@@ -1,3 +1,4 @@
+import { matchesBodyParts, type BodyPart } from './bodyParts.js';
 import type { CatalogueEntry } from './types.js';
 
 /**
@@ -38,7 +39,13 @@ export interface SearchOptions {
   /** Show only these equipment kinds. Empty or absent means all. */
   readonly equipment?: readonly string[];
   /** Show only exercises that train this muscle at all. */
-  readonly muscle?: string;
+  /**
+   * Training days to filter to — see `bodyParts.ts`. Empty or absent means no filter.
+   *
+   * Replaces a single `muscle?: string` option that nothing ever called. One muscle at
+   * a time is a taxonomy; a lifter picks exercises for a session.
+   */
+  readonly bodyParts?: readonly BodyPart[];
 }
 
 export const DEFAULT_SEARCH_LIMIT = 40;
@@ -216,10 +223,10 @@ function passesFilters(entry: CatalogueEntry, options: SearchOptions): boolean {
   if (options.equipment !== undefined && options.equipment.length > 0) {
     if (!options.equipment.includes(entry.equipment)) return false;
   }
-  if (options.muscle !== undefined) {
-    if (!entry.muscles.some((share) => share.muscle === options.muscle && share.fraction > 0)) {
-      return false;
-    }
+  if (options.bodyParts !== undefined && options.bodyParts.length > 0) {
+    // Union within the axis, like `equipment` above, and an AND between the two axes:
+    // two chips widen the list, one chip from each row narrows it.
+    if (!matchesBodyParts(entry, options.bodyParts)) return false;
   }
   return true;
 }

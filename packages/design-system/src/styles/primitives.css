@@ -510,6 +510,19 @@
 /* ------------------------------------------------------------- Chip / Badge */
 
 .ff-chip {
+  /*
+   * A chip never wraps its label.
+   *
+   * There was no `white-space` here, so a chip in a flex row was free to shrink and
+   * break its text across two lines — "Chest & shoulders" did exactly that in the
+   * exercise picker, next to a single-line "Legs", and the row looked like a mistake.
+   * With `nowrap` the chip's automatic minimum size is its text, so it holds its width
+   * and the container scrolls or wraps instead of squashing it.
+   *
+   * No `flex: none`: a chip in a genuinely wrapping container should still be allowed to
+   * lay out normally, and `nowrap` is enough to stop the squash on its own.
+   */
+  white-space: nowrap;
   padding-inline: var(--ff-space-16);
   background-color: var(--ff-color-raised);
   border-color: var(--ff-color-line-strong);

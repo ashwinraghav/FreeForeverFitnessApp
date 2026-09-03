@@ -243,6 +243,32 @@ describe('reduced motion', () => {
   });
 });
 
+describe('a chip holds its label on one line', () => {
+  /*
+   * Same seam as the hit targets above: whether a label wraps is decided in the
+   * stylesheet, and jsdom does no layout, so this is checked here rather than in a
+   * component test.
+   *
+   * Reported from the exercise picker, where "Chest & shoulders" broke across two lines
+   * beside a single-line "Legs". `.ff-chip` had no `white-space`, so in a flex row the
+   * chip was a shrink candidate and its automatic minimum size fell to the longest
+   * *word* rather than the whole label. With `nowrap` that minimum is the full label, so
+   * the row scrolls or wraps instead of squashing the control.
+   */
+  it('declares white-space: nowrap', () => {
+    const chip = rules(css).find((rule) => rule.selector === '.ff-chip');
+    expect(chip).toBeDefined();
+    expect(chip?.body).toMatch(/white-space:\s*nowrap/);
+  });
+
+  it('does not pin flex: none, which would break a wrapping container', () => {
+    // `nowrap` is enough to stop the squash. Pinning `flex: none` as well would decide
+    // layout for every consumer from inside the primitive.
+    const chip = rules(css).find((rule) => rule.selector === '.ff-chip');
+    expect(chip?.body).not.toMatch(/flex:\s*none/);
+  });
+});
+
 describe('the stylesheet consumes tokens only', () => {
   it('contains no hex colour', () => {
     // The one file licensed to hold raw values, and it still does not need any.

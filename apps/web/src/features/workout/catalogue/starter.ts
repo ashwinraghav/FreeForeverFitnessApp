@@ -35,10 +35,23 @@ interface Spec {
 }
 
 function entry(spec: Spec): CatalogueEntry {
-  const muscles: MuscleContribution[] = spec.muscles.map(([muscle, fraction]) => ({
-    muscle,
-    fraction,
-  }));
+  /*
+   * Sorted, not trusted to be written in order.
+   *
+   * `CatalogueEntry.muscles` is documented as "ordered most-primary first", and three
+   * entries below quietly were not: Hammer Curl (biceps 0.8, forearms 1), Dip (chest
+   * 0.8, triceps 1) and Trap Bar Deadlift (quads 0.8, glutes 1). Anything reading
+   * `muscles[0]` as "the muscle this is for" was therefore wrong about them — the
+   * recommendation spread bucketed Dip under chest, and the body-part filter would have
+   * inherited the same mistake.
+   *
+   * Sorting here makes the contract true for every entry rather than asking each caller
+   * to defend against it. The fractions themselves are left exactly as authored: they
+   * are somebody's judgement about the lift, not a typo I should quietly rewrite.
+   */
+  const muscles: MuscleContribution[] = spec.muscles
+    .map(([muscle, fraction]) => ({ muscle, fraction }))
+    .sort((left, right) => right.fraction - left.fraction);
   return {
     id: spec.id as ExerciseId,
     name: spec.name,
