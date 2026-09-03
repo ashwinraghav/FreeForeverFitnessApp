@@ -2,12 +2,25 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const sw = { needRefresh: false, updateServiceWorker: vi.fn(async () => undefined) };
-vi.mock('virtual:pwa-register/react', () => ({
-  useRegisterSW: () => ({
-    needRefresh: [sw.needRefresh, vi.fn()] as const,
-    updateServiceWorker: sw.updateServiceWorker,
-  }),
+/*
+ * Mocks `./appUpdate`, the single registration, rather than
+ * `virtual:pwa-register/react`. This component used to call `useRegisterSW()` and so did
+ * `UpdatePrompt` — two `Workbox` instances over one worker, where only the one that
+ * observed `waiting` had a button that did anything.
+ */
+type CheckResult = 'ready' | 'uptodate' | 'unsupported';
+const sw = {
+  ready: false,
+  install: vi.fn(async () => undefined),
+  // Typed on the union, not inferred from the default: otherwise the first assignment
+  // pins it to `'uptodate'` and any test returning a different result fails to compile.
+  check: vi.fn<() => Promise<CheckResult>>(async () => 'uptodate'),
+};
+vi.mock('./appUpdate', () => ({
+  subscribe: () => () => undefined,
+  isUpdateReady: () => sw.ready,
+  installUpdate: () => sw.install(),
+  checkForUpdate: () => sw.check(),
 }));
 
 const { AppUpdateSection } = await import('./AppUpdateSection');
@@ -15,8 +28,9 @@ const { AppUpdateSection } = await import('./AppUpdateSection');
 const registration = { waiting: null as unknown, update: vi.fn(async () => undefined) };
 
 beforeEach(() => {
-  sw.needRefresh = false;
-  sw.updateServiceWorker = vi.fn(async () => undefined);
+  sw.ready = false;
+  sw.install = vi.fn(async () => undefined);
+  sw.check = vi.fn<() => Promise<CheckResult>>(async () => 'uptodate');
   registration.waiting = null;
   registration.update = vi.fn(async () => undefined);
   Object.defineProperty(navigator, 'serviceWorker', {
@@ -40,12 +54,16 @@ describe('AppUpdateSection', () => {
   });
 
   it('actually polls the server rather than waiting for the browser to look', async () => {
+    // The polling itself, and the waiting-for-install that makes its answer true, are
+    // `appUpdate`'s job and are tested there against a real registration. What this
+    // component owes is that the button reaches it.
     render(<AppUpdateSection />);
     await userEvent.click(screen.getByRole('button', { name: 'Check for updates' }));
-    expect(registration.update).toHaveBeenCalled();
+    expect(sw.check).toHaveBeenCalledTimes(1);
   });
 
   it('reports being current when nothing is waiting', async () => {
+    sw.check = vi.fn<() => Promise<CheckResult>>(async () => 'uptodate');
     render(<AppUpdateSection />);
     await userEvent.click(screen.getByRole('button', { name: 'Check for updates' }));
     expect(screen.getByRole('status', { name: 'App version status' })).toHaveTextContent(/newest version/i);
@@ -53,16 +71,18 @@ describe('AppUpdateSection', () => {
   });
 
   it('offers the install once a build is waiting', async () => {
-    registration.waiting = {};
+    sw.check = vi.fn<() => Promise<CheckResult>>(async () => 'ready');
     render(<AppUpdateSection />);
     await userEvent.click(screen.getByRole('button', { name: 'Check for updates' }));
     expect(screen.getByRole('status', { name: 'App version status' })).toHaveTextContent(/ready to install/i);
     await userEvent.click(screen.getByRole('button', { name: 'Install and reload' }));
-    expect(sw.updateServiceWorker).toHaveBeenCalledWith(true);
+    // No reload flag to pass. `installUpdate` performs the reload itself, because the
+    // library's `updateServiceWorker(reloadPage)` ignores that argument entirely.
+    expect(sw.install).toHaveBeenCalledTimes(1);
   });
 
   it('offers the install without a check when one is already waiting', () => {
-    sw.needRefresh = true;
+    sw.ready = true;
     render(<AppUpdateSection />);
     expect(screen.getByRole('button', { name: 'Install and reload' })).toBeInTheDocument();
   });
@@ -75,7 +95,7 @@ describe('AppUpdateSection', () => {
   });
 
   it('degrades honestly where service workers are unavailable', async () => {
-    Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: undefined });
+    sw.check = vi.fn<() => Promise<CheckResult>>(async () => 'unsupported');
     render(<AppUpdateSection />);
     await userEvent.click(screen.getByRole('button', { name: 'Check for updates' }));
     expect(screen.getByRole('status', { name: 'App version status' })).toHaveTextContent(/cannot check for updates/i);

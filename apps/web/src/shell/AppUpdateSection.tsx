@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useRegisterSW } from 'virtual:pwa-register/react';
+import { useState, useSyncExternalStore } from 'react';
+
+import { checkForUpdate, installUpdate, isUpdateReady, subscribe } from './appUpdate';
 import { downloadLocalData, type ExportSummary } from './exportData';
 import {
   clearDiagnostics,
@@ -33,38 +34,19 @@ export function AppUpdateSection() {
   const [exported, setExported] = useState<ExportSummary | null>(null);
   const [diagOn, setDiagOn] = useState(diagnosticsEnabled);
   const [diagResult, setDiagResult] = useState<string | null>(null);
-  const {
-    needRefresh: [needRefresh],
-    updateServiceWorker,
-  } = useRegisterSW();
+  // One shared registration (`appUpdate`), not a second one of our own. This component
+  // and `UpdatePrompt` each used to call `useRegisterSW()`, which constructs a `Workbox`
+  // per call — so there were two instances over one worker and only one of them had a
+  // button that did anything.
+  const ready = useSyncExternalStore(subscribe, isUpdateReady, () => false);
 
   const check = async () => {
-    // Test the VALUE, not the key. `'serviceWorker' in navigator` is true when
-    // the property exists and holds undefined, which is exactly the shape a
-    // locked-down or non-secure context presents — and the guard then passes
-    // straight into a TypeError on the next line.
-    const container = navigator.serviceWorker as ServiceWorkerContainer | undefined;
-    if (container === undefined) {
-      setStatus('unsupported');
-      return;
-    }
     setStatus('checking');
-    try {
-      const registration = await container.getRegistration();
-      if (registration === undefined) {
-        setStatus('unsupported');
-        return;
-      }
-      // Ask the server now. Without this the browser decides when to look,
-      // which can be hours, and there is no way for a user to hurry it along.
-      await registration.update();
-      setStatus(registration.waiting !== null || needRefresh ? 'ready' : 'uptodate');
-    } catch {
-      // Registration lookup throws outright in some contexts — a non-secure
-      // origin, or a browser with site data blocked. Saying so is better than
-      // leaving the status stuck on "Checking…" forever.
-      setStatus('unsupported');
-    }
+    // The whole check lives in `appUpdate` because getting it right means waiting for a
+    // newly-found worker to finish installing: `registration.update()` resolves while it
+    // is still in `installing`, so reading `waiting` straight afterwards reported "you
+    // already have the newest version" to someone who did not.
+    setStatus(await checkForUpdate());
   };
 
   const message: Record<Status, string> = {
@@ -107,11 +89,11 @@ export function AppUpdateSection() {
           >
             Download my data
           </button>
-          {(status === 'ready' || needRefresh) && (
+          {(status === 'ready' || ready) && (
             <button
               type="button"
               className="ff-control ff-focusable ff-more__action ff-more__action--primary"
-              onClick={() => void updateServiceWorker(true)}
+              onClick={() => void installUpdate()}
             >
               Install and reload
             </button>

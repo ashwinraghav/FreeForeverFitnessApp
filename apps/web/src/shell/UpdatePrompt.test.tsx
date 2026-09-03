@@ -3,66 +3,80 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = {
-  needRefresh: false,
-  setNeedRefresh: vi.fn(),
-  updateServiceWorker: vi.fn(async () => undefined),
+  ready: false,
+  install: vi.fn(async () => undefined),
+  dismiss: vi.fn(),
 };
 
-vi.mock('virtual:pwa-register/react', () => ({
-  useRegisterSW: () => ({
-    needRefresh: [state.needRefresh, state.setNeedRefresh] as const,
-    updateServiceWorker: state.updateServiceWorker,
-  }),
+/*
+ * Mocks `./appUpdate`, not `virtual:pwa-register/react`.
+ *
+ * That change is the fix, not an incidental refactor: this component and
+ * `AppUpdateSection` each called `useRegisterSW()`, which builds a `Workbox` per call,
+ * so there were two registrations over one worker and only whichever instance saw the
+ * `waiting` event had a button that did anything.
+ */
+vi.mock('./appUpdate', () => ({
+  subscribe: () => () => undefined,
+  isUpdateReady: () => state.ready,
+  installUpdate: () => state.install(),
+  dismissUpdate: () => state.dismiss(),
 }));
 
 const { UpdatePrompt } = await import('./UpdatePrompt');
 
 beforeEach(() => {
-  state.needRefresh = false;
-  state.setNeedRefresh = vi.fn();
-  state.updateServiceWorker = vi.fn(async () => undefined);
+  state.ready = false;
+  state.install = vi.fn(async () => undefined);
+  state.dismiss = vi.fn();
 });
 
 describe('UpdatePrompt', () => {
   /*
-   * This component exists because prompt-mode registration only parks the new
-   * build in `waiting` — without an offer, a returning device stays on whichever
-   * build it installed first, forever. A live deploy was found serving a
-   * three-day-old bundle for exactly this reason, so the negative case below is
-   * the one that must not silently become the only behaviour again.
+   * This component exists because prompt-mode registration only parks the new build in
+   * `waiting` — without an offer, a returning device stays on whichever build it
+   * installed first, forever. A live deploy was found serving a three-day-old bundle for
+   * exactly this reason, so the negative case below is the one that must not silently
+   * become the only behaviour again.
    */
   it('renders nothing at all when no update is waiting', () => {
-    state.needRefresh = false;
+    state.ready = false;
     const { container } = render(<UpdatePrompt />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('offers the update once one is waiting', () => {
-    state.needRefresh = true;
+    state.ready = true;
     render(<UpdatePrompt />);
     expect(screen.getByRole('status')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Update' })).toBeInTheDocument();
   });
 
-  it('applies the waiting worker and reloads when taken', async () => {
-    state.needRefresh = true;
+  it('hands the install to the one place that owns it', async () => {
+    /*
+     * This used to assert `updateServiceWorker` was called with `true`, commented as
+     * "the reload flag". It passed for months, and `true` did nothing: the library
+     * signature is `async (_reloadPage = true)` — underscore-prefixed and unused. The
+     * test encoded the misunderstanding rather than catching it.
+     *
+     * `installUpdate` performs the reload itself, so there is no flag to get wrong.
+     */
+    state.ready = true;
     render(<UpdatePrompt />);
     await userEvent.click(screen.getByRole('button', { name: 'Update' }));
-    // `true` is the reload flag — without it the worker activates and the page
-    // keeps running the old bundle, which is the bug this component fixes.
-    expect(state.updateServiceWorker).toHaveBeenCalledWith(true);
+    expect(state.install).toHaveBeenCalledTimes(1);
   });
 
   it('dismisses without applying, because a set in progress outranks a new build', async () => {
-    state.needRefresh = true;
+    state.ready = true;
     render(<UpdatePrompt />);
     await userEvent.click(screen.getByRole('button', { name: 'Later' }));
-    expect(state.setNeedRefresh).toHaveBeenCalledWith(false);
-    expect(state.updateServiceWorker).not.toHaveBeenCalled();
+    expect(state.dismiss).toHaveBeenCalledTimes(1);
+    expect(state.install).not.toHaveBeenCalled();
   });
 
   it('announces without stealing focus, so it cannot interrupt a set', () => {
-    state.needRefresh = true;
+    state.ready = true;
     render(<UpdatePrompt />);
     // `status`, not `alert` or a dialog: polite, and it never takes focus.
     expect(screen.getByRole('status')).toBeInTheDocument();

@@ -26,6 +26,21 @@ export default defineConfig({
     projects: [
       {
         plugins: [react()],
+        /*
+         * The same aliases as the dom project below. `appUpdate.ts` is plain `.ts`, so
+         * its unit tests land in this project — and without these the virtual modules
+         * fail to resolve here exactly as they did there.
+         */
+        resolve: {
+          alias: {
+            'virtual:pwa-register/react': fileURLToPath(
+              new URL('./test/stubs/pwa-register.ts', import.meta.url),
+            ),
+            'virtual:pwa-register': fileURLToPath(
+              new URL('./test/stubs/pwa-register-base.ts', import.meta.url),
+            ),
+          },
+        },
         test: {
           name: 'logic',
           include: ['src/**/*.test.ts'],
@@ -46,6 +61,11 @@ export default defineConfig({
           alias: {
             'virtual:pwa-register/react': fileURLToPath(
               new URL('./test/stubs/pwa-register.ts', import.meta.url),
+            ),
+            // `appUpdate.ts` imports the non-React entry point; the two ids do not
+            // alias each other, so it needs its own stub.
+            'virtual:pwa-register': fileURLToPath(
+              new URL('./test/stubs/pwa-register-base.ts', import.meta.url),
             ),
           },
         },
