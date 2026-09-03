@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -26,6 +29,42 @@ import { VitePWA } from 'vite-plugin-pwa';
  * CDN. jsDelivr appears in img-src only — it serves exercise media (ADR-0007)
  * and must never serve script.
  */
+/**
+ * The recording harnesses, served in dev and unable to reach a build.
+ *
+ * `demo.html` and `pixel8a.html` frame the app at an unscaled 412px so a screen
+ * recording maps 1:1 to a Pixel 8a. They used to live in `public/`, and `public/` is
+ * copied verbatim into `dist` — so both shipped, and both were live on the production
+ * domain serving an empty iframe pointed at `localhost:5173`.
+ *
+ * The commit that added them claimed to keep them out of deploys, and it did add them to
+ * the service worker's `globIgnores` — but that only stops them being *precached*, not
+ * built. Two different things, and the name of the first one reads like the second.
+ *
+ * They also broke Lighthouse: `@lhci/cli` globs every HTML file under `staticDistDir`,
+ * found `demo.html`, and audited a page whose whole body is an iframe. It never painted,
+ * so the run failed with NO_FCP having never looked at the app.
+ *
+ * Serving them from outside `publicDir` makes shipping them impossible rather than
+ * merely undone — there is no build step left that could copy them.
+ */
+function devHarness() {
+  const dir = fileURLToPath(new URL('./dev-harness/', import.meta.url));
+  const allowed = new Set(['/demo.html', '/pixel8a.html']);
+  return {
+    name: 'ff-dev-harness',
+    apply: 'serve' as const,
+    configureServer(server: { middlewares: { use: (fn: unknown) => void } }) {
+      server.middlewares.use((req: { url?: string }, res: NodeJS.WritableStream & { setHeader: (k: string, v: string) => void }, next: () => void) => {
+        const path = (req.url ?? '').split('?')[0] ?? '';
+        if (!allowed.has(path)) return next();
+        res.setHeader('content-type', 'text/html; charset=utf-8');
+        res.end(readFileSync(dir + path.slice(1), 'utf8'));
+      });
+    },
+  };
+}
+
 const cspDirectives = (dev: boolean) => ({
   'default-src': "'self'",
   'script-src': dev ? "'self' 'unsafe-inline'" : "'self'",
@@ -57,6 +96,7 @@ export default defineConfig({
     headers: { 'Content-Security-Policy': csp(true) },
   },
   plugins: [
+    devHarness(),
     react(),
     VitePWA({
       registerType: 'prompt',
@@ -84,7 +124,10 @@ export default defineConfig({
         // they would resolve to the app's HTML cached under a harness URL, with
         // a revision hash computed from a different file — so both entries get
         // re-fetched on every worker update, forever, for nothing.
-        globIgnores: ['pixel8a.html', 'demo.html'],
+        // No `globIgnores` for the harnesses any more: they are served from
+        // `dev-harness/` by `devHarness()` and never enter `dist`, so there is nothing
+        // for the precache glob to exclude. Leaving it would have implied they still
+        // ship, which is exactly the confusion that let them reach production.
         // Never cache Firestore or auth traffic — the SDK owns its own
         // offline persistence, and a stale cached response would fight it.
         navigateFallbackDenylist: [/^\/__/],

@@ -268,6 +268,18 @@ describe('calculateMacroTarget — safety clamps', () => {
 });
 
 describe('the safety invariant, swept', () => {
+  /*
+   * Slow on purpose, so the timeout says so rather than the default deciding.
+   *
+   * This sweeps a *safety* invariant — no prescription may fall below the energy
+   * floor — over every combination of sex, activity, goal, bodyweight, height, age
+   * and rate. The answer to it being slow is not a smaller sweep.
+   *
+   * About a second on an M-series laptop; 6.4-6.8s on a GitHub runner, against
+   * vitest's 5s default. That failed the first CI run this repo ever had, and it
+   * failed saying "Test timed out in 5000ms", which reads like a hang rather than
+   * like hardware seven times slower at arithmetic.
+   */
   it('never prescribes below the binding floor, for any combination of inputs', () => {
     let checked = 0;
     for (const sex of SEXES) {
@@ -299,7 +311,7 @@ describe('the safety invariant, swept', () => {
       }
     }
     expect(checked).toBeGreaterThan(15000);
-  });
+  }, 30_000);
 
   it('never prescribes a rate faster than the safe maximum, for any input', () => {
     for (const sex of SEXES) {

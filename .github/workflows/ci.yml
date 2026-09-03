@@ -51,6 +51,13 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
+      # The Firebase emulators are Java, and firebase-tools 15.29 raised its floor
+      # to JDK 21 — the first CI run this repo ever had died on exactly that, with
+      # `firebase-tools no longer supports Java version before 21`. Nothing we wrote
+      # changed; a dependency moved. Pinned here rather than pinning firebase-tools,
+      # because the emulators should track upstream and the JDK is the cheap half.
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
       - run: pnpm install --frozen-lockfile
 
       # BOTH emulators. storage.rules governs progress-photo bytes (ADR-0023)
@@ -91,6 +98,13 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
+      # The Firebase emulators are Java, and firebase-tools 15.29 raised its floor
+      # to JDK 21 — the first CI run this repo ever had died on exactly that, with
+      # `firebase-tools no longer supports Java version before 21`. Nothing we wrote
+      # changed; a dependency moved. Pinned here rather than pinning firebase-tools,
+      # because the emulators should track upstream and the JDK is the cheap half.
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
       - run: pnpm install --frozen-lockfile
 
       # Auth is not optional here: the suite exercises the anonymous-to-linked
