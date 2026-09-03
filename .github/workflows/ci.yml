@@ -182,6 +182,17 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
 
+      # Proves the federation worked before firebase-tools gets a chance to misreport it.
+      # `auth` above reports success merely for writing the credential file, and
+      # firebase-tools catches any real exchange failure and replaces it with "have you
+      # run `firebase login`?" — which sent the first two attempts looking in the wrong
+      # place entirely. If the exchange is broken, it should say so here.
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Who am I
+        run: |
+          gcloud auth list --filter=status:ACTIVE --format='value(account)'
+          gcloud auth print-access-token >/dev/null && echo "token exchange OK"
+
       # Built here rather than reusing an artefact from `verify`, so what ships is built
       # from the commit being deployed by a job that just authenticated as the deployer.
       - run: pnpm --filter @freeforever/web build
@@ -195,4 +206,5 @@ jobs:
           --only hosting
           --project ${{ vars.GCP_PROJECT_ID }}
           --non-interactive
+          --debug
 
