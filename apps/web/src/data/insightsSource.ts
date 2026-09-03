@@ -3,6 +3,7 @@ import { DEFAULT_UNIT_PREFERENCES } from '@freeforever/data';
 import { localWorkoutRepository } from '../features/workout/storage/workoutStore';
 import type { InsightsDataSource, InsightsSnapshot } from '../features/insights/data/ports';
 import { insightsSnapshotOf } from './localAggregates';
+import { createBodyStore, toBodyMetrics, type BodyStore } from './bodyStore';
 
 /**
  * The `InsightsDataSource` the app actually runs on.
@@ -44,6 +45,8 @@ import { insightsSnapshotOf } from './localAggregates';
  * tuple, so the copy cannot drift without a red test.
  */
 export const WORKOUT_HISTORY_KEY = 'ff.workout.history.v1';
+/** Weigh-ins. In the freshness stamp below, or a new one would not repaint the chart. */
+export const BODY_KEY = 'ff.body.v1';
 
 /** Fired when device-local data changed in this tab. */
 export const LOCAL_DATA_CHANGED_EVENT = 'ff:localdata';
@@ -83,6 +86,9 @@ export interface LocalInsightsSourceOptions {
   readonly now?: () => Date;
   readonly timeZone?: string;
   readonly units?: UnitPreferences;
+  /** Injectable for tests; defaults to the device's own weigh-in store. */
+  readonly bodyStore?: BodyStore;
+
 }
 
 export interface LocalInsightsSource extends InsightsDataSource {
@@ -97,12 +103,14 @@ export function createLocalInsightsSource(
   const units = options.units ?? DEFAULT_UNIT_PREFERENCES;
   const listeners = new Set<() => void>();
 
+  const bodyStore = options.bodyStore ?? createBodyStore();
+
   let stamp: string | null = null;
   let snapshot: InsightsSnapshot | null = null;
 
-  const rawHistory = (): string => {
+  const rawOf = (key: string): string => {
     try {
-      return safeStorage()?.getItem(WORKOUT_HISTORY_KEY) ?? '';
+      return safeStorage()?.getItem(key) ?? '';
     } catch {
       return '';
     }
@@ -110,16 +118,24 @@ export function createLocalInsightsSource(
 
   const fold = (): InsightsSnapshot => {
     const today = todayLocalDate(now());
-    return insightsSnapshotOf({
+    const base = insightsSnapshotOf({
       sessions: localWorkoutRepository.loadHistory(),
       timeZone: options.timeZone ?? deviceTimeZone(),
       today,
       units,
     });
+    /*
+     * `bodyMetrics` was hardcoded `null` here, which is why the Body tab drew an empty
+     * state no matter what: the view and the aggregate were both finished and nothing
+     * could produce one. `bodyStore` builds the same shape from `localStorage`, so
+     * `BodyView` and `select/body` are untouched — the aggregate is a contract, not a
+     * query, and when the sync reducer eventually lands it swaps in here.
+     */
+    return { ...base, bodyMetrics: toBodyMetrics(bodyStore.list()) };
   };
 
   const read = (): InsightsSnapshot => {
-    const next = `${todayLocalDate(now())}|${rawHistory()}`;
+    const next = `${todayLocalDate(now())}|${rawOf(WORKOUT_HISTORY_KEY)}|${rawOf(BODY_KEY)}`;
     if (snapshot === null || next !== stamp) {
       stamp = next;
       snapshot = fold();

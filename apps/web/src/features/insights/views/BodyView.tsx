@@ -12,6 +12,7 @@ import { MEASUREMENT_LABELS } from '../data/proposed';
 import { availableSites, change, measurementSeries, weightSeries } from '../select/body';
 import { formatDateShort, formatLength, formatMass, measureMass } from '../select/format';
 import { PhotoGallery } from './PhotoGallery';
+import { WeighInCard } from './WeighInCard';
 
 /*
  * Empty-state copy.
@@ -47,6 +48,12 @@ export function BodyView() {
   const lengthUnit = snapshot.units.bodyLength;
 
   const weight = useMemo(() => weightSeries(snapshot.bodyMetrics), [snapshot.bodyMetrics]);
+  // Today's entry, if any, so the field opens on it and saving reads as a correction.
+  const todayKg = useMemo(
+    () =>
+      snapshot.bodyMetrics?.days.find((day) => day.localDate === snapshot.today)?.weightKg ?? null,
+    [snapshot.bodyMetrics, snapshot.today],
+  );
   const weightChange = useMemo(() => change(weight), [weight]);
   const sites = useMemo(() => availableSites(snapshot.bodyMetrics), [snapshot.bodyMetrics]);
   const activeSite = site ?? sites[0] ?? null;
@@ -138,6 +145,10 @@ export function BodyView() {
           />
         </Headline>
       )}
+
+      {/* Above the chart on purpose: the reason to open this tab with no data yet is to
+          put a number in, and a control below an empty chart is one nobody finds. */}
+      <WeighInCard today={snapshot.today} massUnit={massUnit} todayKg={todayKg} />
 
       <ChartFrame
         title="Bodyweight"

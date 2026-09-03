@@ -673,3 +673,36 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* ------------------------------------------------------ weigh-in */
+
+/*
+ * The one place in this feature that writes rather than reads.
+ *
+ * Sits above the bodyweight chart, because with no data the whole reason to be on this
+ * tab is to put a number in, and a control below an empty chart is one nobody finds.
+ */
+.ff-in-weighin {
+  margin-block-end: var(--ff-space-24);
+}
+
+/*
+ * `wrap` and a zero min-width on the field, not a fixed two-column grid.
+ *
+ * At 200% text the number field and the Save button together exceed a 412px line, and
+ * this repo has shipped a row that pushed the document sideways three times. Wrapping
+ * puts Save on its own line instead — which is the outcome ADR-0013's "works at 200%
+ * text" is asking for, not a compromise.
+ */
+.ff-in-weighin__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ff-space-12);
+  margin-block-start: var(--ff-space-12);
+}
+
+.ff-in-weighin__row > *:first-child {
+  flex: 1 1 12rem;
+  min-inline-size: 0;
+}
