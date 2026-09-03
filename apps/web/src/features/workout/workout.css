@@ -1271,45 +1271,6 @@
   display: none;
 }
 
-/* Without `:has()` nothing is hidden and the screen behaves exactly as before —
-   crowded, but never broken. Worth stating because the rule above is the only
-   thing standing between a supporting browser and an unsupporting one. */
-
-/* ── Rep chips ────────────────────────────────────────────────────────────
- *
- * Sits above the number field so the common answer is reached before the
- * keyboard is. Wraps rather than scrolls: a horizontal scroller hides options
- * off-screen, and the whole point is that every candidate is visible at once.
- */
-.ffw-quick {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ff-space-8);
-  margin-block-end: var(--ff-space-12);
-}
-
-.ffw-quick__chip {
-  /* 56px: this is tapped mid-set, one-handed (ADR-0013). */
-  min-inline-size: var(--ff-hit-mid-set);
-  min-block-size: var(--ff-hit-mid-set);
-  padding-inline: var(--ff-space-12);
-  border: var(--ff-border, 1px) solid var(--ff-color-line-strong);
-  border-radius: var(--ff-radius-md);
-  background: var(--ff-color-sunken);
-  color: var(--ff-color-fg-primary);
-  font-family: var(--ff-font-numeric);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--ff-text-title);
-  font-weight: var(--ff-weight-title);
-}
-
-.ffw-quick__chip[aria-pressed='true'] {
-  border-color: transparent;
-  background: var(--ff-color-accent);
-  color: var(--ff-color-on-accent);
-}
-
-
 /* ------------------------------------------------ log a past workout */
 
 /*

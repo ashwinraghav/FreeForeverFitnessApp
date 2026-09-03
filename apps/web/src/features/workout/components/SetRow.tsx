@@ -201,12 +201,7 @@ export function SetRow({
                 onValueChange={(value) => onEdit({ weightKg: value })}
               />
             ) : (
-              <EffortField
-                set={set}
-                ghost={ghost}
-                onEdit={onEdit}
-                onDone={() => onOpenField(null)}
-              />
+              <EffortField set={set} ghost={ghost} onEdit={onEdit} />
             )}
 
             {editorExtra}
@@ -315,73 +310,14 @@ function ValueCell({ id, label, value, source, unit, open, onOpen }: ValueCellPr
 }
 
 
-/**
- * Rep chips, centred on what you did last time.
- *
- * The editor used to open straight into the OS keyboard, which takes about
- * 400px — more than the rest bar and the action bar put together. Reclaiming
- * layout around it was treating the symptom: the keyboard is the wrong
- * instrument for a number that is almost always 5 to 12, entered one-handed and
- * out of breath.
- *
- * **Centred on the ghost, not on a fixed set.** `[g-2 … g+2]` means the middle
- * chip is last session's reps, its neighbours are "one more" and "one less",
- * and that is what progression actually looks like. A fixed [5, 8, 10, 12] would
- * be wrong for anyone who does sets of 15.
- *
- * Positions stay stable within a session because the ghost does, so the tap
- * becomes muscle memory rather than a read.
- *
- * A chip sets the value AND closes the editor: the whole point is one tap. The
- * keyboard is still one tap away for the odd 17, by tapping the number itself.
- */
-function QuickReps({
-  current,
-  ghost,
-  onPick,
-}: {
-  readonly current: number | null;
-  readonly ghost: number | null;
-  readonly onPick: (reps: number) => void;
-}) {
-  // With no history there is nothing to centre on, so offer nothing rather than
-  // invent a "typical" number and teach it as a default.
-  const centre = ghost ?? current;
-  if (centre === null || centre <= 0) return null;
-
-  const values = [centre - 2, centre - 1, centre, centre + 1, centre + 2].filter((v) => v >= 1);
-  const unique = [...new Set(values)];
-
-  return (
-    <div className="ffw-quick" role="group" aria-label="Common rep counts">
-      {unique.map((value) => (
-        <button
-          key={value}
-          type="button"
-          className="ff-control ff-focusable ffw-quick__chip"
-          aria-pressed={current === value}
-          // Focus lands on last session's value, so the most likely answer is
-          // already under the thumb — and Enter alone logs a repeat.
-          autoFocus={value === centre && current === null}
-          onClick={() => onPick(value)}
-        >
-          {value}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function EffortField({
   set,
   ghost,
   onEdit,
-  onDone,
 }: {
   readonly set: DraftSet;
   readonly ghost: GhostValues | undefined;
   readonly onEdit: SetRowProps['onEdit'];
-  readonly onDone?: (() => void) | undefined;
 }) {
   if (set.effortKind === 'duration') {
     return (
@@ -415,19 +351,18 @@ function EffortField({
 
   return (
     <>
-      <QuickReps
-        current={set.reps}
-        ghost={ghost?.reps ?? null}
-        onPick={(reps) => {
-          onEdit({ reps });
-          onDone?.();
-        }}
-      />
       {/*
-        * No `autoFocus` here, and that is the change. Focus still follows the
-        * tap — it goes to the ghost chip above instead of the text field, so the
-        * OS keyboard stays down and the most likely value is one tap away.
-        * Tapping the number still opens the keyboard for anything unusual.
+        * No `autoFocus`, deliberately, and it is the one thing to preserve here.
+        *
+        * Focusing this input summons the OS keyboard, which costs about 400px —
+        * more than the rest bar and the action bar together — on a screen whose
+        * whole job is one number per glance. The steppers beside it hold to
+        * repeat and accelerate, so reaching any rep count takes no typing;
+        * tapping the number still opens the keyboard for the odd 17.
+        *
+        * There used to be a row of rep chips above this field serving the same
+        * purpose. They are gone: they shifted the layout every time the editor
+        * opened, and the accelerating steppers made them redundant.
         */}
       <NumberField
         label="Reps"
