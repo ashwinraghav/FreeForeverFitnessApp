@@ -1,0 +1,7 @@
+project_id                 = "REPLACE-ME-project-id"
+github_repository          = "REPLACE-ME-owner/REPLACE-ME-repo"
+github_repository_id       = "REPLACE-ME-numeric-repo-id"
+github_repository_owner_id = "REPLACE-ME-numeric-owner-id"
+state_bucket               = "REPLACE-ME-tfstate"
+deploy_environment         = "production"
+region                     = "europe-west1"

@@ -136,3 +136,63 @@ jobs:
       - run: pnpm --filter @freeforever/design-system test
       # No raw hex/px/ms outside the design system. See ADR-0021.
       - run: pnpm lint
+
+  # ---------------------------------------------------------------- deploy
+
+  # Until this job existed, CI proved the code was sound and had nothing to do with what
+  # was live: every deploy was a laptop running `firebase deploy`, and nothing stopped a
+  # red build being shipped by hand. A green tick that does not gate the deploy is a
+  # claim other people will reasonably misread, which matters more once the repo is
+  # public.
+  #
+  # No stored credential. `google-github-actions/auth` federates into GCP via Workload
+  # Identity Federation (ADR-0011): GitHub mints a short-lived OIDC token, GCP trades it
+  # for one that expires in an hour, and there is no service-account key anywhere to
+  # leak. The trust is pinned to one subject — `environment:production` on this
+  # repository, by numeric repo and owner id — so a fork, a rename, or a push to another
+  # branch cannot assume the identity.
+  #
+  # `environment: production` is what makes that subject match, and it is also where
+  # required reviewers go if this should ever need a human before it ships.
+  #
+  # Known gap, stated rather than left to be discovered: Lighthouse is a separate
+  # workflow and does not gate this. Its accessibility and PWA assertions are
+  # error-level, so a regression there can still reach production. Closing that means
+  # either folding the audit into this workflow or gating on `workflow_run`, and it is
+  # the obvious next step rather than something this job pretends to cover.
+  deploy:
+    name: Deploy to Hosting
+    needs: [secrets, verify, rules, sync-emu, tokens]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+
+      - uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
+
+      # Built here rather than reusing an artefact from `verify`, so what ships is built
+      # from the commit being deployed by a job that just authenticated as the deployer.
+      - run: pnpm --filter @freeforever/web build
+
+      # `firebase-tools` picks up GOOGLE_APPLICATION_CREDENTIALS, which the auth step
+      # wrote. Hosting only: this job has no business touching rules or Cloud Run on a
+      # normal app deploy, even though the deployer is permitted to.
+      - name: Deploy
+        run: >
+          npx --yes firebase-tools@15 deploy
+          --only hosting
+          --project ${{ vars.GCP_PROJECT_ID }}
+          --non-interactive
+
