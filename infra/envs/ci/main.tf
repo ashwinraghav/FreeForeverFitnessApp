@@ -38,6 +38,34 @@ provider "google" {
   region  = var.region
 }
 
+/*
+ * The two APIs federation itself runs on.
+ *
+ * Missed on the first apply, and the failure was thoroughly unhelpful: the token
+ * exchange failed inside google-auth-library, firebase-tools caught it and reported
+ * "Failed to authenticate, have you run `firebase login`?" — a message about the one
+ * cause that was not the problem. The auth step before it had reported success, because
+ * writing the credential file succeeds whether or not the exchange can ever work.
+ *
+ * `sts` performs the exchange: GitHub's OIDC token in, a federated Google token out.
+ * `iamcredentials` then mints the impersonated access token for the deployer. Neither is
+ * enabled by default, and `envs/bootstrap` only turns on what Terraform itself needs.
+ */
+resource "google_project_service" "federation" {
+  for_each = toset([
+    "sts.googleapis.com",
+    "iamcredentials.googleapis.com",
+  ])
+
+  project = var.project_id
+  service = each.value
+
+  # Disabling these on destroy would break any other identity federating into the
+  # project, which is not this environment's call to make.
+  disable_on_destroy         = false
+  disable_dependent_services = false
+}
+
 module "ci" {
   source = "../../modules/ci-wif"
 
@@ -63,4 +91,6 @@ module "ci" {
   # The state bucket bootstrap created. The deployer needs it so a future `terraform
   # apply` from CI can read and write state; it is not needed to deploy Hosting.
   state_bucket = var.state_bucket
+
+  depends_on = [google_project_service.federation]
 }
