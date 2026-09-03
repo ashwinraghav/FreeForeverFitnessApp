@@ -175,6 +175,20 @@ module "ci" {
 
   state_bucket = var.state_bucket
 
+  /*
+   * This module creates Firestore and the Cloud Run proxy, so it is the thing entitled
+   * to ask for the roles that administer them. The module's own default is
+   * Hosting-only; an environment that does not stand these up should not be handing CI
+   * the ability to rewrite security rules.
+   */
+  deployer_roles = [
+    "roles/firebasehosting.admin",             # publish the PWA
+    "roles/firebaserules.admin",               # deploy firestore.rules (ADR-0015)
+    "roles/datastore.indexAdmin",              # deploy firestore.indexes.json
+    "roles/run.developer",                     # deploy new Cloud Run revisions
+    "roles/serviceusage.serviceUsageConsumer", # read which APIs are enabled
+  ]
+
   artifact_registry_repository_id = module.ai_proxy.artifact_registry_repository_id
   runtime_service_account_email   = module.ai_proxy.runtime_service_account_email
 

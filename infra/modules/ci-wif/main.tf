@@ -183,13 +183,9 @@ resource "google_service_account_iam_member" "deployer_wif" {
 # application; it does not need to read the AI provider key, and it does not
 # need to be able to grant itself anything.
 resource "google_project_iam_member" "deployer" {
-  for_each = toset([
-    "roles/firebasehosting.admin", # publish the PWA
-    "roles/firebaserules.admin",   # deploy firestore.rules (ADR-0015)
-    "roles/datastore.indexAdmin",  # deploy firestore.indexes.json
-    "roles/run.developer",         # deploy new Cloud Run revisions
-    "roles/serviceusage.serviceUsageConsumer",
-  ])
+  # Supplied by the environment rather than fixed here — see `var.deployer_roles`. A
+  # Hosting-only project has no business granting `firebaserules.admin`.
+  for_each = var.deployer_roles
 
   project = var.project_id
   role    = each.value

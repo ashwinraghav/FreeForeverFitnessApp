@@ -126,3 +126,24 @@ variable "subject_prefix" {
   type        = string
   default     = null
 }
+
+variable "deployer_roles" {
+  description = <<-EOT
+    Project roles the deploy identity gets.
+
+    Defaults to the minimum a Hosting deploy needs. Anything beyond that is opt-in by
+    the environment that genuinely runs it: an env with Firestore passes the rules and
+    index roles, one with Cloud Run passes `run.developer`.
+
+    The default used to be the union of all of them, which meant a project with no
+    Firestore and no Cloud Run still handed CI the ability to rewrite security rules.
+    Inert, but exposure nobody had asked for.
+  EOT
+  type        = set(string)
+  default = [
+    "roles/firebasehosting.admin",
+    # firebase-tools checks which APIs are enabled before it deploys; without this it
+    # cannot read that and refuses.
+    "roles/serviceusage.serviceUsageConsumer",
+  ]
+}
