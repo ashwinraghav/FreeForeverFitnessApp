@@ -187,6 +187,26 @@ jobs:
       # firebase-tools catches any real exchange failure and replaces it with "have you
       # run `firebase login`?" — which sent the first two attempts looking in the wrong
       # place entirely. If the exchange is broken, it should say so here.
+      # Prints the claims GCP matches the binding against — never the token, which is a
+      # credential. Two runs died on `iam.serviceAccounts.getAccessToken` denied while
+      # the binding read exactly right, so the only thing left to check is what GitHub
+      # actually sends as `sub`.
+      - name: What subject does GitHub send
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const t = await core.getIDToken(
+              'https://iam.googleapis.com/${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
+            );
+            const c = JSON.parse(Buffer.from(t.split('.')[1], 'base64url').toString());
+            core.info('sub            = ' + c.sub);
+            core.info('aud            = ' + c.aud);
+            core.info('repository     = ' + c.repository);
+            core.info('repository_id  = ' + c.repository_id);
+            core.info('owner_id       = ' + c.repository_owner_id);
+            core.info('environment    = ' + c.environment);
+            core.info('event_name     = ' + c.event_name);
+
       - uses: google-github-actions/setup-gcloud@v2
       - name: Who am I
         run: |
