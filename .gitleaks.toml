@@ -18,6 +18,10 @@ regexes = ['''AIza[0-9A-Za-z_-]{35}''']
 description = "Paths with no secrets by construction"
 paths = [
   '''docs/agent-log/.*''',
+  # The pre-commit hook's own fallback scanner lists credential prefixes as literal
+  # text — `sk-ant-`, `ghp_`, an AWS key shape — so it matches every rule it implements.
+  # Allowlisted by path rather than weakened by pattern.
+  '''\.githooks/pre-commit$''',
   '''\.env\.example$''',
   '''LICENSE$''',
 ]

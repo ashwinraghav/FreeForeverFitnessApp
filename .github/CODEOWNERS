@@ -1,0 +1,45 @@
+# File ownership, enforced rather than described.
+#
+# ADR-0018 makes each area's directory its boundary — the mechanism that lets several
+# agents work at once without fighting over the same file. Until this file existed that
+# boundary lived only in prose, in CLAUDE.md, which an agent reads and a diff does not.
+#
+# GitHub uses this to request review automatically. It does not block a merge on its own;
+# branch protection does that, and the review request is what makes a crossing visible.
+#
+# One caveat worth knowing, because it has already bitten this repository: ownership is
+# per *directory*, so it cannot see a collision that lives in a shared *string*. The
+# shell's `.ff-tab` and the design system's `.ff-tab` sat in different owned files and
+# silently restyled each other. Prefix a class with the component that owns it.
+
+*                                   @ashwinraghav
+
+# Integrator only. Four features appending to one route array is exactly the collision
+# ADR-0018 exists to prevent, so these stay with one owner however small the change.
+/package.json                       @ashwinraghav
+/pnpm-workspace.yaml                @ashwinraghav
+/tsconfig.base.json                 @ashwinraghav
+/eslint.config.mjs                  @ashwinraghav
+/firebase.json                      @ashwinraghav
+/apps/web/src/app/                  @ashwinraghav
+/apps/web/src/shell/                @ashwinraghav
+/apps/web/vite.config.ts            @ashwinraghav
+
+# The security surface. ADR-0023 exists because the Cloud Storage ruleset was missing
+# while every Firestore rule was carefully tested — an artefact with no owner is a defect
+# in this map, not an oversight by a team.
+/firestore.rules                    @ashwinraghav
+/storage.rules                      @ashwinraghav
+/.github/                           @ashwinraghav
+/infra/                             @ashwinraghav
+/SECURITY.md                        @ashwinraghav
+/.gitleaks.toml                     @ashwinraghav
+
+# Decisions are immutable once accepted. A diff to an existing record is almost always
+# someone editing history instead of superseding it.
+/docs/decisions/                    @ashwinraghav
+
+# The agent brief. Changing the rules an agent works under deserves the same scrutiny as
+# changing the code it produces.
+/CLAUDE.md                          @ashwinraghav
+/AGENTS.md                          @ashwinraghav

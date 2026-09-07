@@ -228,3 +228,39 @@ jobs:
           --non-interactive
           --debug
 
+  # CONTRIBUTING and the README both require `git commit -s`, and nothing checked it.
+  # An unsigned commit is not a style problem: the DCO is what lets this project promise
+  # it can never be relicensed out from under its contributors, and that promise is only
+  # as good as the trailers actually being there.
+  #
+  # Pull requests only. Rewriting `main`'s history to add a missing trailer would be a
+  # worse cure than the disease.
+  dco:
+    name: DCO sign-off
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Every commit in this PR is signed off
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          missing=0
+          for sha in $(git rev-list "$base..$head"); do
+            if ! git log -1 --format='%B' "$sha" | grep -qi '^Signed-off-by: .\+ <.\+@.\+>'; then
+              echo "::error::$(git log -1 --format='%h %s' "$sha") has no Signed-off-by trailer"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo ""
+            echo "Fix with:  git rebase --signoff $base"
+            echo "Then:      git push --force-with-lease"
+            echo ""
+            echo "The DCO is at https://developercertificate.org/ — no CLA, you keep your copyright."
+            exit 1
+          fi
+          echo "All commits signed off."
+

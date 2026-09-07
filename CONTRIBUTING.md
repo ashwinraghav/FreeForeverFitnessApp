@@ -83,6 +83,7 @@ this repository open to contributions at all.
 ```bash
 pnpm install
 pnpm dev            # the web app on http://localhost:5173 — nothing else required
+pnpm verify         # typecheck, lint, every suite — exactly what CI runs
 ```
 
 The app is local-first and does not talk to a backend, so this is genuinely all you need
@@ -107,8 +108,19 @@ documented by Firebase as safe to expose; protection comes from Security Rules a
 Check, not from hiding it ([ADR-0010](docs/decisions/0010-commit-firebase-client-config.md)).
 
 **Never:** service-account JSON, Admin SDK credentials, AI provider keys, App Check debug
-tokens, Terraform state or `.tfvars`. A `gitleaks` pre-commit hook, GitHub push protection
-and a CI scan all guard this. Do not defeat them.
+tokens, Terraform state or `.tfvars`.
+
+Three layers guard this. `pnpm install` installs a pre-commit hook that scans staged
+changes — with `gitleaks` if you have it, and a built-in fallback covering private keys,
+provider tokens and forbidden paths if you do not. Then GitHub push protection, then a CI
+scan. Do not defeat them, and do not add a `.gitleaks.toml` entry without a comment saying
+why that value is safe.
+
+## If you are using an AI agent
+
+Point it at [AGENTS.md](AGENTS.md). It is written for that case, and it carries the traps
+that CI cannot catch — chiefly that this repository's test suite is green at every viewport
+because jsdom cannot see one.
 
 ## House rules, all enforced by CI
 

@@ -10,16 +10,18 @@
   "scripts": {
     "dev": "pnpm --filter @freeforever/web dev",
     "build": "pnpm -r build",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm --filter @freeforever/data test:sync",
+    "typecheck": "tsc -b --pretty false",
+    "lint": "eslint . --max-warnings=0",
     "test": "pnpm -r test",
     "test:rules": "pnpm --filter @freeforever/data test:rules",
-    "lint": "eslint . --max-warnings=0",
-    "typecheck": "tsc -b --pretty false",
-    "format": "prettier --write .",
     "emulators": "firebase emulators:start --import ./emulator-data --export-on-exit",
     "scan:secrets": "gitleaks detect --no-banner --redact -c .gitleaks.toml",
     "adr": "node scripts/new-adr.mjs",
     "storybook": "storybook dev -p 6007 --no-open",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "hooks:install": "git config core.hooksPath .githooks",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "@eslint/js": "9.19.0",

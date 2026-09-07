@@ -103,6 +103,7 @@ pnpm emulators      # Firebase Emulator Suite, separately
 Useful commands:
 
 ```bash
+pnpm verify         # typecheck + lint + every suite — exactly what CI runs
 pnpm test           # every suite
 pnpm lint           # includes the no-raw-literals rule
 pnpm adr "Title"    # start a decision record
@@ -112,7 +113,7 @@ pnpm scan:secrets   # gitleaks, same scan CI runs
 ## Contributing
 
 **Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.** It is stricter than most projects
-and explains why.
+and explains why. Using an AI agent? Point it at [AGENTS.md](AGENTS.md).
 
 The short version:
 

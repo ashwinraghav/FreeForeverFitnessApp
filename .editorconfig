@@ -1,0 +1,27 @@
+# Matched to what the codebase already does, checked rather than assumed:
+# two-space indent, single quotes, LF, 100-column comment wrap.
+#
+# There is no Prettier here. `pnpm format` used to exist and was removed: Prettier was
+# not a dependency and there was no config, so it would have downloaded and reformatted
+# the entire repository with its defaults — double quotes, different wrapping — and
+# ESLint has no stylistic rules to catch it. It mangled 204 lines of a test file once
+# before anyone noticed.
+#
+# Formatting is by convention: match the code around you.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.md]
+# Trailing spaces are a line break in Markdown.
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab

@@ -1,0 +1,59 @@
+#!/bin/sh
+# Secret scan before every commit.
+#
+# CONTRIBUTING.md has claimed this hook exists since the first commit. It did not.
+# The other two layers it names are real — GitHub push protection and the CI scan — but
+# both catch a secret *after* it is in a commit, and the commit is where the damage is:
+# rewriting history is the expensive fix, and on a public repository the secret is
+# already out.
+#
+# Enabled by `git config core.hooksPath .githooks`, which `pnpm install` sets via the
+# `prepare` script. Run `pnpm hooks:install` if you have never installed.
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+
+# This file lists credential prefixes as literal text, so it matches its own patterns.
+# A scanner that flags its own signature list is useless, and finding that out took one
+# blocked commit. Excluded from the content scan below; the path rules still apply to it.
+scan=$(printf '%s\n' $staged | grep -v '^\.githooks/pre-commit$' || true)
+
+fail() {
+  echo ""
+  echo "pre-commit: a staged change looks like a secret. Nothing has been committed."
+  echo "            If it is genuinely safe — the Firebase *client* config is, see"
+  echo "            ADR-0010 — add it to .gitleaks.toml with a comment saying why."
+  exit 1
+}
+
+# gitleaks is the real scanner and matches what CI runs.
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --no-banner --redact -c .gitleaks.toml || fail
+  exit 0
+fi
+
+# Not installed. Rather than wave the commit through, do the cheap high-signal checks
+# here: these are the shapes that cannot be anything but a credential. A partial guard
+# beats an advisory message, which is what this hook used to be.
+echo "pre-commit: gitleaks not installed, running the built-in fallback scan."
+echo "            Install it for the full check: brew install gitleaks"
+
+if [ -n "$scan" ] && git diff --cached -U0 -- $scan | grep -nE '^\+' \
+   | grep -qE 'BEGIN (RSA |OPENSSH |EC |DSA |PGP )?PRIVATE KEY|sk-ant-[A-Za-z0-9]{8}|ghp_[A-Za-z0-9]{20}|github_pat_[A-Za-z0-9]{20}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9]{8}|"private_key"[[:space:]]*:|-----BEGIN'
+then
+  echo ""
+  echo "pre-commit: the fallback scan matched a credential pattern."
+  git diff --cached -U0 -- $scan | grep -nE '^\+' \
+    | grep -oE 'BEGIN (RSA |OPENSSH |EC |DSA |PGP )?PRIVATE KEY|sk-ant-|ghp_|github_pat_|AKIA[0-9A-Z]{16}|xox[baprs]-|"private_key"' \
+    | sort -u | sed 's/^/            pattern: /'
+  fail
+fi
+
+# Files that should never be committed whatever their contents.
+if printf '%s\n' $staged | grep -qE '(^|/)\.env$|(^|/)\.env\.(local|production)|service-account.*\.json$|serviceAccount.*\.json$|\.tfstate($|\.)|\.tfvars$|gha-creds-.*\.json$|\.p12$|\.pem$'
+then
+  echo ""
+  echo "pre-commit: a staged path is one that must never be committed:"
+  printf '%s\n' $staged | grep -E '(^|/)\.env$|(^|/)\.env\.(local|production)|service-account.*\.json$|serviceAccount.*\.json$|\.tfstate($|\.)|\.tfvars$|gha-creds-.*\.json$|\.p12$|\.pem$' | sed 's/^/            /'
+  fail
+fi
