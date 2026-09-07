@@ -12,9 +12,9 @@ body:
 
         - **No unbounded per-user cost.** If it costs money for each person who uses it, it
           needs a hard cap shipping in the same change — or it is not built.
-          ([ADR-0001](../../docs/decisions/0001-free-forever-constitution.md))
+          ([ADR-0001](https://github.com/ashwinraghav/FreeForeverFitnessApp/blob/main/docs/decisions/0001-free-forever-constitution.md))
         - **It has to work without AI.** The plain deterministic version must stand alone
-          first. ([ADR-0016](../../docs/decisions/0016-ai-proxy-quotas-byok.md))
+          first. ([ADR-0016](https://github.com/ashwinraghav/FreeForeverFitnessApp/blob/main/docs/decisions/0016-ai-proxy-quotas-byok.md))
 
         Also refused by existing decisions: video hosting, a public social feed, anything
         needing a paid human, ads, and engagement-bait streaks.
