@@ -4,13 +4,13 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Everyone has the right to be fit — Free Forever Fitness</title>
-<meta name="description" content="Everyone has the right to be fit. A workout and food log that is free forever — no account, no trial, no upsell, works offline. Fitness should not depend on what you can afford." />
+<meta name="description" content="A free-forever workout and food log. No account, no cookies, no trackers, nothing leaves your device. Works offline, exports in one tap, and open source under AGPL-3.0. Every claim on the page can be checked in your own browser." />
 <link rel="canonical" href="https://freeforeverfitness.app/welcome/" />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Everyone has the right to be fit" />
-<meta property="og:description" content="A workout and food log that is free forever. No account, no trial, no upsell. Works offline." />
+<meta property="og:description" content="Free forever. No account, no cookies, no trackers. Nothing you log leaves your device — and you can verify that yourself in DevTools." />
 <meta property="og:url" content="https://freeforeverfitness.app/welcome/" />
 <meta property="og:image" content="https://freeforeverfitness.app/og-image.png" />
 <meta name="twitter:card" content="summary_large_image" />
@@ -118,6 +118,63 @@ strong{color:var(--fg); font-weight:650}
 footer{border-top:1px solid var(--hairline); padding:44px 0 72px; color:var(--fg-3); font-size:15px}
 footer a{color:var(--fg-2)}
 a{color:var(--accent)}
+
+/* ---------- Claim rows: the spine of the page ----------
+   Each claim carries its own evidence, because a privacy page that only asserts
+   is indistinguishable from one that is lying. */
+.claims{list-style:none; margin:32px 0 0; padding:0; display:grid; gap:12px}
+.claim{
+  background:var(--surface); border:1px solid var(--hairline); border-radius:14px;
+  padding:20px 22px;
+}
+.claim h3{margin:0 0 6px; display:flex; align-items:baseline; gap:10px}
+.claim h3 .tick{color:var(--accent); font-weight:800; flex:none}
+.claim p{margin:0; font-size:16px; color:var(--fg-3)}
+.claim .how{
+  display:block; margin-top:12px; padding-top:12px;
+  border-top:1px dashed var(--hairline);
+  font-size:14.5px; color:var(--fg-3);
+}
+.claim .how b{color:var(--fg-2); font-weight:650}
+code,kbd{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.92em; background:var(--sunken); border:1px solid var(--hairline);
+  border-radius:5px; padding:1px 6px;
+}
+
+/* ---------- The receipt ----------
+   Real measured output. Nothing here is illustrative. */
+.receipt{
+  margin-top:26px; background:var(--sunken); border:1px solid var(--hairline);
+  border-radius:14px; padding:20px 22px; overflow-x:auto;
+}
+.receipt pre{
+  margin:0; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:14px; line-height:1.75; color:var(--fg-2); white-space:pre;
+}
+.receipt .ok{color:var(--accent); font-weight:700}
+.receipt figcaption{margin-top:14px; font-size:14.5px; color:var(--fg-3)}
+@media (max-width:430px){.receipt{padding:18px 14px}}
+
+/* ---------- Numbered principles ---------- */
+.rules{list-style:none; counter-reset:r; margin:30px 0 0; padding:0; display:grid; gap:14px}
+.rules li{
+  counter-increment:r; position:relative; padding:20px 22px 20px 64px;
+  background:var(--surface); border:1px solid var(--hairline); border-radius:14px;
+}
+.rules li::before{
+  content:counter(r); position:absolute; left:22px; top:19px;
+  width:28px; height:28px; border-radius:8px;
+  background:var(--accent); color:var(--on-accent);
+  font-size:15px; font-weight:800; display:grid; place-items:center;
+}
+.rules b{display:block; color:var(--fg); font-weight:700; margin-bottom:5px}
+.rules span{color:var(--fg-3); font-size:16px}
+.rules cite{
+  display:block; margin-top:9px; font-style:normal;
+  font-size:13.5px; letter-spacing:.04em; color:var(--fg-3); opacity:.85;
+}
+
 </style>
 </head>
 <body>
@@ -137,64 +194,203 @@ a{color:var(--accent)}
   <section class="hero">
     <h1>Everyone has the right to&nbsp;be&nbsp;fit.</h1>
     <p class="lede">
-      Not the right to afford it. The right to it. Strength, and knowing what you
-      ate and what you lifted, should not depend on what you can pay each month.
+      Not the right to afford it. The right to it. So here is a real training and food
+      log that is free forever, works with the aeroplane mode on, and sends nothing
+      anywhere. No account. No cookies. No trackers. Open source, under a licence that
+      keeps it open.
     </p>
     <a class="cta" href="/">Open it →</a>
-    <span class="cta-note">Free forever. No account, no email, no trial that ends.</span>
+    <span class="cta-note">No account, no email, no cookies, no trial that ends. Opens straight into a workout.</span>
   </section>
+    <section>
+      <p class="eyebrow">Seven promises</p>
+      <h2>Every claim here can be checked in a browser.</h2>
+      <p>
+        Anyone can write &ldquo;we respect your privacy&rdquo;. It costs nothing and
+        proves nothing. So each promise below comes with the way to verify it
+        yourself &mdash; no trust required, and none asked for.
+      </p>
 
-  <section>
-    <p class="eyebrow">Why this exists</p>
-    <h2>Fitness is not a product. It is something you are owed.</h2>
-    <p>
-      A body is the one thing every person is given and has to live in. Looking after it —
-      moving, eating, paying attention to both — is not a lifestyle purchase. It is
-      maintenance on the only thing you cannot replace.
-    </p>
-    <p>
-      A pencil and a notebook did this for a century, and they worked. Then it became a
-      monthly bill. Scanning a barcode: paid. Setting your own macro targets: paid. Seeing
-      more than a fortnight of your own history: paid. <strong>Your own effort, metered
-      back to you.</strong>
-    </p>
-    <p>
-      Somewhere there is a sixteen-year-old with a second-hand barbell, and someone
-      training in a room with no gym for forty kilometres, and someone whose budget has no
-      line for a subscription. <strong>None of them should get a worse tool than anyone
-      else.</strong> That is the whole reason this exists, and the rest of this page is how
-      it is actually possible.
-    </p>
-  </section>
+      <ul class="claims">
+        <li class="claim">
+          <h3><span class="tick">1</span> Nothing you log leaves your device</h3>
+          <p>
+            Your sets, your food, your bodyweight, your photos. All of it is written to
+            your browser&rsquo;s own storage. There is no server holding a copy, because
+            there is no server.
+          </p>
+          <span class="how">
+            <b>Check it:</b> open DevTools &rarr; Network, then log a workout. Every
+            request is a <code>GET</code> fetching the app itself. There is no
+            <code>POST</code>, because nothing is sent.
+          </span>
+        </li>
 
-  <section>
-    <p class="eyebrow">What it does</p>
-    <h2>A serious log, without the friction.</h2>
-    <div class="grid">
-      <div class="card"><h3>Log a set in two taps</h3><p>Last week's numbers are already filled in. A repeat set is one tap.</p></div>
-      <div class="card"><h3>95,990 foods, on your phone</h3><p>Search answers as you type with no network at all. Not a lookup — the catalogue is on the device.</p></div>
-      <div class="card"><h3>Scan a barcode</h3><p>Free. Other apps charge around $80 a year for this one feature.</p></div>
-      <div class="card"><h3>Build a dish once</h3><p>Make a recipe from ingredients, then log the whole thing per serving.</p></div>
-      <div class="card"><h3>See what changed</h3><p>Volume, muscle balance, personal records, bodyweight trend, and a progress-photo reel that plays by date.</p></div>
-      <div class="card"><h3>Edit your history</h3><p>Mistyped a weight three weeks ago? Fix it. It is your log.</p></div>
-    </div>
-  </section>
+        <li class="claim">
+          <h3><span class="tick">2</span> No account, no email, no password</h3>
+          <p>
+            Open it and start logging. There is no sign-up wall, no &ldquo;continue with&rdquo;
+            button, and no profile. Nobody &mdash; including me &mdash; can look up your data,
+            because nothing identifies you.
+          </p>
+          <span class="how">
+            <b>Check it:</b> there is no login screen to find. The app has no
+            authentication code in it at all.
+          </span>
+        </li>
 
-  <section>
-    <p class="eyebrow">The principles</p>
-    <h2>Free forever is a build constraint, not a promise.</h2>
-    <p>
-      Anyone can promise to stay free. The promise is worth nothing — the company changes
-      hands, the runway ends, the pricing page quietly grows a tier. So this is enforced in
-      the code instead, where you can check it.
-    </p>
-    <div class="grid grid--pairs">
-      <div class="card"><h3>No feature may cost per user</h3><p>Anything whose bill grows with the number of people using it does not ship. The limit is written in the same change as the feature.</p></div>
-      <div class="card"><h3>Your phone does the work</h3><p>Search, charts and history are computed on your device. More people using it costs nothing to run, so there is nothing to recover from you.</p></div>
-      <div class="card"><h3>It works with no signal</h3><p>Gym basements, aeroplanes, dead zones. The catalogue is already downloaded.</p></div>
-      <div class="card"><h3>Your data is yours to take</h3><p>One button, one file, everything in it. Leaving is a supported action, not a support ticket.</p></div>
-    </div>
-  </section>
+        <li class="claim">
+          <h3><span class="tick">3</span> Zero cookies</h3>
+          <p>
+            Not &ldquo;essential cookies only&rdquo;. None. That is also why you will never
+            see a consent banner here: there is nothing to consent to.
+          </p>
+          <span class="how">
+            <b>Check it:</b> type <code>document.cookie</code> in the console. It is an
+            empty string.
+          </span>
+        </li>
+
+        <li class="claim">
+          <h3><span class="tick">4</span> No trackers, no analytics, no third parties</h3>
+          <p>
+            No Google Analytics, no Sentry, no ad SDK, no font CDN. The app talks to
+            exactly one domain: its own.
+          </p>
+          <span class="how">
+            <b>Check it:</b> the Network tab shows every request going to
+            <code>freeforeverfitness.app</code> and nowhere else.
+          </span>
+        </li>
+
+        <li class="claim">
+          <h3><span class="tick">5</span> Works with the aeroplane mode on</h3>
+          <p>
+            The whole app installs to your device, including a 913-exercise catalogue and
+            a searchable food database. Basement gyms, aeroplanes, Indian Railways &mdash;
+            it does not care.
+          </p>
+          <span class="how">
+            <b>Check it:</b> open it once, turn off your Wi-Fi, then search for an
+            exercise. It answers instantly, from your device.
+          </span>
+        </li>
+
+        <li class="claim">
+          <h3><span class="tick">6</span> Your data leaves whenever you want it to</h3>
+          <p>
+            One tap in <b>More &rarr; App</b> downloads everything as plain JSON. Not a
+            support ticket, not a 30-day wait, not a redacted subset.
+          </p>
+          <span class="how">
+            <b>Check it:</b> the exporter finds your data by scanning storage at runtime,
+            so it cannot quietly miss a category somebody forgot to add to a list. If a
+            key is unreadable it tells you which, rather than handing you a file that
+            looks complete.
+          </span>
+        </li>
+
+        <li class="claim">
+          <h3><span class="tick">7</span> Open source, under a licence that keeps it open</h3>
+          <p>
+            The app is <b>AGPL-3.0</b>: anyone who runs a modified copy has to publish
+            their changes. The reusable parts are Apache-2.0 so they can be reused
+            freely. Contributions need no CLA and no copyright assignment &mdash; you keep
+            your work.
+          </p>
+          <span class="how">
+            <b>Check it:</b> read the code, the decision records and the arguments behind
+            them &mdash; <a href="https://github.com/ashwinraghav/FreeForeverFitnessApp">the whole repository</a>, including the parts
+            that went wrong.
+          </span>
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <p class="eyebrow">Receipts</p>
+      <h2>A cold first visit, measured.</h2>
+      <p>
+        This is the actual network log from opening the app on a clean browser and
+        logging a workout. Not an illustration &mdash; a recording.
+      </p>
+      <figure class="receipt">
+<pre>GET  /
+GET  /assets/index-*.js
+GET  /assets/index-*.css
+GET  /assets/workbox-*.js
+GET  /manifest.webmanifest
+GET  /icons/icon-192.png
+GET  /data/exercises.json.gz
+                  all <span class="ok">200 OK</span>
+
+third-party requests    <span class="ok">0</span>
+requests with your data <span class="ok">0</span>
+cookies set             <span class="ok">0</span>
+</pre>
+        <figcaption>
+          Every request is a <code>GET</code> for the app&rsquo;s own files. After that
+          first visit, most of them stop happening at all &mdash; the app is on your
+          device.
+        </figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <p class="eyebrow">The rules</p>
+      <h2>Five constraints, written down before the code.</h2>
+      <p>
+        These are not aspirations in a blog post. They are checked into the repository,
+        they are enforced in the build, and features get rejected for breaking them.
+      </p>
+      <ol class="rules">
+        <li>
+          <b>Free forever is a build constraint, not a promise.</b>
+          <span>
+            No feature may add a cost that grows with the number of people using it. If
+            a feature needs a limit to be safe, the limit ships in the same change as
+            the feature &mdash; never &ldquo;later&rdquo;.
+          </span>
+          <cite>ADR-0001</cite>
+        </li>
+        <li>
+          <b>It has to work without AI at all.</b>
+          <span>
+            Every feature&rsquo;s plain, deterministic version is built first and has to
+            stand on its own. AI is a garnish here, never load-bearing &mdash; so the app
+            cannot quietly become a subscription the day a model bill arrives.
+          </span>
+          <cite>ADR-0016, ADR-0034</cite>
+        </li>
+        <li>
+          <b>Reads come from your device, never a query.</b>
+          <span>
+            Charts and search read what is already on your phone. A server round-trip to
+            draw your own history is treated as a bug, not an optimisation &mdash; which is
+            what makes offline the normal case rather than a special mode.
+          </span>
+          <cite>ADR-0005, ADR-0006</cite>
+        </li>
+        <li>
+          <b>Accessibility is not negotiable.</b>
+          <span>
+            WCAG 2.2 AA. Works at 200% text size. Full keyboard operation. Colour is
+            never the only signal. Hit targets are 48px, and 56px for anything you tap
+            mid-set with one hand. The build fails if these regress.
+          </span>
+          <cite>ADR-0013</cite>
+        </li>
+        <li>
+          <b>Anything worth arguing about gets written down.</b>
+          <span>
+            Thirty-four architecture decisions, each with the context, the alternatives
+            and what it costs. Including the ones that turned out wrong &mdash; those are
+            superseded in public, not deleted.
+          </span>
+          <cite>ADR-0002</cite>
+        </li>
+      </ol>
+    </section>
 
   <section>
     <p class="eyebrow">Refusals</p>
@@ -214,16 +410,17 @@ a{color:var(--accent)}
 
   <section>
     <p class="eyebrow">Receipts</p>
-    <h2>Everything above is checkable.</h2>
+    <h2>The reasoning is public too, not only the code.</h2>
     <p>
-      The reasoning is public, not just the code. Every consequential decision is written
-      down as a numbered record explaining what was chosen and what was rejected.
+      Every consequential decision is a numbered record explaining what was chosen, what
+      was rejected and what it costs &mdash; including the ones that turned out wrong,
+      which are superseded in the open rather than quietly deleted.
     </p>
     <div class="stats">
       <div class="stat"><b>95,990</b><span>foods on your device, in 4&nbsp;MB</span></div>
-      <div class="stat"><b>2,601</b><span>automated tests</span></div>
-      <div class="stat"><b>33</b><span>public decision records</span></div>
-      <div class="stat"><b>0</b><span>network requests while you search</span></div>
+      <div class="stat"><b>2,406</b><span>automated tests</span></div>
+      <div class="stat"><b>34</b><span>public decision records</span></div>
+      <div class="stat"><b>913</b><span>exercises, on your device</span></div>
     </div>
   </section>
 
@@ -239,6 +436,18 @@ a{color:var(--accent)}
       <li>Importers from MyFitnessPal, Strong and Hevy are not written yet.</li>
       <li>Food coverage outside the US is thin. Custom foods and recipes fill the gap for now.</li>
       <li>No native app. It installs from the browser and behaves like one.</li>
+      <li>
+        The repository is going public shortly and is not open to read yet, so the source
+        link above will not resolve until it is. The licences are already in force &mdash;
+        AGPL-3.0 for the app, Apache-2.0 for the reusable packages &mdash; and none of that
+        changes on the day it opens.
+      </li>
+      <li>
+        Two promises in the decision records are not kept yet: the monthly cloud bill is
+        meant to be committed to the repository, and the build transcripts are meant to
+        be published after a redaction pass. Both directories exist; both are still
+        empty.
+      </li>
     </ul>
   </section>
 
