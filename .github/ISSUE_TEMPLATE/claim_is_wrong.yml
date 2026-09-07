@@ -1,0 +1,37 @@
+name: A claim here is not true
+description: The most valuable issue you can file. Documentation, README, or the site.
+labels: ["accuracy", "priority"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project makes a lot of checkable claims — that nothing leaves your device,
+        that there are no cookies, that a test covers something, that a decision record
+        describes what the code does.
+
+        **If one of them is wrong, that is a defect, and a serious one.** A project whose
+        credibility rests on verifiability cannot afford a false claim. There is no such
+        thing as a rude version of this issue.
+
+  - type: input
+    id: where
+    attributes:
+      label: Where is the claim
+      placeholder: README.md, the seven promises table · or freeforeverfitness.app/welcome/
+    validations:
+      required: true
+
+  - type: textarea
+    id: claim
+    attributes:
+      label: What it claims
+    validations:
+      required: true
+
+  - type: textarea
+    id: reality
+    attributes:
+      label: What is actually true, and how you know
+      description: The command you ran, the tab you opened, the line of code.
+    validations:
+      required: true

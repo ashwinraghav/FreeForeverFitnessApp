@@ -1,0 +1,61 @@
+name: Feature request
+description: Propose something new. Read the constraints first — they refuse things.
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: this project refuses features on purpose, and a proposal that
+        breaks a constraint gets closed with a link rather than a discussion.
+
+        The two that refuse the most:
+
+        - **No unbounded per-user cost.** If it costs money for each person who uses it, it
+          needs a hard cap shipping in the same change — or it is not built.
+          ([ADR-0001](../../docs/decisions/0001-free-forever-constitution.md))
+        - **It has to work without AI.** The plain deterministic version must stand alone
+          first. ([ADR-0016](../../docs/decisions/0016-ai-proxy-quotas-byok.md))
+
+        Also refused by existing decisions: video hosting, a public social feed, anything
+        needing a paid human, ads, and engagement-bait streaks.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve
+      description: |
+        The problem, not the solution. "I cannot tell whether I am progressing on squats"
+        is useful. "Add a squat progress chart" skips the part we need.
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: What do you do today instead
+      description: Including "nothing, I gave up". Workarounds tell us how much this hurts.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: cost
+    attributes:
+      label: Would this cost money per user
+      description: Bandwidth, storage, an API call, a model token, a human. Be honest — a "yes" is not a rejection, a hidden yes is.
+      options:
+        - "No — it is arithmetic on data already on the device"
+        - "Yes, a little — and I have an idea what would cap it"
+        - "Yes — and I do not know how to cap it"
+        - "I genuinely cannot tell"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and the decision records for this.
+          required: true
+        - label: I have read the constraints above and believe this does not break one.
+          required: true

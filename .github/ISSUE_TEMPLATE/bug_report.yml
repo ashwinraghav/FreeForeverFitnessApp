@@ -1,0 +1,72 @@
+name: Bug report
+description: Something behaves wrongly. The most useful thing you can file.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. A bug report with reproduction steps is worth more
+        here than a pull request nobody asked for.
+
+        **Nothing you log leaves your device, which means we cannot see your data.**
+        Everything we know comes from what you tell us.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The exact sequence. "Open the app, add Bench Press, tap the weight cell…"
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where in the app
+      options:
+        - Workout logging
+        - Food / nutrition
+        - Progress and charts
+        - Body / photos
+        - Installing, updating or offline
+        - Somewhere else / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      description: Anything you know. Screen size matters more than you would think.
+      placeholder: Pixel 8a, Chrome 141 · or iPhone 14, Safari
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics log (optional)
+      description: |
+        **More → App → Record a problem**, reproduce it, then **Copy the log** and paste
+        it here. It records event names, timings and capability flags — never workout
+        contents, food or photos. It is off by default and never sent anywhere on its own.
+      render: text
+
+  - type: checkboxes
+    id: layout
+    attributes:
+      label: One quick check that saves us a round trip
+      options:
+        - label: If this is a layout problem, I have said what screen width and text size it happens at.

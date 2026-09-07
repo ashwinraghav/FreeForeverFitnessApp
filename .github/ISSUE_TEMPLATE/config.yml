@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/ashwinraghav/FreeForeverFitnessApp/security/advisories/new
+    about: Report privately. Please do not open a public issue for a vulnerability — see SECURITY.md.
+  - name: Read the decision records first
+    url: https://github.com/ashwinraghav/FreeForeverFitnessApp/tree/main/docs/decisions
+    about: 34 records covering why things are the way they are. Most "why not just…" questions are answered there.
