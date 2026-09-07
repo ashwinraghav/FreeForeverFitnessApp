@@ -1,15 +1,92 @@
 # TheFreeForeverFitnessApp
 
-A workout and food log that is free forever, and **structurally incapable of becoming
-otherwise**.
+**A workout and food log that is free forever — and built so that it cannot become
+anything else.**
 
-Not free-tier. Not freemium. Not free-until-we-raise. The features that cost money per user
-are engineered down to near zero, hard-capped, or deliberately not built.
+Not free-tier. Not freemium. Not free-until-we-raise. The features that cost money for
+each person using them are engineered down to near zero, hard-capped, or deliberately
+not built. That is a constraint on the code, checked in the build, not a promise in a
+blog post.
 
 **[Open the app →](https://freeforeverfitness.app)** · no account, no install, works offline
 
 [![CI](https://github.com/ashwinraghav/FreeForeverFitnessApp/actions/workflows/ci.yml/badge.svg)](https://github.com/ashwinraghav/FreeForeverFitnessApp/actions/workflows/ci.yml)
 [![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-blue.svg)](LICENSE)
+
+---
+
+## What this repository is
+
+A pnpm monorepo holding the whole project — the app, the domain logic, the datasets it
+ships, the infrastructure that serves it, and the reasoning behind every consequential
+choice. Public from the first commit, including the parts most projects keep private:
+the strategy, the running costs, and the AI agent transcripts that produced the code.
+
+There are three things worth knowing before you read any of it:
+
+1. **It is local-first.** Your log lives in your browser's own storage. There is no
+   account and no server holding a copy, which is why the app works offline and why
+   nobody — including its author — can look up your data.
+2. **It was largely written by an AI agent** working from [`CLAUDE.md`](CLAUDE.md), under
+   human direction and review. That shapes how contributions are handled rather than
+   being a novelty claim.
+3. **Claims here are meant to be checkable.** Where this README asserts something, it
+   tries to say how you would verify it. An untrue claim is treated as a defect, and
+   [the most valuable issue you can open](https://github.com/ashwinraghav/FreeForeverFitnessApp/issues/new?template=claim_is_wrong.yml)
+   is one showing that a claim is wrong.
+
+### Where things live
+
+| Path | What it is | Licence |
+|---|---|---|
+| [`apps/web`](apps/web) | The PWA — React 19, Vite, offline-first. Everything a user touches. | AGPL-3.0 |
+| [`packages/core`](packages/core) | Pure training and nutrition maths. No I/O, no framework. | Apache-2.0 |
+| [`packages/design-system`](packages/design-system) | Tokens, primitives, the accessibility floor. | Apache-2.0 |
+| [`packages/data`](packages/data) | Schemas, ids, units, the sync engine and security-rule contracts. | AGPL-3.0 |
+| [`packages/datasets`](packages/datasets) | The food-index and exercise-catalogue build pipelines. | AGPL-3.0 |
+| [`infra`](infra) | Terraform. Every cloud resource, no console changes. | AGPL-3.0 |
+| [`docs/decisions`](docs/decisions) | 34 architecture decision records. Start here to understand *why*. | — |
+| [`docs/strategy`](docs/strategy) | Business plan, cost model, execution plan. | — |
+
+The two reusable packages are Apache-2.0 on purpose, so the parts worth reusing can be.
+The app is AGPL-3.0 so a hosted fork has to publish its source. See
+[LICENSING.md](LICENSING.md).
+
+## The principles
+
+Everything in this repository follows from a short list. They exist to make it possible to
+say no to a good idea that would quietly break the promise.
+
+### The constitution — eight rules ([ADR-0001](docs/decisions/0001-free-forever-constitution.md))
+
+1. Every feature has a zero-cost path.
+2. No unbounded per-user cost — quotas ship in the same PR as the feature.
+3. No video hosting, ever.
+4. No paid human in the loop.
+5. Own the data, or do not ship the feature.
+6. No ads, no data sale, no upsell, no dark patterns.
+7. Export is unconditional and complete.
+8. Give the improvements back.
+
+### How that shows up in the code
+
+- **It has to work with no AI at all.** Every feature's deterministic version stands alone
+  first; AI is a garnish, never load-bearing ([ADR-0016](docs/decisions/0016-ai-proxy-quotas-byok.md)).
+- **Reads come from the device, never a query.** A server round-trip to draw your own
+  history is treated as a bug ([ADR-0005](docs/decisions/0005-firestore-is-a-sync-engine.md)).
+- **Accessibility is not negotiable.** WCAG 2.2 AA, 48px hit targets and 56px for anything
+  tapped mid-set, works at 200% text, never colour as the only signal
+  ([ADR-0013](docs/decisions/0013-design-direction-blueprint.md)).
+- **No raw literals.** No hex colours, `px` or durations outside the design system. CI
+  enforces it ([ADR-0021](docs/decisions/0021-no-raw-literals.md)).
+- **Anything arguable becomes a decision record**, in the same pull request, and records
+  are immutable once accepted — superseded, never edited.
+
+### The design context, which explains the rest
+
+The user is holding a weight in one hand, in bad light, out of breath, interrupted every
+ninety seconds, for 45–90 minutes of screen-on time. No paragraphs in the workout flow.
+One number per glance. A change that makes sense at a desk and not there is wrong.
 
 ---
 
@@ -53,36 +130,16 @@ broker the human layer through coaches rather than paying for it.
 - [The execution plan](docs/strategy/execution-plan.md)
 - [All 34 decision records](docs/decisions/) — every consequential choice, with its reasoning
 
-## The constitution
-
-Eight rules that make "free forever" a build constraint rather than a marketing claim. They
-are how a good idea that would quietly break the promise gets refused.
-See [ADR-0001](docs/decisions/0001-free-forever-constitution.md).
-
-1. Every feature has a zero-cost path.
-2. No unbounded per-user cost — quotas ship in the same PR as the feature.
-3. No video hosting, ever.
-4. No paid human in the loop.
-5. Own the data, or do not ship the feature.
-6. No ads, no data sale, no upsell, no dark patterns.
-7. Export is unconditional and complete.
-8. Give the improvements back.
-
-## Built by an AI agent, in the open
-
-This is worth stating plainly rather than hiding: most of this codebase was written by an AI
-agent working from [`CLAUDE.md`](CLAUDE.md), under human direction and review.
-
-That is not a novelty claim. It shapes the contribution policy — a project built this way
-has no standing to ban the tools, only to insist that a human is accountable for what lands.
-See [Contributing](#contributing).
+## Built in the open, including the awkward parts
 
 - **Security rules are public, therefore tested.** `firestore.rules` is readable by any
   attacker, so its test suite blocks CI ([ADR-0015](docs/decisions/0015-public-rules-need-tests.md)).
 - **No secrets in this repository.** Contributors need no cloud account at all.
-- **2,406 automated tests**, and a documented list of the ways this repository's own tests
-  have fooled it — in `CLAUDE.md`, because a green suite that never ran is worse than a red
-  one.
+- **2,406 automated tests** — and a written list of the ways this repository's own tests
+  have fooled it, in [`CLAUDE.md`](CLAUDE.md), because a green suite that never ran is
+  worse than a red one.
+- **The decision records include the wrong turns.** Superseded in public rather than
+  deleted, with the reasoning that failed left readable.
 
 ## Getting started
 
