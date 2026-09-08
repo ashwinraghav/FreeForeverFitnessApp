@@ -1,6 +1,6 @@
 # ADR-0031: The food index ships from the repo via jsDelivr, not from Hosting
 
-- **Status:** Accepted (blocked on a git remote existing)
+- **Status:** Accepted (unblocked 2026-09-08 — the repository is public; no consumer yet)
 - **Date:** 2026-08-31
 - **Decided by:** Project owner, with Claude Opus 5 (session 60f2e23f)
 
