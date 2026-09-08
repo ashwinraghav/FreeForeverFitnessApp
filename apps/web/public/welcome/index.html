@@ -119,6 +119,43 @@ footer{border-top:1px solid var(--hairline); padding:44px 0 72px; color:var(--fg
 footer a{color:var(--fg-2)}
 a{color:var(--accent)}
 
+/* ---------- How it works: three figures ----------
+   Inline SVG rather than screenshots, for three reasons that all matter here.
+
+   It adds no network request, so this page keeps the same story the app does — open
+   DevTools and there is nothing but the document itself. A screenshot would put an
+   image request on a page whose argument is that nothing loads from anywhere.
+
+   It cannot rot. A PNG of the set row is wrong the first time a control moves; this is
+   a diagram of the idea, which is what the section is actually explaining.
+
+   And it themes. The figures read from the same custom properties as the page, so they
+   follow light and dark without a second asset. */
+.how{display:grid; gap:18px; margin-top:32px}
+@media (min-width:760px){.how{grid-template-columns:repeat(3,1fr); gap:16px}}
+
+.step{
+  background:var(--surface); border:1px solid var(--hairline);
+  border-radius:14px; padding:20px; margin:0;
+}
+.step svg{display:block; width:100%; height:auto}
+.step figcaption{margin-top:16px}
+.step b{display:block; color:var(--fg); font-weight:700; font-size:17px; margin-bottom:5px}
+.step span{color:var(--fg-3); font-size:15.5px; line-height:1.5}
+.step .n{
+  display:inline-grid; place-items:center; width:22px; height:22px; border-radius:6px;
+  background:var(--accent); color:var(--on-accent);
+  font-size:12.5px; font-weight:800; margin-right:8px; vertical-align:2px;
+}
+
+/* Text inside the figures. Sized so it stays legible when the card is a third of a
+   desktop row, which is the narrowest these ever render. */
+.fig-label{font-size:9px; letter-spacing:.08em; font-weight:700}
+.fig-num{font-size:15px; font-weight:800}
+.fig-small{font-size:9.5px; font-weight:600}
+.how-note{margin-top:26px}
+
+
 /* ---------- Claim rows: the spine of the page ----------
    Each claim carries its own evidence, because a privacy page that only asserts
    is indistinguishable from one that is lying. */
@@ -199,14 +236,125 @@ code,kbd{
   <section class="hero">
     <h1>Everyone has the right to&nbsp;be&nbsp;fit.</h1>
     <p class="lede">
-      Not the right to afford it. The right to it. So here is a real training and food
-      log that is free forever, works with the aeroplane mode on, and sends nothing
-      anywhere. No account. No cookies. No trackers. Open source, under a licence that
-      keeps it open.
+      Not the right to afford it. The right to it.
+    </p>
+    <p class="lede">
+      A real training and food log that is <strong>free forever</strong>,
+      <strong>works offline</strong>, and <strong>sends nothing anywhere</strong> &mdash;
+      no account, no cookies, no trackers. <strong>Open source</strong>, under a licence
+      that keeps it that way.
     </p>
     <a class="cta" href="/">Open it →</a>
     <span class="cta-note">No account, no email, no cookies, no trial that ends. Opens straight into a workout.</span>
   </section>
+  <section>
+    <p class="eyebrow">How it works</p>
+    <h2>Three taps, then it starts doing the remembering.</h2>
+    <p>
+      The whole app is built for one situation: a weight in one hand, bad light, out of
+      breath, ninety seconds before the next set. One number per glance, nothing to read.
+    </p>
+
+    <div class="how">
+
+      <figure class="step">
+        <svg viewBox="0 0 300 108" role="img" aria-hidden="true" focusable="false">
+          <text x="4" y="12" class="fig-label" fill="var(--fg-3)">#</text>
+          <text x="34" y="12" class="fig-label" fill="var(--fg-3)">LAST</text>
+          <text x="108" y="12" class="fig-label" fill="var(--fg-3)">WEIGHT</text>
+          <text x="190" y="12" class="fig-label" fill="var(--fg-3)">REPS</text>
+          <text x="248" y="12" class="fig-label" fill="var(--fg-3)">DONE</text>
+
+          <text x="4" y="47" class="fig-num" fill="var(--fg)">1</text>
+          <text x="30" y="47" class="fig-small" fill="var(--fg-3)">100&#215;5</text>
+          <rect x="100" y="27" width="76" height="30" rx="7" fill="var(--sunken)" stroke="var(--line)"/>
+          <text x="138" y="47" class="fig-num" fill="var(--fg)" text-anchor="middle">102.5</text>
+          <rect x="184" y="27" width="46" height="30" rx="7" fill="var(--sunken)" stroke="var(--line)"/>
+          <text x="207" y="47" class="fig-num" fill="var(--fg)" text-anchor="middle">5</text>
+          <rect x="240" y="27" width="56" height="30" rx="7" fill="var(--accent)"/>
+          <text x="268" y="47" class="fig-small" fill="var(--on-accent)" text-anchor="middle">LOG</text>
+
+          <text x="4" y="89" class="fig-num" fill="var(--fg-3)">2</text>
+          <text x="30" y="89" class="fig-small" fill="var(--fg-3)">100&#215;5</text>
+          <rect x="100" y="69" width="76" height="30" rx="7" fill="none" stroke="var(--hairline)"/>
+          <text x="138" y="89" class="fig-num" fill="var(--fg-3)" text-anchor="middle">100</text>
+          <rect x="184" y="69" width="46" height="30" rx="7" fill="none" stroke="var(--hairline)"/>
+          <text x="207" y="89" class="fig-num" fill="var(--fg-3)" text-anchor="middle">5</text>
+          <rect x="240" y="69" width="56" height="30" rx="7" fill="none" stroke="var(--hairline)"/>
+          <text x="268" y="89" class="fig-small" fill="var(--fg-3)" text-anchor="middle">LOG</text>
+        </svg>
+        <figcaption>
+          <b><span class="n">1</span>Log the set</b>
+          <span>
+            Last session&rsquo;s numbers are already in the boxes, greyed out. If today is
+            the same, you tap <em>Log</em> and nothing else. Typing is for the exception.
+          </span>
+        </figcaption>
+      </figure>
+
+      <figure class="step">
+        <svg viewBox="0 0 300 108" role="img" aria-hidden="true" focusable="false">
+          <text x="4" y="14" class="fig-label" fill="var(--fg-3)">LAST TIME</text>
+          <rect x="4" y="24" width="106" height="42" rx="9" fill="var(--sunken)" stroke="var(--hairline)"/>
+          <text x="57" y="51" class="fig-num" fill="var(--fg-2)" text-anchor="middle">100 kg &#215; 5</text>
+
+          <path d="M122 45 L164 45" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M156 38 L164 45 L156 52" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <text x="176" y="14" class="fig-label" fill="var(--accent)">SUGGESTED</text>
+          <rect x="176" y="24" width="120" height="42" rx="9" fill="none" stroke="var(--accent)" stroke-width="2"/>
+          <text x="236" y="51" class="fig-num" fill="var(--fg)" text-anchor="middle">102.5 kg &#215; 5</text>
+
+          <text x="4" y="93" class="fig-small" fill="var(--fg-3)">every set completed &#8594; add the smallest plate</text>
+        </svg>
+        <figcaption>
+          <b><span class="n">2</span>It works out the next load</b>
+          <span>
+            Finish every set and it adds the smallest increment your gym can actually
+            make. Miss reps twice and it backs off. Plain arithmetic on your own log
+            &mdash; no model, no account, nothing sent anywhere.
+          </span>
+        </figcaption>
+      </figure>
+
+      <figure class="step">
+        <svg viewBox="0 0 300 108" role="img" aria-hidden="true" focusable="false">
+          <g fill="var(--sunken)">
+            <rect x="10" y="70" width="20" height="22" rx="3"/>
+            <rect x="44" y="60" width="20" height="32" rx="3"/>
+            <rect x="78" y="64" width="20" height="28" rx="3"/>
+            <rect x="112" y="48" width="20" height="44" rx="3"/>
+            <rect x="146" y="52" width="20" height="40" rx="3"/>
+            <rect x="180" y="38" width="20" height="54" rx="3"/>
+            <rect x="214" y="30" width="20" height="62" rx="3"/>
+            <rect x="248" y="22" width="20" height="70" rx="3"/>
+          </g>
+          <path d="M20 74 L54 63 L88 67 L122 51 L156 55 L190 41 L224 33 L258 25"
+                fill="none" stroke="var(--accent)" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="258" cy="25" r="4.5" fill="var(--accent)"/>
+          <line x1="4" y1="92" x2="296" y2="92" stroke="var(--hairline)" stroke-width="1"/>
+          <text x="4" y="105" class="fig-small" fill="var(--fg-3)">8 weeks ago</text>
+          <text x="296" y="105" class="fig-small" fill="var(--fg-3)" text-anchor="end">today</text>
+        </svg>
+        <figcaption>
+          <b><span class="n">3</span>See whether it is working</b>
+          <span>
+            Volume, records and bodyweight, folded from the sessions you logged. The
+            charts read what is already on your phone, which is why they draw instantly
+            and work with no signal.
+          </span>
+        </figcaption>
+      </figure>
+
+    </div>
+
+    <p class="how-note">
+      That is the loop. Food works the same way &mdash; scan a barcode or search ~96,000
+      foods held on your device, and the search answers with the aeroplane mode on.
+    </p>
+  </section>
+
     <section>
       <p class="eyebrow">Seven promises</p>
       <h2>Every claim here can be checked in a browser.</h2>
