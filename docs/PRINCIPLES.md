@@ -75,7 +75,7 @@ A principle nobody checks is a preference. This is the honest accounting.
 |---|---|---|
 | No raw literals | `pnpm lint`, a custom ESLint rule | Yes, blocks the build |
 | Hit targets and contrast | `hit-targets.test.ts` against the stylesheet | Yes, blocks the build |
-| Accessibility score ≥ 95 | `lighthouse.yml` | Runs, but **does not gate the deploy** |
+| Accessibility score ≥ 95 | `lighthouse.yml`, a required status check | Yes — blocks the merge, and `main` is the only thing that deploys |
 | Security rules tested | `ci.yml` rules job | Yes, blocks the build |
 | No secrets | pre-commit hook, push protection, CI scan | Yes, three layers |
 | Quotas ship with the feature | Review only | **Judgement, not machinery** |
