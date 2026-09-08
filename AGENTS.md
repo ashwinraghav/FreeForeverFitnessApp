@@ -100,6 +100,9 @@ Grep the other packages before claiming a CSS class name.
 
 ## Constraints that reject features outright
 
+The short version. Full statement, including the eight product rules and where each is
+genuinely enforced: [`docs/PRINCIPLES.md`](docs/PRINCIPLES.md).
+
 Proposing something that breaks one of these wastes your human's time.
 
 - **No unbounded per-user cost.** If it costs money for each person using it, the quota

@@ -47,6 +47,8 @@ There are three things worth knowing before you read any of it:
 | [`infra`](infra) | Terraform. Every cloud resource, no console changes. | AGPL-3.0 |
 | [`docs/decisions`](docs/decisions) | 34 architecture decision records. Start here to understand *why*. | — |
 | [`docs/strategy`](docs/strategy) | Business plan, cost model, execution plan. | — |
+| [`.github/CI.md`](.github/CI.md) | What CI checks, what gates a deploy, and how it authenticates. | — |
+| [`docs/PRINCIPLES.md`](docs/PRINCIPLES.md) | The rules the project holds itself to, and where each is enforced. | — |
 
 The two reusable packages are Apache-2.0 on purpose, so the parts worth reusing can be.
 The app is AGPL-3.0 so a hosted fork has to publish its source. See
@@ -54,8 +56,10 @@ The app is AGPL-3.0 so a hosted fork has to publish its source. See
 
 ## The principles
 
-Everything in this repository follows from a short list. They exist to make it possible to
-say no to a good idea that would quietly break the promise.
+Everything here follows from a short list, kept in one place:
+**[docs/PRINCIPLES.md](docs/PRINCIPLES.md)** — the eight product rules, the five working
+constraints, and an honest table of where each is actually enforced versus where it rests
+on judgement. The summary below is a summary; that document is the source.
 
 ### The constitution — eight rules ([ADR-0001](docs/decisions/0001-free-forever-constitution.md))
 

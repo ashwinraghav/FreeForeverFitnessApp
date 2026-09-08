@@ -124,7 +124,11 @@ because jsdom cannot see one.
 
 ## House rules, all enforced by CI
 
-Not review comments. The build fails.
+The principles these come from are in [`docs/PRINCIPLES.md`](docs/PRINCIPLES.md), which
+also says which are enforced by machinery and which rest on review.
+
+Not review comments. The build fails. [`.github/CI.md`](.github/CI.md) lists what runs and
+what blocks.
 
 - **No raw literals.** No hex colours, `px` values or durations outside
   `packages/design-system`. Tokens only ([ADR-0021](docs/decisions/0021-no-raw-literals.md)).

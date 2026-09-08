@@ -6,6 +6,11 @@ quietly work around it.
 
 ## The five constraints that govern everything
 
+*Canonical statement, with the eight product rules underneath these and a table of where
+each is actually enforced: [`docs/PRINCIPLES.md`](docs/PRINCIPLES.md). Kept inline here
+because a brief that makes you follow a link is a worse brief — but that document is the
+source if the two ever disagree.*
+
 1. **Free forever is a build constraint.** No feature may add unbounded per-user cost.
    Quotas ship in the same PR as the feature they bound. (ADR-0001)
 2. **The zero-cost path ships first.** A feature's deterministic version must work standalone

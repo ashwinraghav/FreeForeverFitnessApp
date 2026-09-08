@@ -499,8 +499,12 @@ cookies set             <span class="ok">0</span>
         is the machinery underneath them.
       </p>
       <p>
-        They are not aspirations in a blog post. They are checked into the repository,
-        enforced in the build, and features get rejected for breaking them.
+        They are not aspirations in a blog post. They are checked into the repository and
+        most of them fail the build if broken &mdash; including the two below that are
+        honestly only enforced by judgement, which the
+        <a href="https://github.com/ashwinraghav/FreeForeverFitnessApp/blob/main/docs/PRINCIPLES.md">full
+        write-up</a> says out loud, along with the eight product rules underneath these
+        and exactly where each one is and is not enforced.
       </p>
       <ol class="rules">
         <li>
@@ -510,7 +514,6 @@ cookies set             <span class="ok">0</span>
             a feature needs a limit to be safe, the limit ships in the same change as
             the feature &mdash; never &ldquo;later&rdquo;.
           </span>
-          <cite>ADR-0001</cite>
         </li>
         <li>
           <b>It has to work without AI at all.</b>
@@ -519,7 +522,6 @@ cookies set             <span class="ok">0</span>
             stand on its own. AI is a garnish here, never load-bearing &mdash; so the app
             cannot quietly become a subscription the day a model bill arrives.
           </span>
-          <cite>ADR-0016, ADR-0034</cite>
         </li>
         <li>
           <b>Reads come from your device, never a query.</b>
@@ -528,7 +530,6 @@ cookies set             <span class="ok">0</span>
             draw your own history is treated as a bug, not an optimisation &mdash; which is
             what makes offline the normal case rather than a special mode.
           </span>
-          <cite>ADR-0005, ADR-0006</cite>
         </li>
         <li>
           <b>Accessibility is not negotiable.</b>
@@ -537,7 +538,6 @@ cookies set             <span class="ok">0</span>
             never the only signal. Hit targets are 48px, and 56px for anything you tap
             mid-set with one hand. The build fails if these regress.
           </span>
-          <cite>ADR-0013</cite>
         </li>
         <li>
           <b>Anything worth arguing about gets written down.</b>
@@ -546,7 +546,6 @@ cookies set             <span class="ok">0</span>
             and what it costs. Including the ones that turned out wrong &mdash; those are
             superseded in public, not deleted.
           </span>
-          <cite>ADR-0002</cite>
         </li>
       </ol>
     </section>
