@@ -11,11 +11,20 @@ jobs:
   secrets:
     name: Secret scan
     runs-on: ubuntu-latest
+    # gitleaks-action needs a token to enumerate a pull request's commits. Without it the
+    # job fails on every PR while still passing on push, so this stayed invisible until
+    # `main` became PR-only. `pull-requests: read` is the enumeration; `contents: read`
+    # comes from the workflow default.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
       - uses: gitleaks/gitleaks-action@v2
-        env: { GITLEAKS_CONFIG: .gitleaks.toml }
+        env:
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   verify:
     name: Typecheck, lint, test
