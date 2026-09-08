@@ -232,6 +232,14 @@ describe('recall at the limits a phone actually shows', () => {
   // a stable figure to the nearest point; small enough to stay a few seconds.
   const records = [...sample(core, 400), ...sample(off, 400)];
 
+  // These three measure recall over the whole sampled corpus, so how long they take is
+  // incidental to what they assert. The block above says "small enough to stay a few
+  // seconds", and vitest's default budget is five — 1.4s locally became 4.6s on a shared
+  // runner, and the third one then tipped over. Runtime is guarded separately, by the
+  // keystroke-latency test further down, which is the one that should fail if search
+  // gets slow. This number exists only so a loaded runner cannot fail a measurement.
+  const MEASUREMENT_TIMEOUT_MS = 30_000;
+
   it('finds a branded product from its brand and a word or two of its name', () => {
     // The user's acceptance test. "I should just be able to select Optimum
     // Nutrition and select one serving" — so the product has to be on the first
@@ -249,7 +257,7 @@ describe('recall at the limits a phone actually shows', () => {
     // underneath, which the staple set below measures.
     expect(k8, `brand + product words @8 = ${(k8 * 100).toFixed(1)}%`).toBeGreaterThan(0.98);
     expect(k20, `brand + product words @20 = ${(k20 * 100).toFixed(1)}%`).toBeGreaterThan(0.98);
-  });
+  }, MEASUREMENT_TIMEOUT_MS);
 
   it('finds a food whose name was typed out in full', () => {
     const k8 = recall(records, FULL_NAME, 8);
@@ -267,7 +275,7 @@ describe('recall at the limits a phone actually shows', () => {
     // fixed: 91.0%, then 94.9%, then 96.5%, and 96.6% now.
     expect(k8, `the name typed out @8 = ${(k8 * 100).toFixed(1)}%`).toBeGreaterThan(0.90);
     expect(k20, `the name typed out @20 = ${(k20 * 100).toFixed(1)}%`).toBeGreaterThan(0.92);
-  });
+  }, MEASUREMENT_TIMEOUT_MS);
 
   it('reports leading-word recall without pretending it is a goal', () => {
     const k8 = recall(records, LEADING_WORD, 8);
@@ -284,7 +292,7 @@ describe('recall at the limits a phone actually shows', () => {
     expect(k8, `leading word @8 = ${(k8 * 100).toFixed(1)}%`).toBeGreaterThan(0.15);
     expect(k20, `leading word @20 = ${(k20 * 100).toFixed(1)}%`).toBeGreaterThan(0.2);
     expect(k20).toBeGreaterThan(k8);
-  });
+  }, MEASUREMENT_TIMEOUT_MS);
 });
 
 describe('a short generic query puts the plain food on the first screen', () => {
