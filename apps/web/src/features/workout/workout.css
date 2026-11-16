@@ -1310,3 +1310,33 @@
   color: var(--ff-color-fg-primary);
   font: inherit;
 }
+
+/* ------------------------------------------------- custom exercise form
+ *
+ * Rendered inside the picker's Sheet, replacing the result list. `ffw-custom`
+ * rather than a bare `custom`: the shell and the design system have collided on
+ * a shared class name before (`.ff-tab`), and the prefix is what stops it.
+ *
+ * No width or height here on purpose. The Sheet owns its own box, and a fixed
+ * inline-size inside it is how the rest bar came to measure 490px in a 390px
+ * screen. Everything below is flow and gap only.
+ */
+.ffw-custom {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-16);
+  padding: 0 var(--ff-space-16) var(--ff-space-16);
+}
+
+.ffw-custom__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-8);
+  margin-block-start: var(--ff-space-8);
+}
+
+.ffw-custom__error {
+  margin: 0;
+  color: var(--ff-color-danger);
+  font-size: var(--ff-text-body-sm);
+}

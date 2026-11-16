@@ -1,5 +1,5 @@
 import { fireEvent, render, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { STARTER_CATALOGUE } from '../catalogue/starter.js';
 import type { CatalogueEntry } from '../catalogue/types.js';
@@ -141,5 +141,108 @@ describe('every result is reachable', () => {
     const picker = setup();
     const list = picker.getByRole('list', { name: 'Exercises' });
     expect(within(list).getAllByRole('button').length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * Writing down an exercise the catalogue does not have.
+ *
+ * The offer appears only where the catalogue has demonstrably failed — a typed query
+ * with no matches — and only when the caller can persist one. Both halves are asserted,
+ * because an escape hatch that shows up in the wrong place is worse than none: it would
+ * invite a lifter to invent a duplicate of a lift the search merely mis-ranked.
+ */
+describe('the escape hatch', () => {
+  const setupCreatable = (onCreated = vi.fn()) => {
+    const onPick = vi.fn<(entry: CatalogueEntry) => void>();
+    const view = render(
+      <ExercisePicker
+        open
+        onClose={vi.fn()}
+        onPick={onPick}
+        onCreated={onCreated}
+        catalogue={STARTER_CATALOGUE}
+        recentIds={[]}
+      />,
+    );
+    const search = () => view.getByRole('searchbox', { name: 'Search exercises' });
+    return { ...view, onPick, onCreated, search };
+  };
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('is absent while the search is finding things', () => {
+    const picker = setupCreatable();
+    fireEvent.change(picker.search(), { target: { value: 'bench' } });
+    expect(picker.queryByRole('button', { name: /yourself/i })).not.toBeInTheDocument();
+  });
+
+  it('appears once a typed query matches nothing', () => {
+    const picker = setupCreatable();
+    fireEvent.change(picker.search(), { target: { value: 'jefferson curl' } });
+    expect(
+      picker.getByRole('button', { name: /Add “jefferson curl” yourself/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('stays away when the empty list is the lifter’s own filter', () => {
+    // No query, so the fix is to clear a chip. Offering to invent an exercise here
+    // would be answering a question nobody asked.
+    const picker = setupCreatable();
+    fireEvent.click(picker.getByRole('button', { name: 'Barbell' }));
+    fireEvent.click(picker.getByRole('button', { name: 'Bodyweight' }));
+    expect(picker.queryByRole('button', { name: /yourself/i })).not.toBeInTheDocument();
+  });
+
+  it('is withheld from a picker that cannot persist one', () => {
+    const onPick = vi.fn<(entry: CatalogueEntry) => void>();
+    const view = render(
+      <ExercisePicker
+        open
+        onClose={vi.fn()}
+        onPick={onPick}
+        catalogue={STARTER_CATALOGUE}
+        recentIds={[]}
+      />,
+    );
+    fireEvent.change(view.getByRole('searchbox', { name: 'Search exercises' }), {
+      target: { value: 'jefferson curl' },
+    });
+    expect(view.queryByRole('button', { name: /yourself/i })).not.toBeInTheDocument();
+  });
+
+  it('opens the form in the same sheet rather than stacking a second one', () => {
+    const picker = setupCreatable();
+    fireEvent.change(picker.search(), { target: { value: 'jefferson curl' } });
+    fireEvent.click(picker.getByRole('button', { name: /yourself/i }));
+
+    expect(picker.getByRole('region', { name: 'New exercise' })).toBeInTheDocument();
+    // The modality rule from CLAUDE.md holds through the swap, not just on open.
+    expect(picker.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(picker.queryByRole('region', { name: 'Add exercise' })).not.toBeInTheDocument();
+  });
+
+  it('puts the new exercise straight into the session and tells the caller to refresh', () => {
+    const onCreated = vi.fn();
+    const picker = setupCreatable(onCreated);
+    fireEvent.change(picker.search(), { target: { value: 'jefferson curl' } });
+    fireEvent.click(picker.getByRole('button', { name: /yourself/i }));
+    fireEvent.click(picker.getByRole('button', { name: /add and use it/i }));
+
+    expect(onCreated).toHaveBeenCalledTimes(1);
+    expect(picker.onPick).toHaveBeenCalledTimes(1);
+    expect(picker.onPick.mock.calls[0]?.[0]).toMatchObject({ name: 'jefferson curl' });
+  });
+
+  it('goes back to the results without saving', () => {
+    const picker = setupCreatable();
+    fireEvent.change(picker.search(), { target: { value: 'jefferson curl' } });
+    fireEvent.click(picker.getByRole('button', { name: /yourself/i }));
+    fireEvent.click(picker.getByRole('button', { name: /back to search/i }));
+
+    expect(picker.getByRole('region', { name: 'Add exercise' })).toBeInTheDocument();
+    expect(picker.onCreated).not.toHaveBeenCalled();
   });
 });
