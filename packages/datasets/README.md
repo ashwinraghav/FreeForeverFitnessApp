@@ -211,7 +211,7 @@ node pipeline/build-food-index.mjs \
   --input raw \
   --out build/full \
   --budget-mb 4 \
-  --locale us \
+  --locale in \
   --version 2026.09.1
 
 node pipeline/build-exercise-catalogue.mjs --input raw --out build/full

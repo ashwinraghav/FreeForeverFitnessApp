@@ -186,11 +186,12 @@ free tie-break from "lower id wins" with no score stored in the file.
 
 | Signal | Weight | Source |
 |---|---:|---|
-| source prior | 0.40 | Foundation 1.0, SR Legacy 0.92, USDA Branded 0.35, OFF 0.30 |
-| popularity | 0.30 | OFF `unique_scans_n`, log-normalised |
-| completeness | 0.15 | has energy, has macros, has a serving, minus a penalty for `atwaterMismatch` |
-| name quality | 0.10 | shorter is better; penalties for comma chains, long names, embedded UPCs |
-| locale fit | 0.05 | `countries_tags` matching the build locale |
+| source prior | 0.28 | Foundation 1.0, SR Legacy 0.92, USDA Branded 0.35, OFF 0.30 |
+| locale fit | 0.25 | `countries_tags` naming the build locale |
+| popularity | 0.24 | OFF `unique_scans_n`, log-normalised |
+| category prior | 0.12 | USDA's own food category, as "an ingredient" vs "somebody's finished dish" |
+| completeness | 0.08 | has energy, has macros, has a serving, minus a penalty for `atwaterMismatch` |
+| name quality | 0.03 | shorter is better; penalties for comma chains, long names, embedded UPCs |
 
 Generic whole foods dominate real searches — "chicken breast", "banana", "olive
 oil" — which is why the source prior is the heaviest weight and Foundation sits
@@ -199,6 +200,40 @@ barcode scan rather than by typing, so they earn their place through popularity.
 
 Popularity is log-normalised because scan counts are Zipf-distributed: linear
 normalisation would collapse everything below the top hundred to zero.
+
+### Locale fit is a cache-warming policy, and only that
+
+ADR-0030 rule 1: locale may rank and may pre-cache; **locale must never gate
+existence.** Nothing in the pipeline filters on country. `rankAll` returns every
+record it was handed, in a different order; `fitToBudget` then keeps the top of
+that order that fits 4 MB, and everything below the line ships in the full pack
+(ADR-0033). A per-locale base pack that omitted regions would be forbidden, and
+this is not one.
+
+The weight was 0.05 until 2026-09-01 and the match was a substring test, which
+made the term worse than weak. `'united-states'.includes('us')` is false, so a
+`--locale us` build scored every American OFF product as foreign; `'australia'`
+and `'austria'` do contain `us`, so they were the only OFF rows it rewarded. The
+result was a term that was very nearly constant within each shard, and shards
+are fitted to separate budgets, so it changed almost nothing about what shipped
+— 450 of 63,782 OFF records, 0.70%, carried an Indian GS1 prefix, which is
+simply what OFF's corpus hands you when nothing biases it.
+
+At 0.25 a locale match is worth 0.20 of a score in [0,1], against popularity's
+full span of 0.24: being sold where the user lives is worth about as much as
+going from unscanned to the most-scanned product on Open Food Facts. Large
+enough to stock a shelf deliberately, not large enough to empty it of global
+brands — `pipeline/test/rank.test.mjs` asserts both directions.
+
+The other five weights were rescaled by 0.75/0.95 when locale rose, so their
+ratios to each other are unchanged and none of the arguments above had to be
+re-opened.
+
+The build reports what this actually did. Each shard's `localeMix` in
+`manifest.json` gives the GS1-prefix histogram of the candidate pool *and* of
+what shipped, because only the pair distinguishes "the ranker ignored this
+region" from "the corpus barely has this region" — and those have opposite
+fixes.
 
 Ties break on the upstream id, so two builds over identical input produce
 byte-identical artefacts. Without that the integrity hashes would be build
