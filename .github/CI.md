@@ -1,10 +1,10 @@
-# CI
+# CI and deployment
 
 | Workflow | Runs on | Blocking | Notes |
 |---|---|---|---|
 | `ci.yml` | every push and PR | yes | Secret scan, typecheck/lint/test, Firestore rules, design token guards. |
 | `terraform.yml` | changes under `infra/` | yes | `fmt -check`, `validate`, security guardrails, plan-on-PR. |
-| `lighthouse.yml` | every push and PR | yes once `apps/web` exists | PWA and accessibility ≥ 95 (ADR-0013). Skips loudly until there is an app to audit. |
+| `lighthouse.yml` | every push and PR | yes | PWA and accessibility ≥ 95 (ADR-0013). Audits the app *and* the landing page, with separate assertions for each — the landing page is deliberately not a PWA. Does **not** gate the deploy: it is a separate workflow, so an accessibility regression can still ship. |
 
 ## Nothing here needs a secret
 
@@ -50,3 +50,38 @@ get grep-level assertions of their own:
 - every billable module carries `depends_on = [module.budget]` (ADR-0012)
 
 See [`infra/README.md`](../infra/README.md) for why each one matters.
+
+## Deploying
+
+`ci.yml` has a `deploy` job that needs all five checks and publishes to Firebase Hosting.
+It runs only on a push to `main`, inside the `production` GitHub Environment — which is
+also what makes the OIDC subject match, and where required reviewers would go.
+
+Before that job existed, every deploy was a laptop running `firebase deploy`, and a green
+tick told you nothing about what was live. It is worth being precise about what it does and
+does not prove: it proves the five `ci.yml` checks passed on the deployed commit. Lighthouse
+is a separate workflow and does not gate it.
+
+## A note on the identity, since it took four attempts
+
+The deployer holds exactly two roles — `firebasehosting.admin` and
+`serviceusage.serviceUsageConsumer`. It briefly held three more from a shared module's
+fixed list, which administered nothing on a project with no Firestore and no Cloud Run but
+were still real grants on an assumable identity.
+
+Two things cost three failed deploys, both recorded here because the error messages point
+away from them:
+
+- **`sts.googleapis.com` was not enabled.** Without it there is no path from a workflow to
+  a Google credential at all, however correct the pool and bindings are.
+- **The subject is not what the documentation implies.** This account emits
+  `repo:OWNER@OWNER_ID/NAME@REPO_ID:...`, not `repo:OWNER/NAME:...`, and `use_default` is
+  `true` — that *is* the default now. Read it rather than assuming:
+
+  ```bash
+  gh api repos/OWNER/NAME/actions/oidc/customization/sub --jq .sub_claim_prefix
+  ```
+
+Both failed with `iam.serviceAccounts.getAccessToken denied` while every visible part of
+the configuration checked out, and `firebase-tools` replaced the underlying error with
+"have you run `firebase login`?" — a message about the one cause that was not the problem.
