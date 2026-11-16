@@ -243,3 +243,72 @@ body {
   flex: none;
   color: var(--ff-color-accent);
 }
+
+/* ── The brief ─────────────────────────────────────────────────────────────
+ *
+ * `/brief` — the text the app would hand an AI, on a page, before any of it
+ * leaves the device. See BriefScreen.tsx for why the page exists at all.
+ */
+.ff-brief {
+  padding: var(--ff-space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ff-space-16);
+  max-inline-size: calc(var(--ff-space-64) * 9);
+  margin-inline: auto;
+}
+
+.ff-brief__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ff-space-8);
+  padding-block-start: var(--ff-space-8);
+}
+
+.ff-brief__title {
+  margin: 0;
+  font-size: var(--ff-text-title);
+  font-weight: var(--ff-weight-title);
+  color: var(--ff-color-fg-primary);
+}
+
+.ff-brief__back {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--ff-hit-min);
+  color: var(--ff-color-accent);
+  font-size: var(--ff-text-body-sm);
+}
+
+.ff-brief__text {
+  margin: 0;
+  padding: var(--ff-space-12);
+  border: var(--ff-border-hairline) solid var(--ff-color-hairline);
+  border-radius: var(--ff-radius-md);
+  background: var(--ff-color-sunken);
+  color: var(--ff-color-fg-secondary);
+  font-family: var(--ff-font-mono);
+  font-size: var(--ff-text-body-sm);
+  line-height: var(--ff-leading-body-sm);
+  /*
+   * Wraps rather than scrolls, and that is not a style preference. A monospace
+   * block of long lines is exactly the "wide content" that has scrolled this
+   * app's document sideways three times (CLAUDE.md). `pre-wrap` keeps the
+   * blank lines that make the brief readable while removing the horizontal
+   * overflow entirely; `overflow-wrap` covers the one case wrapping cannot —
+   * a single unbroken token longer than the column.
+   */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ff-brief__subtitle {
+  margin: 0 0 var(--ff-space-8);
+  font-size: var(--ff-text-label);
+  font-weight: var(--ff-weight-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ff-color-fg-muted);
+}

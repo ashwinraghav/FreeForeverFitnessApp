@@ -39,6 +39,7 @@ New decision: `pnpm adr "Short title"`.
 | [0031](./0031-food-index-is-a-release-artefact-served-from-the-repo.md) | The food index ships from the repo via jsDelivr, not from Hosting | Accepted |
 | [0032](./0032-a-serving-is-a-thing-you-eat-not-a-quantity.md) | A serving is a thing you eat, not a quantity | Accepted |
 | [0033](./0033-reach-is-a-download-problem-not-a-network-one.md) | Reach is a download-size problem, not a network one (supersedes ADR-0030 rule 3) | Accepted |
+| [0034](./0034-the-ai-interface-is-a-brief-the-user-carries-not-a-server-we-run.md) | The AI interface is a brief the user carries, not a server we run | Accepted |
 | [0035](./0035-a-custom-exercise-is-a-catalogue-entry-the-lifter-owns.md) | A custom exercise is a catalogue entry the lifter owns | Accepted |
 
 ## Reading order for newcomers

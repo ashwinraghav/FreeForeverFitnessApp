@@ -25,6 +25,9 @@ const NutritionRoutes = lazy(() => import('../features/nutrition/NutritionRoutes
 // materialised aggregates the tab reads. Splitting on that module rather than on
 // the feature keeps the reducers and the schema package inside this chunk.
 const InsightsScreen = lazy(() => import('../data/InsightsScreen'));
+// Lazy for the same reason Progress is: the brief folds history through the sync
+// reducers, whose barrel still drags in the Firebase SDK. See `shell/brief/sources.ts`.
+const BriefScreen = lazy(() => import('../shell/BriefScreen'));
 
 export function App() {
   return (
@@ -44,6 +47,7 @@ export function App() {
             <Route path={`${ROUTES.nutrition}/*`} element={<NutritionRoutes />} />
             <Route path={`${ROUTES.insights}/*`} element={<InsightsScreen />} />
             <Route path={ROUTES.more} element={<MoreScreen />} />
+            <Route path={ROUTES.brief} element={<BriefScreen />} />
             <Route path="*" element={<Navigate to={ROUTES.workout} replace />} />
           </Routes>
         </Suspense>
