@@ -1,5 +1,7 @@
-import { Chip, Sheet, TextField } from '@freeforever/design-system';
+import { Button, Chip, Sheet, TextField } from '@freeforever/design-system';
 import { useMemo, useState } from 'react';
+
+import { CustomExerciseForm } from './CustomExerciseForm.js';
 
 import { BODY_PART_FILTERS, type BodyPart } from '../catalogue/bodyParts.js';
 import { searchExercises } from '../catalogue/search.js';
@@ -35,6 +37,12 @@ export interface ExercisePickerProps {
   readonly open: boolean;
   readonly onClose: () => void;
   readonly onPick: (entry: CatalogueEntry) => void;
+  /**
+   * A custom exercise was written down. The picker has already saved it; the caller
+   * refreshes whatever it reads the catalogue from. Optional so existing callers and
+   * the stories compile unchanged — without it the escape hatch is simply absent.
+   */
+  readonly onCreated?: (entry: CatalogueEntry) => void;
   readonly catalogue: readonly CatalogueEntry[];
   /** Exercise ids most recently used, most recent first. */
   readonly recentIds: readonly string[];
@@ -53,10 +61,12 @@ export function ExercisePicker({
   catalogue,
   recentIds,
   recommendedIds = [],
+  onCreated,
 }: ExercisePickerProps) {
   const [query, setQuery] = useState('');
   const [equipment, setEquipment] = useState<readonly string[]>([]);
   const [bodyParts, setBodyParts] = useState<readonly BodyPart[]>([]);
+  const [writing, setWriting] = useState(false);
 
   const results = useMemo(
     () =>
@@ -106,13 +116,49 @@ export function ExercisePicker({
     // Reset the query so the next open starts on recents — which, having just used
     // this one, now includes it.
     setQuery('');
+    setWriting(false);
     onPick(entry);
+  };
+
+  /*
+   * Writing one down ends in the session, not in a list.
+   *
+   * The lifter opened this sheet to add an exercise and the catalogue failed them; making
+   * them find their new entry in the results afterwards would be a second search for a
+   * thing they just described. `onCreated` lets the caller fold it into the catalogue so
+   * it is there next time, and `pick` puts it in today's session now.
+   */
+  const created = (entry: CatalogueEntry) => {
+    onCreated?.(entry);
+    pick(entry);
+  };
+
+  const close = () => {
+    setWriting(false);
+    onClose();
   };
 
   if (!open) return null;
 
+  if (writing) {
+    return (
+      <Sheet
+        open={open}
+        onClose={close}
+        title="New exercise"
+        closeLabel="Close exercise picker"
+      >
+        <CustomExerciseForm
+          initialName={query.trim()}
+          onCreated={created}
+          onCancel={() => setWriting(false)}
+        />
+      </Sheet>
+    );
+  }
+
   return (
-    <Sheet open={open} onClose={onClose} title="Add exercise" closeLabel="Close exercise picker">
+    <Sheet open={open} onClose={close} title="Add exercise" closeLabel="Close exercise picker">
       <div className="ffw-picker">
         <TextField
           label="Search exercises"
@@ -163,14 +209,37 @@ export function ExercisePicker({
             filter — so with a body-part chip set and the box empty it read: Nothing
             matches "". Try a shorter word.
           */
-          <p className="ffw-note">
-            {query.trim() === ''
-              ? 'No exercises match those filters.'
-              : `Nothing matches “${query}”.`}{' '}
-            {activeFilterCount > 0
-              ? `Try clearing ${activeFilterCount === 1 ? 'the filter' : 'a filter'} above.`
-              : 'Try a shorter word.'}
-          </p>
+          <>
+            <p className="ffw-note">
+              {query.trim() === ''
+                ? 'No exercises match those filters.'
+                : `Nothing matches “${query}”.`}{' '}
+              {activeFilterCount > 0
+                ? `Try clearing ${activeFilterCount === 1 ? 'the filter' : 'a filter'} above.`
+                : 'Try a shorter word.'}
+            </p>
+            {/*
+              The escape hatch, offered exactly where the catalogue has just failed.
+              Only with a typed query: with none, the empty list is a filter the lifter
+              set and clearing it is the real fix, so offering to invent an exercise
+              would be answering a question nobody asked.
+
+              Withheld entirely when the caller passes no `onCreated` — a picker that
+              cannot persist one must not offer to make one.
+            */}
+            {onCreated !== undefined && query.trim() !== '' ? (
+              <div className="ffw-custom__actions">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="xl"
+                  onClick={() => setWriting(true)}
+                >
+                  Add “{query.trim()}” yourself
+                </Button>
+              </div>
+            ) : null}
+          </>
         ) : (
           <ul className="ffw-picker__results" aria-label="Exercises">
             {ordered.map((hit, index) => (

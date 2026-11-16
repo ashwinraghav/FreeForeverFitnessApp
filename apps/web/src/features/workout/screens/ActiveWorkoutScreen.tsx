@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { notifyLocalDataChanged } from '../../../data/insightsSource.js';
-import { useCatalogue } from '../catalogue/useCatalogue.js';
+import { useCatalogueWithCustom } from '../catalogue/useCatalogue.js';
 import { toExerciseRef, type CatalogueEntry } from '../catalogue/types.js';
 import { ExerciseCard } from '../components/ExerciseCard.js';
 import { ExercisePicker } from '../components/ExercisePicker.js';
@@ -94,8 +94,9 @@ export function ActiveWorkoutScreen({
   // so tapping Done froze the elapsed time until something else touched the screen.
   const sessionNow = useSessionClock(state.workout.endedAt === undefined, now);
 
-  // Tests and stories can pin the list; everything else gets the full ~900.
-  const loaded = useCatalogue();
+  // Tests and stories can pin the list; everything else gets the full ~900 plus
+  // anything the lifter wrote down themselves.
+  const { catalogue: loaded, refreshCustom } = useCatalogueWithCustom();
   const catalogue = catalogueProp ?? loaded;
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -500,6 +501,7 @@ export function ActiveWorkoutScreen({
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onPick={addExercise}
+        onCreated={refreshCustom}
         catalogue={catalogue}
         recentIds={recentIds}
         recommendedIds={recommendedIds}
