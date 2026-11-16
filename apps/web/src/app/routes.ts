@@ -12,6 +12,8 @@ export const ROUTES = {
   nutrition: '/nutrition',
   insights: '/insights',
   more: '/more',
+  /** What the app would hand an AI, on a page you can read first. */
+  brief: '/brief',
 } as const;
 
 export type RouteKey = keyof typeof ROUTES;

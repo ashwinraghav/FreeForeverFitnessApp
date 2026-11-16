@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { AppUpdateSection } from './AppUpdateSection';
+import { BriefSection } from './BriefSection';
 import { Mark } from './Mark';
 import { ROUTES } from '../app/routes';
 
@@ -69,6 +70,8 @@ export function MoreScreen() {
         </ul>
       </section>
 
+      <BriefSection />
+
       <AppUpdateSection />
 
       <section className="ff-more__group" aria-labelledby="more-about">
@@ -90,8 +93,8 @@ export function MoreScreen() {
             from your own sessions and nothing else.
           </p>
           <p className="ff-more__note">
-            Everything is stored on this device. There is no account, nothing is uploaded, and
-            there is nothing to pay for — now or later.
+            Everything is stored on this device. There is no account, nothing is uploaded unless
+            you send it somewhere yourself, and there is nothing to pay for — now or later.
           </p>
         </div>
       </section>
