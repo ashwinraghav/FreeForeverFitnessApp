@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { AppUpdateSection } from './AppUpdateSection';
 import { BriefSection } from './BriefSection';
+import { DisclaimerSection } from './DisclaimerSection';
 import { Mark } from './Mark';
 import { ROUTES } from '../app/routes';
 
@@ -98,6 +99,8 @@ export function MoreScreen() {
           </p>
         </div>
       </section>
+
+      <DisclaimerSection />
     </div>
   );
 }
