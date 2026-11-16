@@ -1,26 +1,42 @@
 {
   "schemaVersion": 1,
-  "indexVersion": "2026.08.1",
-  "builtAt": "2026-08-31T16:04:13.066Z",
-  "locale": "us",
+  "indexVersion": "0.0.0-smoke",
+  "builtAt": "2026-09-01T12:13:39.552Z",
+  "locale": "in",
   "budgetBytes": 4194304,
-  "totalGzipBytes": 24655,
+  "totalGzipBytes": 24652,
   "shards": {
     "core": {
       "candidates": 387,
       "shipped": 387,
       "reservedIngredients": 387,
       "droppedForBudget": 0,
-      "gzipBytes": 14806,
-      "bytesPerRecord": 38.3
+      "gzipBytes": 14761,
+      "bytesPerRecord": 38.1,
+      "localeMix": {
+        "candidates": {
+          "none": 387
+        },
+        "shipped": {
+          "none": 387
+        }
+      }
     },
     "off": {
       "candidates": 144,
       "shipped": 144,
       "reservedIngredients": 0,
       "droppedForBudget": 0,
-      "gzipBytes": 9849,
-      "bytesPerRecord": 68.4
+      "gzipBytes": 9891,
+      "bytesPerRecord": 68.7,
+      "localeMix": {
+        "candidates": {
+          "us-ca": 144
+        },
+        "shipped": {
+          "us-ca": 144
+        }
+      }
     }
   },
   "selection": {
@@ -52,21 +68,21 @@
       "files": [
         {
           "role": "records",
-          "file": "food-core-records-2026.08.1.bin.gz",
+          "file": "food-core-records-0.0.0-smoke.bin.gz",
           "bytes": 26935,
-          "gzipBytes": 9966,
-          "sha256": "sha256-pRbrWNrgFiFv1Pcgiw0/UvtmOhGN5AaRsBWSR4maJDU="
+          "gzipBytes": 9941,
+          "sha256": "sha256-x3iJnjMd6wZamzf22uKsBJqmaqaG2KTNwLMhVii5F2g="
         },
         {
           "role": "search",
-          "file": "food-core-search-2026.08.1.bin.gz",
-          "bytes": 7365,
-          "gzipBytes": 4797,
-          "sha256": "sha256-Tz3SKav2b9Ve6c6XDvqHVDpJcbHAN/6fm9d0NmVUGAk="
+          "file": "food-core-search-0.0.0-smoke.bin.gz",
+          "bytes": 7360,
+          "gzipBytes": 4777,
+          "sha256": "sha256-fXhLDEG/OHA78XVwHVKPpbR35eS+a9tktAxflOMw6Bw="
         },
         {
           "role": "barcodes",
-          "file": "food-core-barcodes-2026.08.1.bin.gz",
+          "file": "food-core-barcodes-0.0.0-smoke.bin.gz",
           "bytes": 45,
           "gzipBytes": 43,
           "sha256": "sha256-R3y035qgMqMAJoVEhjLHB2oD840HoVGOTk/N3geB+EY="
@@ -79,31 +95,31 @@
       "files": [
         {
           "role": "records",
-          "file": "food-off-records-2026.08.1.bin.gz",
-          "bytes": 12476,
-          "gzipBytes": 6090,
-          "sha256": "sha256-Thh0601xvKp/oFVKp5eEw54GV1YnEagpBEM/COJWb0k="
+          "file": "food-off-records-0.0.0-smoke.bin.gz",
+          "bytes": 12500,
+          "gzipBytes": 6112,
+          "sha256": "sha256-N+0tZLKly2nFodU46hV9udTclIBmXWqYoqT1xDyYwGc="
         },
         {
           "role": "search",
-          "file": "food-off-search-2026.08.1.bin.gz",
-          "bytes": 4665,
-          "gzipBytes": 3095,
-          "sha256": "sha256-fzDhKB9Y4C4vky0LvuryTdYd4YX9M0LtmUmTCxE00X0="
+          "file": "food-off-search-0.0.0-smoke.bin.gz",
+          "bytes": 4675,
+          "gzipBytes": 3115,
+          "sha256": "sha256-dcyMU+JF6y+r0Pwdx7bMk5k8iVMEJLSUD7YRXkmK2qQ="
         },
         {
           "role": "barcodes",
-          "file": "food-off-barcodes-2026.08.1.bin.gz",
+          "file": "food-off-barcodes-0.0.0-smoke.bin.gz",
           "bytes": 712,
           "gzipBytes": 664,
-          "sha256": "sha256-K2FELh+lnW21ODPt/4Cc/ucTeqL/E3yEE1TIAT1cf/g="
+          "sha256": "sha256-9w0z+Tr46qE0Jfwy05MV4kfPa9OdcV89vVQqeHFZVK0="
         },
         {
           "role": "ndjson-parallel-distribution",
-          "file": "food-off-2026.08.1.ndjson.gz",
-          "bytes": 65448,
-          "gzipBytes": 8268,
-          "sha256": "sha256-nisb0UNhZjcvb/p/szHgkYocC/JSx6Qs6xb1nBrhpS0="
+          "file": "food-off-0.0.0-smoke.ndjson.gz",
+          "bytes": 65468,
+          "gzipBytes": 8277,
+          "sha256": "sha256-teHSreyudKR38666oNoPJrY4aTaYYA/60xju2PBKQAA="
         }
       ]
     }

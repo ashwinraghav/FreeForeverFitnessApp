@@ -6,9 +6,15 @@ Constitution rule 8: *give the improvements back.*
 
 Both upstreams are US-centric. USDA is a US federal dataset by definition, and
 Open Food Facts, while global, has far denser coverage in France and the US than
-almost anywhere else. Rank the corpus by likely search frequency and weight it
-towards a US locale — which `pipeline/lib/rank.mjs` does — and you ship an index
-that is excellent in Ohio and thin in Lagos, Jakarta or Lima.
+almost anywhere else. Rank the corpus by likely search frequency and you ship an
+index that is excellent in Ohio and thin in Lagos, Jakarta or Lima.
+
+Since 2026-09-01 `pipeline/lib/rank.mjs` weights the base pack towards the build
+locale in earnest rather than nominally, and the build defaults to `in`. **That
+redistributes the 4 MB; it does not create coverage.** Ranking can only promote
+records that exist upstream, so a region OFF barely holds is a region the cache
+cannot be warmed for at any weight. Which is this document's point: the ceiling
+on locale weighting is the corpus, and the corpus is what the loop below moves.
 
 Buying international food data would breach constitution rule 5 (own the data or
 don't ship the feature) and rule 6. Scraping retailer sites is not open data and

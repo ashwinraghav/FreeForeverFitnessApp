@@ -3,7 +3,7 @@
  * Build the on-device food index.
  *
  *   node pipeline/build-food-index.mjs [--input fixtures] [--out build]
- *                                      [--budget-mb 4] [--locale us]
+ *                                      [--budget-mb 4] [--locale in]
  *
  * Stages: load -> map -> rank -> dedupe -> shard -> fit to budget -> encode.
  *
@@ -22,7 +22,8 @@ import { gzipSync } from 'node:zlib';
 import { SHARD, SHARD_LICENCE, SHARD_NAME, SCHEMA_VERSION } from '../src/schema.mjs';
 import { dedupe } from './lib/dedupe.mjs';
 import { encodeBarcodes, encodeRecords, encodeSearch } from './lib/encode.mjs';
-import { rankAll } from './lib/rank.mjs';
+import { regionMix } from './lib/gs1.mjs';
+import { DEFAULT_LOCALE, rankAll } from './lib/rank.mjs';
 import { shardOf, toNdjson } from './lib/record.mjs';
 import { isPackaged, streamingSelect } from './lib/select.mjs';
 import { loadOff, loadUsda } from './lib/corpus.mjs';
@@ -213,6 +214,20 @@ for (const [name, shardId] of /** @type {Array<[keyof typeof shards, number]>} *
     .filter((w) => w.role !== 'ndjson-parallel-distribution')
     .reduce((n, w) => n + w.gzipBytes, 0);
 
+  // Where the shard's records come from, by GS1 issuing prefix, for the
+  // candidate pool AND for what survived the budget.
+  //
+  // Both halves, because only the pair answers the question worth asking. A
+  // shipped share on its own cannot distinguish "the ranker ignored this
+  // region" from "the corpus barely has this region" — and those have opposite
+  // fixes. `--locale in` is only the right lever if `candidates.in` is large
+  // and `shipped.in` is not; if the candidate pool is thin, re-ranking buys a
+  // thinner index rather than a better one and the honest answer is elsewhere.
+  //
+  // This exists because that exact question was asked about the shipped index
+  // and could only be answered by decoding the artefact and re-deriving it.
+  const localeMix = { candidates: regionMix(all), shipped: regionMix(records) };
+
   artefacts.push({ shard: name, licence: SHARD_LICENCE[shardId], files: written });
   shardReport[name] = {
     candidates: all.length,
@@ -221,6 +236,7 @@ for (const [name, shardId] of /** @type {Array<[keyof typeof shards, number]>} *
     droppedForBudget,
     gzipBytes: gzTotal,
     bytesPerRecord: +(gzTotal / records.length).toFixed(1),
+    localeMix,
   };
   console.log(
     `${name.padEnd(6)}  ${records.length}/${all.length} records, ` +
@@ -228,6 +244,7 @@ for (const [name, shardId] of /** @type {Array<[keyof typeof shards, number]>} *
       (reserved ? `, ${reserved} reserved` : '') +
       (droppedForBudget ? `, dropped ${droppedForBudget} to fit` : ''),
   );
+  console.log(`        by GS1 prefix, shipped/candidates: ${fmtMix(localeMix, records.length)}`);
 }
 
 const manifest = {
@@ -361,6 +378,18 @@ function fmtMb(n) {
   return `${(n / 1024 / 1024).toFixed(2)} MB`;
 }
 
+/**
+ * One line of "us-ca 34148/76210 (53.5%)", ordered by shipped count.
+ * @param {{candidates:Record<string,number>, shipped:Record<string,number>}} mix
+ * @param {number} shipped
+ */
+function fmtMix(mix, shipped) {
+  return Object.entries(mix.shipped)
+    .slice(0, 8)
+    .map(([k, v]) => `${k} ${v}/${mix.candidates[k] ?? 0} (${((100 * v) / shipped).toFixed(1)}%)`)
+    .join(', ');
+}
+
 /** @param {string} version @param {number} count */
 function offNoticeText(version, count) {
   return `TheFreeForeverFitnessApp food index — Open Food Facts shard
@@ -411,7 +440,18 @@ function parseArgs(argv) {
     // `cpSync(build, public/data, { recursive: true })` — it copies whatever it
     // finds, so anything parked under build/ joins the web app's deploy payload.
     out: val('--out', 'build-sample'),
-    locale: val('--locale', 'us'),
+    // The default is a cache-warming policy, not a filter (ADR-0030 rule 1),
+    // and it defaulted to `us` for one release too many. Nobody ever passed the
+    // flag, so "the default" and "what we ship" were the same string, and what
+    // we shipped stocked an American supermarket for an owner in India: 450 of
+    // 63,782 OFF records, 0.70%, carried an Indian GS1 prefix.
+    //
+    // `in` here rather than a flag in a release script for that reason — a
+    // default that has to be overridden to be correct will not be overridden.
+    // Every other region is still reachable; it is in the full pack (ADR-0033),
+    // and the base pack still ships tens of thousands of non-Indian products
+    // because locale is one term of six, not a gate.
+    locale: val('--locale', DEFAULT_LOCALE),
     budgetBytes: Number(val('--budget-mb', '4')) * 1024 * 1024,
     version: val('--version', `${now.getUTCFullYear()}.${String(now.getUTCMonth() + 1).padStart(2, '0')}.1`),
   };

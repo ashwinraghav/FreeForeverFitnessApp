@@ -54,14 +54,35 @@ const SOURCE_PRIOR = {
  *
  * `popularity` is deliberately untouched: it is the only signal ordering the
  * branded OFF shard, and nutrition measured 99.4% recall against it.
+ *
+ * ── 2026-09-01: locale 0.05 -> 0.25, everything else rescaled ──────────────
+ *
+ * The other five weights are scaled by 0.75/0.95 and rounded, which leaves
+ * their ratios to each other essentially unchanged. That is the point: this
+ * change gives locale more absolute authority without re-opening any of the
+ * arguments above about how source, popularity, category, completeness and
+ * name quality trade off against one another. They still sum to 1.
+ *
+ * See `localeFit` below for what was measured and why 0.05 was not merely weak
+ * but inert.
  */
+/**
+ * The locale a build warms its cache for when nothing says otherwise.
+ *
+ * One constant, imported by the build's argument parser, so that "the default
+ * locale" cannot mean two different things in two files. It used to: `score()`
+ * fell back to `us` independently of `parseArgs`, which is harmless only while
+ * they agree.
+ */
+export const DEFAULT_LOCALE = 'in';
+
 const WEIGHTS = {
-  sourcePrior: 0.35,
-  popularity: 0.3,
-  categoryPrior: 0.15,
-  completeness: 0.1,
-  nameQuality: 0.05,
-  locale: 0.05,
+  sourcePrior: 0.28,
+  popularity: 0.24,
+  categoryPrior: 0.12,
+  completeness: 0.08,
+  nameQuality: 0.03,
+  locale: 0.25,
 };
 
 /**
@@ -86,7 +107,7 @@ export function score(r, ctx) {
       WEIGHTS.categoryPrior * (r.categoryPrior ?? NEUTRAL_CATEGORY_PRIOR) +
       WEIGHTS.completeness * completeness(r) +
       WEIGHTS.nameQuality * nameQuality(r) +
-      WEIGHTS.locale * localeFit(r, ctx.locale ?? 'us'),
+      WEIGHTS.locale * localeFit(r, ctx.locale ?? DEFAULT_LOCALE),
   );
 }
 
@@ -145,16 +166,114 @@ function nameQuality(r) {
 }
 
 /**
- * v1 ships a US-weighted index because both upstreams are US-heavy and the
- * download budget is fixed. This is a known bias, not an oversight: it is
- * exactly what docs/contribution-loop.md is designed to correct over time, and
- * it is a single parameter here so that shipping a per-region index later is a
- * build-matrix change rather than a redesign.
- * @param {import('./record.mjs').CanonicalRecord} r @param {string} locale
+ * Country tags that count as "sold in this locale", by build locale.
+ *
+ * A table rather than a substring test, because the substring test was wrong in
+ * both directions and the errors cancelled into looking like nothing was
+ * happening. `sources/off.mjs` stores OFF's `countries_tags` with the `en:`
+ * prefix stripped, so the values are slugs — `united-states`, `india`,
+ * `new-zealand` — while `sources/usda.mjs` writes the bare code `us`.
+ *
+ * Add a locale here before building for it. An unknown locale falls back to
+ * matching its own code, which is right for USDA records and matches nothing on
+ * OFF — a thin index, but an honest one, and the build's `localeMix` report
+ * makes it visible immediately rather than three weeks later.
  */
-function localeFit(r, locale) {
-  if (r.countries.length === 0) return 0.5;
-  return r.countries.some((c) => c.includes(locale)) ? 1 : 0.2;
+const LOCALE_COUNTRIES = {
+  us: ['us', 'united-states', 'usa', 'united-states-of-america'],
+  ca: ['ca', 'canada'],
+  in: ['in', 'india'],
+  gb: ['gb', 'uk', 'united-kingdom'],
+  au: ['au', 'australia'],
+  nz: ['nz', 'new-zealand'],
+  fr: ['fr', 'france'],
+  de: ['de', 'germany'],
+  es: ['es', 'spain'],
+  it: ['it', 'italy'],
+  br: ['br', 'brazil'],
+  mx: ['mx', 'mexico'],
+  za: ['za', 'south-africa'],
+  ae: ['ae', 'united-arab-emirates'],
+  sg: ['sg', 'singapore'],
+  jp: ['jp', 'japan'],
+};
+
+/**
+ * Tags that state no country. `en:world` is OFF's "sold everywhere / nobody
+ * filled this in", which is an absence of evidence rather than evidence of
+ * local availability, so it scores as unknown for every locale rather than as
+ * a match for every locale. Roughly 2% of OFF rows carry it; treating it as a
+ * match would hand that 2% a full locale bonus in every build on no evidence.
+ */
+const NO_COUNTRY = new Set(['world', 'en:world', '']);
+
+/**
+ * How well this record fits the locale the cache is being warmed for.
+ *
+ * ADR-0030 rule 1 is the constraint on this function: **locale may rank and may
+ * pre-cache; locale must never gate existence.** Nothing here filters. It
+ * reorders, and `fitToBudget` then keeps the top of the order that fits 4 MB.
+ * Everything below that line still exists — it ships in the full pack
+ * (ADR-0033) and is unaffected by this weight.
+ *
+ * WHAT WAS MEASURED, 2026-09-01, and why 0.05 was worse than weak.
+ *
+ * The old test was `r.countries.some((c) => c.includes(locale))` — a substring
+ * match. On the shipped `--locale us` build that is not a weak signal, it is a
+ * *misdirected* one:
+ *
+ *  - `'united-states'.includes('us')` is **false**. There is no `us` substring
+ *    in it. Every OFF record sold in the United States therefore scored 0.2,
+ *    the foreign-product value, on a US-locale build.
+ *  - `'australia'.includes('us')` and `'austria'.includes('us')` are **true**.
+ *    The only OFF rows the US build ever awarded 1.0 to were Australian and
+ *    Austrian ones.
+ *  - USDA rows carry the bare code `us`, so the entire core shard scored 1.0 —
+ *    a constant, and a constant cannot order anything.
+ *
+ * Net effect on the shipped index: the term was very nearly a constant within
+ * each shard (0.2 across OFF, 1.0 across core), and shards are fitted to
+ * separate budgets, so it changed almost nothing about what shipped. That is
+ * consistent with the measured 890-prefix share of the OFF shard — 450 of
+ * 63,782 records, 0.71% — being simply what OFF's corpus and scan counts hand
+ * you when nothing biases them.
+ *
+ * The substring test is also actively dangerous for the locale this build is
+ * for: `'in'` is a substring of `argentina`, `china`, `finland`, `singapore`,
+ * `spain`, `ukraine` and `philippines`. Raising the weight without fixing the
+ * match would have bought a strongly-weighted signal for the wrong countries.
+ *
+ * On the weight itself. At 0.05 the whole term spans 0.04 of a score in [0,1];
+ * at 0.25 a locale match is worth 0.20, against popularity's full span of 0.24
+ * — so being sold where the user lives is worth about as much as going from
+ * unscanned to the most-scanned product on Open Food Facts. Deliberately that
+ * large: at the 4 MB cut the OFF shard keeps 63,782 of 208,988 candidates, and
+ * a term that cannot lift a zero-scan local product over a mid-popularity
+ * foreign one cannot stock a shelf — it can only decide who falls off the
+ * cliff, which is what the old weight did.
+ *
+ * Exported so the substring defect above has a regression test that names it.
+ * A test that could only reach this through `rankAll` would have passed on the
+ * broken version — the term was inert, so nothing it touched moved.
+ *
+ * @param {{countries:string[]}} r @param {string} locale
+ */
+export function localeFit(r, locale) {
+  const wanted = LOCALE_COUNTRIES[/** @type {keyof typeof LOCALE_COUNTRIES} */ (locale)] ?? [locale];
+  let sawACountry = false;
+  for (const raw of r.countries) {
+    // `sources/off.mjs` strips `en:`; a tag namespaced in another language
+    // reaches us intact, so strip any `<lang>:` here rather than comparing
+    // `fr:india` against `india` and calling it foreign.
+    const c = raw.trim().toLowerCase().replace(/^[a-z]{2,3}:/, '');
+    if (NO_COUNTRY.has(c)) continue;
+    if (wanted.includes(c)) return 1;
+    sawACountry = true;
+  }
+  // No country stated is not the same as stated-and-elsewhere. Scoring it as
+  // foreign would penalise every record whose contributor left the field blank,
+  // which is a data-entry fact about OFF and not a fact about the product.
+  return sawACountry ? 0.2 : 0.5;
 }
 
 /** @param {number} v */
